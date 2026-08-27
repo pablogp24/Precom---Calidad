@@ -1381,83 +1381,39 @@ function printBlankMaster(id){
  .notes{border:1px solid #333;min-height:28mm;padding:3px;font-size:8px}
  .sig{position:absolute;left:0;right:0;bottom:0}.sig td{height:5.5mm}.sig td:first-child{width:16%;font-weight:700}
  .brand img{max-width:100%;max-height:100%;object-fit:contain}</style>
-<style id="pecomCompactProgressCss">
-#pecomCompactProgress{
-  display:grid;
-  grid-template-columns:minmax(0,1fr) minmax(0,1fr);
-  gap:10px;
-  width:100%;
-  margin:8px 0 14px;
+<style id="pecomHideVisualCardsOnly">
+#systemsVisualProgress,
+#subsystemsVisualProgress{
+  display:none !important;
 }
-.pecom-progress-panel{
-  min-width:0;
-  background:#101d2a;
-  border:1px solid #31485b;
-  border-radius:10px;
-  overflow:hidden;
+#systemsVisualProgress.closest,
+#subsystemsVisualProgress.closest{display:none!important}
+
+/* Ocultar el título/contenedor visual completo usando :has, con fallback abajo */
+.visual-progress-section:has(#systemsVisualProgress),
+.visual-progress-section:has(#subsystemsVisualProgress){
+  display:none !important;
 }
-.pecom-progress-title{
-  padding:10px 12px;
-  font-size:13px;
-  font-weight:800;
-  color:#f8fafc;
-  border-bottom:1px solid #31485b;
+
+/* Mantener las tablas compactas originales tal como ya funcionaban */
+.progress-dashboard{
+  display:grid !important;
+  grid-template-columns:1fr 1fr !important;
+  gap:12px !important;
 }
-.pecom-progress-scroll{
-  max-height:360px;
-  overflow:auto;
-  scrollbar-gutter:stable;
+.progress-panel{
+  display:block !important;
 }
-.pecom-progress-table{
-  width:100%;
-  min-width:540px;
-  border-collapse:collapse;
-  table-layout:auto;
-  font-size:11px;
-  color:#f8fafc;
+.progress-scroll{
+  max-height:310px !important;
+  overflow:auto !important;
 }
-.pecom-progress-table thead th{
-  position:sticky;
-  top:0;
-  z-index:2;
-  background:#1b3345;
-  text-align:left;
-  padding:8px 7px;
-  white-space:nowrap;
+.advance-table{
+  width:100% !important;
+  border-collapse:collapse !important;
 }
-.pecom-progress-table td{
-  padding:8px 7px;
-  border-bottom:1px solid #31485b;
-  vertical-align:middle;
-}
-.pecom-progress-table td:first-child{min-width:190px}
-.pecom-progress-table small{
-  display:block;
-  margin-top:2px;
-  font-size:9px;
-  font-weight:400;
-  color:#9fc2da;
-  white-space:normal;
-}
-.pecom-progress-table b{font-weight:800}
-.pecom-mini-bar{
-  width:100%;
-  min-width:90px;
-  height:5px;
-  margin-top:4px;
-  border-radius:999px;
-  background:#07131d;
-  overflow:hidden;
-}
-.pecom-mini-bar i{
-  display:block;
-  height:100%;
-  border-radius:999px;
-  background:#20b486;
-}
-@media(max-width:900px){
-  #pecomCompactProgress{grid-template-columns:1fr}
-  .pecom-progress-scroll{max-height:300px}
+@media(max-width:850px){
+  .progress-dashboard{grid-template-columns:1fr !important}
 }
 </style>
 
@@ -2778,130 +2734,20 @@ function refreshOnlineAdminUi(){
 })();
 
 
-/* ===== DASHBOARD COMPACTO SISTEMAS / SUBSISTEMAS ===== */
-function pecomCompactDashboard(){
-  try{
-    // Find the two visual progress sections by their headings.
-    const headings=[...document.querySelectorAll("h1,h2,h3,h4,h5,h6,.section-title,.panel-title,strong,b")];
-    const findHeading=(txt)=>headings.find(el=>(el.textContent||"").trim().toLowerCase().includes(txt));
-    const hs=findHeading("avance visual por sistema");
-    const hss=findHeading("avance visual por subsistema");
-    if(!hs || !hss) return;
-
-    function sectionFromHeading(h){
-      let p=h.parentElement;
-      for(let i=0;i<5 && p;i++,p=p.parentElement){
-        const cards=p.querySelectorAll(".sys-card,.subsys-card,.progress-card,.system-card,.card");
-        if(cards.length>=2) return p;
+(function hideOnlyLargeVisualAdvanceCards(){
+  const run=()=>{
+    ["systemsVisualProgress","subsystemsVisualProgress"].forEach(id=>{
+      const el=document.getElementById(id);
+      if(el){
+        const sec=el.closest(".visual-progress-section");
+        if(sec) sec.style.display="none";
       }
-      return h.parentElement;
-    }
-
-    const secS=sectionFromHeading(hs);
-    const secSS=sectionFromHeading(hss);
-    if(!secS || !secSS) return;
-
-    function collectCards(sec){
-      let cards=[...sec.querySelectorAll(".sys-card,.subsys-card,.progress-card,.system-card")];
-      if(!cards.length){
-        cards=[...sec.querySelectorAll(".card")].filter(c=>c.querySelector(".progress,.bar,[class*='progress']") || /%/.test(c.textContent||""));
-      }
-      return cards;
-    }
-
-    function parseCard(card,isSub){
-      const text=(card.innerText||"").split(/\n+/).map(x=>x.trim()).filter(Boolean);
-      const pct=(text.find(x=>/^\d+%$/.test(x))||"0%");
-      const reg=(text.find(x=>/\d+\s*de\s*\d+\s*registros/i.test(x))||"");
-      const tag=(text.find(x=>/\d+\s*TAG/i.test(x))||"");
-      const regm=reg.match(/(\d+)\s*de\s*(\d+)/i);
-      const tagm=tag.match(/(\d+)\s*TAG/i);
-
-      let title=text.find(x=>/Sistema|Subsistema/i.test(x))||text[0]||"";
-      let desc="";
-      const titleIdx=text.indexOf(title);
-      for(let i=titleIdx+1;i<text.length;i++){
-        if(!/^\d+%$/.test(text[i]) && !/registros/i.test(text[i]) && !/\d+\s*TAG/i.test(text[i])){
-          desc=text[i]; break;
-        }
-      }
-
-      if(isSub){
-        const sm=title.match(/Subsistema\s*(\d+)/i);
-        const sysm=title.match(/Sistema\s+(.+?)(?:\s*\/\s*UAM)?(?:\s*\/|$)/i);
-        return {
-          sistema: sysm ? sysm[1].trim() : title.replace(/Subsistema.*$/i,"").trim(),
-          subsistema: sm ? sm[1] : title,
-          desc, tags: tagm?tagm[1]:"0",
-          completos: regm?regm[1]:"0", total:regm?regm[2]:"0", pct
-        };
-      }
-      return {
-        sistema:title.replace(/^Sistema\s*/i,"").trim(),
-        desc, tags:tagm?tagm[1]:"0",
-        completos:regm?regm[1]:"0", total:regm?regm[2]:"0", pct
-      };
-    }
-
-    const rowsS=collectCards(secS).map(c=>parseCard(c,false));
-    const rowsSS=collectCards(secSS).map(c=>parseCard(c,true));
-    if(!rowsS.length || !rowsSS.length) return;
-
-    const esc2=v=>String(v??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
-    const pctNum=p=>Math.max(0,Math.min(100,parseInt(p)||0));
-
-    const tableS=`
-      <section class="pecom-progress-panel">
-        <div class="pecom-progress-title">📊 Avance por Sistema</div>
-        <div class="pecom-progress-scroll">
-          <table class="pecom-progress-table">
-            <thead><tr><th>Sistema</th><th>TAG</th><th>Reg. completos</th><th>Avance</th></tr></thead>
-            <tbody>${rowsS.map(r=>`<tr>
-              <td><b>${esc2(r.sistema)}</b>${r.desc?`<small>${esc2(r.desc)}</small>`:""}</td>
-              <td>${esc2(r.tags)}</td>
-              <td>${esc2(r.completos)}/${esc2(r.total)}</td>
-              <td><b>${esc2(r.pct)}</b><div class="pecom-mini-bar"><i style="width:${pctNum(r.pct)}%"></i></div></td>
-            </tr>`).join("")}</tbody>
-          </table>
-        </div>
-      </section>`;
-
-    const tableSS=`
-      <section class="pecom-progress-panel">
-        <div class="pecom-progress-title">📊 Avance por Subsistema</div>
-        <div class="pecom-progress-scroll">
-          <table class="pecom-progress-table">
-            <thead><tr><th>Sistema</th><th>Subsistema</th><th>TAG</th><th>Reg. completos</th><th>Avance</th></tr></thead>
-            <tbody>${rowsSS.map(r=>`<tr>
-              <td><b>${esc2(r.sistema)}</b></td>
-              <td><b>${esc2(r.subsistema)}</b>${r.desc?`<small>${esc2(r.desc)}</small>`:""}</td>
-              <td>${esc2(r.tags)}</td>
-              <td>${esc2(r.completos)}/${esc2(r.total)}</td>
-              <td><b>${esc2(r.pct)}</b><div class="pecom-mini-bar"><i style="width:${pctNum(r.pct)}%"></i></div></td>
-            </tr>`).join("")}</tbody>
-          </table>
-        </div>
-      </section>`;
-
-    // Reuse a wrapper if already generated.
-    let wrap=document.getElementById("pecomCompactProgress");
-    if(!wrap){
-      wrap=document.createElement("div");
-      wrap.id="pecomCompactProgress";
-      secS.parentNode.insertBefore(wrap,secS);
-    }
-    wrap.innerHTML=tableS+tableSS;
-    secS.style.display="none";
-    secSS.style.display="none";
-  }catch(e){console.error("pecomCompactDashboard",e)}
-}
-
-(function pecomCompactDashboardInit(){
-  const run=()=>setTimeout(pecomCompactDashboard,30);
+    });
+    const dash=document.querySelector(".progress-dashboard");
+    if(dash) dash.style.display="grid";
+  };
   if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",run);
   else run();
-  // Dashboard is re-rendered as records change.
-  setInterval(run,1800);
 })();
 
 </script>
