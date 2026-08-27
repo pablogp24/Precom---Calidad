@@ -2394,63 +2394,37 @@ if(pdfCreateBtn){
  }
 
  async function bootSession(session){
-   if(!session?.user?.email){loginEl().style.display="flex";status("☁ Sin sesión");return}
-   currentEmail=session.user.email.toLowerCase();
    try{
-     if(!(await allowed(currentEmail))){
-       await sb.auth.signOut();
-       msgEl().textContent="Este correo no está autorizado.";
-       loginEl().style.display="flex";
-       status("☁ Acceso denegado");
+     if(!session?.user?.email){
+       showLogin("Ingresá con tu correo y contraseña.");
        return;
      }
-   }catch(e){
-     console.error(e);msgEl().textContent="No se pudo validar el acceso.";return;
-   }
-   loginEl().style.display="none";
-   window.cloudReady=true;
-   const ub=document.getElementById("onlineUsersBtn");
-   if(ub)ub.style.display=isAdmin()?"inline-block":"none";
-   await loadRemote();
-
-   // Realtime: cuando otro usuario guarda, refresca el estado.
-   sb.channel("pecom-state")
-    .on("postgres_changes",{event:"UPDATE",schema:"public",table:"app_state",filter:"id=eq.main"},async payload=>{
-      const stamp=payload.new?.updated_at||"";
-      if(stamp && stamp!==lastRemoteStamp){
-        lastRemoteStamp=stamp;
-        if(payload.new?.payload?.tags){
-          state=payload.new.payload;
-          try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){}
-          renderAll();
-          status("☁ Actualizado");
-        }
-      }
-    }).subscribe();
- }
-
- async function init(){
-   if(!configured()){
-     const w=document.getElementById("cloudSetupWarning");if(w)w.style.display="block";
-     const b=document.getElementById("cloudSendLink");if(b)b.disabled=true;
-     status("☁ Falta configurar");
-     return;
-   }
-   sb=window.supabase.createClient(cfg.supabaseUrl,cfg.supabaseAnonKey);
-   const {data:{session}}=await sb.auth.getSession();
-   await bootSession(session);
-
- sb.auth.onAuthStateChange(async(event,session)=>{
-   if(event==="PASSWORD_RECOVERY"){
-     const newPass=prompt("Ingresá una nueva contraseña (mínimo 8 caracteres):");
-     if(newPass && newPass.length>=8){
-       const {error}=await sb.auth.updateUser({password:newPass});
-       alert(error ? "No se pudo cambiar la contraseña: "+error.message : "Contraseña actualizada. Ya podés ingresar normalmente.");
+     const email=(session.user.email||"").trim().toLowerCase();
+     const admin=((window.PECOM_ONLINE&&window.PECOM_ONLINE.adminEmail)||"").trim().toLowerCase();
+     let authorized=(email===admin);
+     if(!authorized){
+       const {data,error}=await sb.from("allowed_users").select("email").eq("email",email).maybeSingle();
+       if(error) throw error;
+       authorized=!!data;
      }
-   }else if(event==="SIGNED_IN"){
-     bootSession(session);
+     if(!authorized){
+       await sb.auth.signOut();
+       showLogin("Este correo no está autorizado.");
+       return;
+     }
+     cloudUser=email;
+     cloudIsAdmin=(email===admin);
+     hideLogin();
+     document.body.classList.remove("cloud-locked");
+     document.documentElement.classList.remove("cloud-locked");
+     const app=document.getElementById("app");
+     if(app) app.style.display="";
+     await cloudLoad();
+     updateOnlineUI();
+   }catch(err){
+     console.error("PECOM bootSession:",err);
+     showLogin("No se pudo abrir la matriz: "+(err?.message||err));
    }
- });
  }
 
  const loginBtn=document.getElementById("cloudLoginBtn");
