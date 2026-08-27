@@ -322,6 +322,14 @@ body.admin-edit .admin-only{display:initial}
 <script src="online-config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
+
+<style id="pecomInspectorTagAndThemeFinalFix">
+#pecomThemeToggle{position:fixed!important;top:10px!important;right:52px!important;left:auto!important;z-index:50000!important;width:34px!important;min-width:34px!important;height:34px!important;min-height:34px!important;border-radius:10px!important;padding:0!important}
+#configBtn{top:10px!important;right:10px!important;width:34px!important;min-width:34px!important;height:34px!important;min-height:34px!important}
+@media(max-width:600px){#pecomThemeToggle{top:7px!important;right:49px!important;width:36px!important;height:36px!important;min-width:36px!important;min-height:36px!important}#configBtn{top:7px!important;right:7px!important;width:36px!important;height:36px!important;min-width:36px!important;min-height:36px!important}}
+.tag-record-tools{display:flex!important;justify-content:flex-end!important;gap:6px!important;flex-wrap:wrap!important}.tag-new-record,.tag-add-record{min-height:28px!important;height:28px!important;padding:0 8px!important;font-size:9px!important;border-radius:7px!important}.tag-new-record{background:#ff7a1a!important;border-color:#ff7a1a!important;color:#fff!important;font-weight:800!important}
+html.pecom-light,html.pecom-light body{background:#fff!important;color:#111827!important}html.pecom-light header,html.pecom-light main,html.pecom-light .page,html.pecom-light .nav,html.pecom-light .card,html.pecom-light .card-head,html.pecom-light .card-body,html.pecom-light .kpi,html.pecom-light .tag-card,html.pecom-light .tag-body,html.pecom-light .progress-panel,html.pecom-light .progress-scroll,html.pecom-light .modalbox,html.pecom-light .modalhead,html.pecom-light .modalbody,html.pecom-light .rule-box,html.pecom-light .filebox,html.pecom-light .toolbar,html.pecom-light .table-wrap{background:#fff!important;color:#111827!important}html.pecom-light .tag-head,html.pecom-light th,html.pecom-light .advance-table th,html.pecom-light .progress-panel h3{background:#eef3f7!important;color:#111827!important}html.pecom-light td,html.pecom-light .advance-table td{background:#fff!important;color:#111827!important}html.pecom-light input,html.pecom-light select,html.pecom-light textarea{background:#fff!important;color:#111827!important;border-color:#b8c5cf!important}html.pecom-light label,html.pecom-light p,html.pecom-light h1,html.pecom-light h2,html.pecom-light h3,html.pecom-light h4,html.pecom-light b,html.pecom-light strong{color:#111827}html.pecom-light .muted,html.pecom-light .brand p,html.pecom-light .reg small,html.pecom-light .adv-name small{color:#607080!important}html.pecom-light .reg{background:#fff!important;color:#111827!important}html.pecom-light .reg.pending{background:#fff6f7!important}html.pecom-light .reg.done{background:#f3fbf7!important}html.pecom-light .reg.obs{background:#fffaf0!important}html.pecom-light .reg.present{background:#f3f8fd!important}html.pecom-light .notice{background:#f1f7fb!important;color:#263746!important}html.pecom-light .viewer{background:#f2f5f7!important}html.pecom-light #pecomThemeToggle{background:#fff!important;color:#111827!important;border-color:#b8c5cf!important}
+</style>
 </head>
 
 <body>
@@ -1295,7 +1303,7 @@ function renderControl(){
     </div>`
   }).join("")||'<div class="empty">No hay registros aplicables.</div>'}
     </div>
-    <div class="tag-record-tools"><button type="button" class="btn tag-add-record" data-add-record="${esc(t.tag)}">＋ Desde Maestro</button></div>
+    <div class="tag-record-tools"><button type="button" class="btn tag-new-record" data-new-record="${esc(t.tag)}">＋ Nuevo</button><button type="button" class="btn tag-add-record" data-add-record="${esc(t.tag)}">＋ Desde Maestro</button></div>
   </div></div>`
  }).join("")||'<div class="empty">No hay TAGs para este filtro.</div>';
  document.querySelectorAll("[data-open]").forEach(x=>x.onclick=()=>document.getElementById(x.dataset.open).classList.toggle("open"));
@@ -3174,6 +3182,9 @@ if(pdfCreateBtn){
   state.masters.push(m);
   try{
    await saveTemplateFilesForRecord(id,[file]);
+   if(window.pecomPendingNewRecordTag){
+     setTagRecordOverride(window.pecomPendingNewRecordTag,id,"IN","Registro nuevo agregado por inspección");
+   }
    if(!persist())return;
   }catch(e){
    state.masters=state.masters.filter(x=>x!==m);
@@ -3287,7 +3298,9 @@ if(pdfCreateBtn){
   if(typeof populateTemplateManager==="function")populateTemplateManager();
   if(typeof populateConfigFormRecords==="function")populateConfigFormRecords();
   renderAll();
-  alert("Registro nuevo creado con su PDF oficial.");
+  const createdForTag=window.pecomPendingNewRecordTag||"";
+  window.pecomPendingNewRecordTag="";
+  alert(createdForTag ? "Registro nuevo creado y agregado al TAG "+createdForTag+"." : "Registro nuevo creado con su PDF oficial.");
  };
 })();
 
@@ -3925,5 +3938,20 @@ function refreshOnlineAdminUi(){
   apply();
 })();
 
+</script>
+
+<script id="pecomInspectorTagAndThemeFinalFixJs">
+(function(){
+ function canEdit(){if(!window.cloudReady)return true;return window.PECOM_ROLE==="admin"||window.PECOM_ROLE==="editor"||window.PECOM_CAN_EDIT===true;}
+ function bindTagNewButtons(){document.querySelectorAll("[data-new-record]").forEach(function(b){b.disabled=!canEdit();b.style.display=canEdit()?"inline-flex":"none";b.onclick=function(e){e.preventDefault();e.stopPropagation();if(!canEdit()){alert("Tu usuario tiene permiso de solo lectura.");return;}var tagName=b.dataset.newRecord||"";var t=state.tags.find(function(x){return x.tag===tagName;});if(!t){alert("No se encontró el TAG.");return;}window.pecomPendingNewRecordTag=tagName;var disc=document.getElementById("npdfDisc");if(disc&&!disc.value)disc.value=t.especialidad||t.disciplina||"";var sys=document.getElementById("npdfSystem"),sub=document.getElementById("npdfSubsystem");if(sys)sys.value="";if(sub)sub.value="";var dlg=document.getElementById("newPdfRecordModal");if(dlg&&dlg.parentElement!==document.body)document.body.appendChild(dlg);if(typeof modal==="function")modal("newPdfRecordModal",true);else if(dlg){dlg.classList.add("show");dlg.style.display="flex";}};});}
+ var themeBtn=document.getElementById("pecomThemeToggle");
+ function getMode(){try{return localStorage.getItem("pecom_theme_mode_final_unified")==="light"?"light":"dark"}catch(e){return "dark"}}
+ function applyTheme(mode){var light=mode==="light";document.documentElement.classList.toggle("pecom-light",light);document.body.classList.toggle("pecom-light",light);document.documentElement.style.setProperty("background-color",light?"#ffffff":"#091018","important");document.body.style.setProperty("background-color",light?"#ffffff":"#091018","important");document.body.style.setProperty("color",light?"#111827":"#e8eef3","important");if(themeBtn){themeBtn.textContent=light?"🌙":"☀️";themeBtn.title=light?"Cambiar a modo noche":"Cambiar a modo día";}}
+ if(themeBtn){themeBtn.onclick=function(e){e.preventDefault();e.stopPropagation();var mode=getMode()==="light"?"dark":"light";try{localStorage.setItem("pecom_theme_mode_final_unified",mode)}catch(err){}applyTheme(mode);};}
+ applyTheme(getMode());
+ document.querySelectorAll('[data-close="newPdfRecordModal"]').forEach(function(b){b.addEventListener("click",function(){window.pecomPendingNewRecordTag="";});});
+ var oldRenderAll=window.renderAll;if(typeof oldRenderAll==="function"){window.renderAll=function(){var r=oldRenderAll.apply(this,arguments);setTimeout(bindTagNewButtons,0);return r;};}
+ bindTagNewButtons();setTimeout(bindTagNewButtons,500);setTimeout(bindTagNewButtons,1500);
+})();
 </script>
 </body></html>
