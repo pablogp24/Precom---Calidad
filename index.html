@@ -3527,6 +3527,7 @@ function refreshOnlineAdminUi(){
  const loginEl=()=>document.getElementById("cloudLogin");
  const msgEl=()=>document.getElementById("cloudLoginMsg");
  let sb=null,currentEmail="",saveTimer=null,lastRemoteStamp="";
+ let bootPromise=null, bootEmail="", realtimeStarted=false;
 
  function status(txt){const e=statusEl();if(e)e.textContent=txt}
  function configured(){return cfg.supabaseUrl && cfg.supabaseAnonKey && !String(cfg.supabaseUrl).includes("PEGAR_") && !String(cfg.supabaseAnonKey).includes("PEGAR_")}
@@ -3595,55 +3596,65 @@ function refreshOnlineAdminUi(){
      status("☁ Sin sesión");
      return;
    }
-   currentEmail=session.user.email.toLowerCase();
-   try{
-     const access=await allowed(currentEmail);
-     if(!access.allowed){
-       await sb.auth.signOut();
-       msgEl().textContent="Este correo no está autorizado.";
+   const email=session.user.email.toLowerCase();
+   if(bootPromise && bootEmail===email) return bootPromise;
+   bootEmail=email;
+   bootPromise=(async()=>{
+     currentEmail=email;
+     try{
+       const access=await allowed(currentEmail);
+       if(!access.allowed){
+         await sb.auth.signOut();
+         msgEl().textContent="Este correo no está autorizado.";
+         loginEl().style.display="flex";
+         status("☁ Acceso denegado");
+         return;
+       }
+       applyPecomRole(access.role);
+       refreshOnlineAdminUi();
+       window.cloudReady=true;
+       const ub=document.getElementById("onlineUsersBtn");
+       if(ub){
+         ub.style.setProperty("display",isAdmin()?"inline-block":"none","important");
+         ub.hidden=!isAdmin();
+       }
+
+       // El usuario entra de inmediato; la sincronización continúa una sola vez.
+       loginEl().style.display="none";
+       msgEl().textContent="";
+       status("☁ Cargando datos...");
+       await new Promise(r=>setTimeout(r,0));
+       await loadRemote();
+       refreshOnlineAdminUi();
+       status("☁ Sincronizado");
+     }catch(e){
+       console.error("Error abriendo PECOM:",e);
+       window.cloudReady=false;
        loginEl().style.display="flex";
-       status("☁ Acceso denegado");
+       msgEl().textContent="No se pudo abrir la matriz: "+(e?.message||e);
+       status("☁ Error");
        return;
      }
-     applyPecomRole(access.role);
-     refreshOnlineAdminUi();
 
-     // Primero carga/sincroniza. Solo después oculta el login.
-     window.cloudReady=true;
-     const ub=document.getElementById("onlineUsersBtn");
-     if(ub){
-       ub.style.setProperty("display",isAdmin()?"inline-block":"none","important");
-       ub.hidden=!isAdmin();
+     // Crear un solo canal Realtime por pestaña.
+     if(!realtimeStarted){
+       realtimeStarted=true;
+       sb.channel("pecom-state")
+        .on("postgres_changes",{event:"UPDATE",schema:"public",table:"app_state",filter:"id=eq.main"},async payload=>{
+          const stamp=payload.new?.updated_at||"";
+          if(stamp && stamp!==lastRemoteStamp){
+            lastRemoteStamp=stamp;
+            if(payload.new?.payload?.tags){
+              state=payload.new.payload;
+              try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){}
+              // Darle aire al navegador antes de reconstruir la vista.
+              setTimeout(()=>{renderAll();refreshOnlineAdminUi();status("☁ Actualizado");},0);
+            }
+          }
+        }).subscribe();
      }
-     await loadRemote();
-     refreshOnlineAdminUi();
-
-     loginEl().style.display="none";
-     status("☁ Sincronizado");
-   }catch(e){
-     console.error("Error abriendo PECOM:",e);
-     window.cloudReady=false;
-     loginEl().style.display="flex";
-     msgEl().textContent="No se pudo abrir la matriz: "+(e?.message||e);
-     status("☁ Error");
-     return;
-   }
-
-   // Realtime: cuando otro usuario guarda, refresca el estado.
-   sb.channel("pecom-state")
-    .on("postgres_changes",{event:"UPDATE",schema:"public",table:"app_state",filter:"id=eq.main"},async payload=>{
-      const stamp=payload.new?.updated_at||"";
-      if(stamp && stamp!==lastRemoteStamp){
-        lastRemoteStamp=stamp;
-        if(payload.new?.payload?.tags){
-          state=payload.new.payload;
-          try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){}
-          renderAll();
-          refreshOnlineAdminUi();
-          status("☁ Actualizado");
-        }
-      }
-    }).subscribe();
+   })();
+   try{return await bootPromise}finally{bootPromise=null}
  }
 
  async function init(){
@@ -3675,11 +3686,19 @@ function refreshOnlineAdminUi(){
    const email=(document.getElementById("cloudEmail")?.value||"").trim().toLowerCase();
    const password=document.getElementById("cloudPassword")?.value||"";
    if(!email||!password){msgEl().textContent="Ingresá correo y contraseña.";return}
+   if(!sb){msgEl().textContent="La conexión todavía no está lista. Recargá la página e intentá nuevamente.";return}
    msgEl().textContent="Ingresando...";
-   const {data,error}=await sb.auth.signInWithPassword({email,password});
-   if(error){msgEl().textContent="Error: "+error.message;return}
-   msgEl().textContent="Acceso correcto.";
-   await bootSession(data.session);
+   loginBtn.disabled=true;
+   loginBtn.textContent="Ingresando...";
+   try{
+     const {error}=await sb.auth.signInWithPassword({email,password});
+     if(error){msgEl().textContent="Error: "+error.message;return}
+     // onAuthStateChange(SIGNED_IN) realiza bootSession una sola vez.
+     msgEl().textContent="Acceso correcto. Abriendo matriz...";
+   }finally{
+     loginBtn.disabled=false;
+     loginBtn.textContent="Ingresar";
+   }
  };
 
  const signupBtn=document.getElementById("cloudSignupBtn");
