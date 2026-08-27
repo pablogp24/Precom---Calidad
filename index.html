@@ -493,9 +493,12 @@ body.admin-edit .admin-only{display:initial}
   <button class="btn" data-close="tagRecordApplicabilityModal">✕</button>
  </div>
  <div class="modalbody">
-  <div class="notice">Usá esta opción cuando Ingeniería/Inspección determine que al TAG le falta un registro. El ajuste queda guardado para ese TAG solamente.</div>
-  <label style="display:block;margin-top:10px">Registro a agregar
-   <select id="tagRecordApplicabilitySelect" style="width:100%;margin-top:5px"></select>
+  <div class="notice"><b>Agregar desde Maestro:</b> seleccioná un registro existente del Maestro de registros. Se agregará únicamente a este TAG y no modifica la aplicabilidad de los demás TAG.</div>
+  <label style="display:block;margin-top:10px">Buscar en Maestro
+   <input id="tagRecordMasterSearch" type="text" placeholder="Código, nombre o disciplina" style="width:100%;margin-top:5px">
+  </label>
+  <label style="display:block;margin-top:10px">Registro del Maestro
+   <select id="tagRecordApplicabilitySelect" size="8" style="width:100%;margin-top:5px;min-height:190px"></select>
   </label>
   <label style="display:block;margin-top:10px">Motivo / observación
    <textarea id="tagRecordApplicabilityReason" rows="3" placeholder="Ej.: Registro requerido por inspección en campo"></textarea>
@@ -1014,15 +1017,45 @@ function openAddRecordToTag(tagName){
  if(!canAdjustTagRecords()){alert("Tu usuario tiene permiso de solo lectura.");return}
  const t=state.tags.find(x=>x.tag===tagName);if(!t)return;
  currentApplicabilityTag=t;
+
  const select=document.getElementById("tagRecordApplicabilitySelect");
- const candidates=state.masters
-   .filter(m=>m.activo!==false && !applicable(t,m))
-   .sort((a,b)=>(a.disciplina||"").localeCompare(b.disciplina||"")||(a.nombre||"").localeCompare(b.nombre||""));
- select.innerHTML=candidates.map(m=>`<option value="${esc(m.id)}">${esc(m.disciplina||"")} · ${esc(m.id)} · ${esc(m.nombre)}</option>`).join("");
+ const search=document.getElementById("tagRecordMasterSearch");
+ const saveBtn=document.getElementById("tagRecordApplicabilitySave");
+
+ const allFromMaster=state.masters
+   .filter(m=>m.activo!==false)
+   .filter(m=>!applicable(t,m))
+   .sort((a,b)=>
+      String(a.disciplina||"").localeCompare(String(b.disciplina||"")) ||
+      String(a.nombre||"").localeCompare(String(b.nombre||""))
+   );
+
+ function renderMasterChoices(){
+   const q=norm(search?.value||"");
+   const rows=allFromMaster.filter(m=>
+     !q || norm((m.id||"")+" "+(m.nombre||"")+" "+(m.disciplina||"")+" "+(m.nro_registro||"")).includes(q)
+   );
+
+   select.innerHTML=rows.map(m=>{
+     const col=m.origen_columna ? ` · Col. ${esc(m.origen_columna)}` : "";
+     const nro=m.nro_registro ? ` · ${esc(m.nro_registro)}` : "";
+     return `<option value="${esc(m.id)}">${esc(m.id)} · ${esc(m.nombre)} · ${esc(m.disciplina||"Sin disciplina")}${nro}${col}</option>`;
+   }).join("");
+
+   if(!rows.length){
+     select.innerHTML='<option value="">No hay registros del Maestro disponibles para agregar</option>';
+   }
+   if(saveBtn)saveBtn.disabled=!rows.length;
+ }
+
+ if(search){
+   search.value="";
+   search.oninput=renderMasterChoices;
+ }
+
  document.getElementById("tagRecordApplicabilitySub").textContent=t.tag+" · "+(t.descripcion||"");
  document.getElementById("tagRecordApplicabilityReason").value="";
- document.getElementById("tagRecordApplicabilitySave").disabled=!candidates.length;
- if(!candidates.length)select.innerHTML='<option value="">No hay registros disponibles para agregar</option>';
+ renderMasterChoices();
  modal("tagRecordApplicabilityModal",true);
 }
 
@@ -1045,6 +1078,7 @@ if(tagRecordApplicabilitySaveBtn){
    const reason=document.getElementById("tagRecordApplicabilityReason")?.value||"";
    if(setTagRecordOverride(currentApplicabilityTag.tag,id,"IN",reason)){
      modal("tagRecordApplicabilityModal",false);
+     alert("Registro agregado al TAG desde el Maestro.");
    }
  };
 }
@@ -1261,7 +1295,7 @@ function renderControl(){
     </div>`
   }).join("")||'<div class="empty">No hay registros aplicables.</div>'}
     </div>
-    <div class="tag-record-tools"><button type="button" class="btn tag-add-record" data-add-record="${esc(t.tag)}">＋ Registro</button></div>
+    <div class="tag-record-tools"><button type="button" class="btn tag-add-record" data-add-record="${esc(t.tag)}">＋ Desde Maestro</button></div>
   </div></div>`
  }).join("")||'<div class="empty">No hay TAGs para este filtro.</div>';
  document.querySelectorAll("[data-open]").forEach(x=>x.onclick=()=>document.getElementById(x.dataset.open).classList.toggle("open"));
@@ -1706,6 +1740,263 @@ html.pecom-light th{
 }
 </style>
 
+
+<style id="pecomCompactButtonsAndThemeFix">
+/* ===== BOTONES MÁS CHICOS Y ORDENADOS ===== */
+#nav.nav{
+  display:flex !important;
+  align-items:center !important;
+  gap:6px !important;
+  flex-wrap:wrap !important;
+  padding:7px 8px !important;
+  margin-bottom:12px !important;
+  border-radius:12px !important;
+}
+
+#nav.nav > button,
+#nav.nav > .btn{
+  height:32px !important;
+  min-height:32px !important;
+  padding:0 10px !important;
+  border-radius:8px !important;
+  font-size:10px !important;
+  line-height:1 !important;
+  display:inline-flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  gap:5px !important;
+  flex:0 0 auto !important;
+  white-space:nowrap !important;
+}
+
+#newPdfRecordBtn,
+#quickNewRecordBtn,
+#onlineUsersBtn{
+  height:32px !important;
+  min-height:32px !important;
+  padding:0 10px !important;
+  border-radius:8px !important;
+  font-size:10px !important;
+}
+
+/* Configuración sigue fija, pero más compacta */
+#configBtn{
+  width:34px !important;
+  min-width:34px !important;
+  height:34px !important;
+  min-height:34px !important;
+  border-radius:10px !important;
+}
+
+/* Tema arriba izquierda, compacto */
+#pecomThemeToggle{
+  width:34px !important;
+  min-width:34px !important;
+  height:34px !important;
+  min-height:34px !important;
+  border-radius:10px !important;
+}
+
+/* ===== MODO DÍA: BLANCO REAL ===== */
+/* Cambiamos también las variables base para que toda la app herede tema claro. */
+html.pecom-light{
+  --bg:#ffffff !important;
+  --panel:#ffffff !important;
+  --card:#ffffff !important;
+  --card2:#f4f7fa !important;
+  --line:#d5dee6 !important;
+  --text:#17212b !important;
+  --muted:#667788 !important;
+  --accent:#2f84d8 !important;
+  --good:#2b9d69 !important;
+  background:#ffffff !important;
+}
+
+html.pecom-light,
+html.pecom-light body,
+html.pecom-light main,
+html.pecom-light section,
+html.pecom-light .page,
+html.pecom-light .content,
+html.pecom-light .container,
+html.pecom-light .wrap,
+html.pecom-light .app{
+  background:#ffffff !important;
+  color:#17212b !important;
+}
+
+html.pecom-light header,
+html.pecom-light .header,
+html.pecom-light .topbar,
+html.pecom-light #nav.nav{
+  background:#ffffff !important;
+  color:#17212b !important;
+  border-color:#d5dee6 !important;
+}
+
+html.pecom-light .card,
+html.pecom-light .kpi,
+html.pecom-light .tag-card,
+html.pecom-light .tag-body,
+html.pecom-light .progress-panel,
+html.pecom-light .modalbox,
+html.pecom-light .modalbody,
+html.pecom-light .rule-box,
+html.pecom-light .filebox,
+html.pecom-light .toolbar,
+html.pecom-light .table-wrap,
+html.pecom-light .progress-scroll{
+  background:#ffffff !important;
+  color:#17212b !important;
+  border-color:#d5dee6 !important;
+}
+
+html.pecom-light .tag-head{
+  background:#eef3f7 !important;
+  color:#17212b !important;
+}
+html.pecom-light .tag-head:hover{
+  background:#e7eef4 !important;
+}
+
+html.pecom-light .reg{
+  background:#ffffff !important;
+  color:#17212b !important;
+  border-color:#d5dee6 !important;
+}
+html.pecom-light .reg.pending{background:#fff6f7 !important}
+html.pecom-light .reg.done{background:#f3fbf7 !important}
+html.pecom-light .reg.obs{background:#fffaf0 !important}
+html.pecom-light .reg.present{background:#f3f8fd !important}
+
+html.pecom-light input,
+html.pecom-light select,
+html.pecom-light textarea{
+  background:#ffffff !important;
+  color:#17212b !important;
+  border-color:#b7c4ce !important;
+}
+
+html.pecom-light table,
+html.pecom-light tbody,
+html.pecom-light tr,
+html.pecom-light td{
+  background:#ffffff !important;
+  color:#17212b !important;
+  border-color:#d8e0e6 !important;
+}
+html.pecom-light th{
+  background:#eaf0f4 !important;
+  color:#17212b !important;
+  border-color:#ccd6de !important;
+}
+
+html.pecom-light .notice{
+  background:#f2f7fb !important;
+  color:#314354 !important;
+  border-color:#cfdee9 !important;
+}
+
+html.pecom-light .classic-hero,
+html.pecom-light #fixedGeneralSummary{
+  background:#ffffff !important;
+}
+html.pecom-light .classic-hero .hero-main,
+html.pecom-light .classic-hero .hero-small{
+  background:#e8f3fa !important;
+  color:#16354c !important;
+  border-color:#c5ddeb !important;
+}
+html.pecom-light .classic-hero span,
+html.pecom-light .classic-hero small{
+  color:#587083 !important;
+}
+
+html.pecom-light .brand h1,
+html.pecom-light .brand p,
+html.pecom-light h1,
+html.pecom-light h2,
+html.pecom-light h3,
+html.pecom-light label,
+html.pecom-light b,
+html.pecom-light strong{
+  color:#17212b !important;
+}
+
+/* Mantener botones coloreados en modo día */
+html.pecom-light #nav.nav > button[data-page="control"]{
+  background:#dff1fa !important;
+  color:#164b68 !important;
+  border-color:#baddec !important;
+}
+html.pecom-light #nav.nav > button[data-page="maestro"]{
+  background:#eee8fa !important;
+  color:#4b3974 !important;
+  border-color:#d3c7eb !important;
+}
+html.pecom-light #nav.nav > button[data-page="punch"]{
+  background:#ffede1 !important;
+  color:#79421f !important;
+  border-color:#efcdb5 !important;
+}
+html.pecom-light #nav.nav > button[data-page="excel"]{
+  background:#e3f4ed !important;
+  color:#1d5f49 !important;
+  border-color:#bfe2d4 !important;
+}
+
+html.pecom-light #pecomThemeToggle{
+  background:#ffffff !important;
+  color:#17212b !important;
+  border-color:#b7c4ce !important;
+}
+
+@media(max-width:700px){
+  #nav.nav{gap:4px !important;padding:6px !important}
+  #nav.nav > button,
+  #nav.nav > .btn{
+    height:30px !important;
+    min-height:30px !important;
+    padding:0 8px !important;
+    font-size:9px !important;
+  }
+}
+</style>
+
+
+<style id="pecomNewRecordFixCss">
+#quickNewRecordBtn{
+  height:32px !important;
+  min-height:32px !important;
+  padding:0 10px !important;
+  border-radius:8px !important;
+  background:#ff7a1a !important;
+  border:1px solid #ff7a1a !important;
+  color:#fff !important;
+  font-size:10px !important;
+  font-weight:800 !important;
+  display:inline-flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  pointer-events:auto !important;
+}
+</style>
+
+
+<style id="pecomTagMasterPickerCss">
+#tagRecordMasterSearch{height:34px!important;min-height:34px!important;font-size:11px!important}
+#tagRecordApplicabilitySelect{font-size:11px!important;line-height:1.35!important}
+.tag-add-record{
+  background:#244f72!important;
+  border-color:#356887!important;
+  color:#fff!important;
+  min-height:28px!important;
+  height:28px!important;
+  padding:0 8px!important;
+  font-size:9px!important;
+}
+</style>
+
 </head><body><div class="page">
  <div class="hdr">
    <div class="box center" style="padding:4px"><div class="t1">PeCOM-PRECOMISIONADO</div><div class="t2">${title}</div></div>
@@ -1793,11 +2084,25 @@ function renderMasterChecklist(m){
 }
 mType.onchange=()=>{const m=currentMaster||{checklist:[]};if(!m.checklist)m.checklist=[];renderMasterChecklist(m)};
 saveMaster.onclick=()=>{
+ if(window.cloudReady && !(window.PECOM_ROLE==="admin" || window.PECOM_ROLE==="editor" || window.PECOM_CAN_EDIT===true)){
+   alert("Tu usuario tiene permiso de solo lectura.");
+   return;
+ }
  const m=currentMaster||{checklist:[]};m.id=mCode.value.trim();m.nombre=mName.value.trim();m.tipo=mType.value;m.disciplina=mDisc.value;m.etapa=mStage.value;m.activo=mActive.value==="1";m.aplica_especialidad=mEspRule.value.trim();m.aplica_sistema=mSysRule.value.trim();m.aplica_subsistema=mSubRule.value.trim();m.aplica_texto_tag=mTextRule.value.trim();
  if(m.tipo==="CHECKLIST"){document.querySelectorAll("[data-miname]").forEach(inp=>{const i=+inp.dataset.miname;m.checklist[i].item=inp.value;m.checklist[i].obligatorio=document.querySelector(`[data-mireq="${i}"]`).value==="1"})}else m.checklist=[];
  if(!m.id||!m.nombre){alert("Código y nombre son obligatorios.");return}
- if(!currentMaster){if(state.masters.some(x=>x.id===m.id)){alert("Ese código ya existe.");return}state.masters.push(m)}
- persist();modal("masterModal",false);renderAll()
+ if(!currentMaster){
+   if(state.masters.some(x=>x.id===m.id)){alert("Ese código ya existe.");return}
+   state.masters.push(m)
+ }
+ if(!persist()){
+   if(!currentMaster)state.masters=state.masters.filter(x=>x!==m);
+   alert("No se pudo guardar el registro.");
+   return;
+ }
+ modal("masterModal",false);
+ renderAll();
+ alert(currentMaster?"Registro actualizado.":"Registro nuevo creado correctamente.");
 };
 
 function punchBase(p){const t=state.tags.find(x=>x.tag===p.tag)||{};return {...p,sistema:t.sistema||"",subsistema:t.subsistema||""}}
@@ -2803,6 +3108,7 @@ function applyPecomRole(role){
   });
 
   forceExcelExportEnabled();
+  if(typeof window.pecomRefreshNewRecordButtons==="function")window.pecomRefreshNewRecordButtons();
   const badge=document.getElementById("cloudStatus");
   if(badge){
     const label=window.PECOM_ROLE==="admin"?"Administrador":window.PECOM_ROLE==="editor"?"Editor":"Solo lectura";
@@ -3091,42 +3397,117 @@ function refreshOnlineAdminUi(){
 })();
 
 
+
 (function(){
   const btn=document.getElementById("pecomThemeToggle");
   let mode="dark";
-  try{mode=localStorage.getItem("pecom_theme_mode")||"dark"}catch(e){}
-  function apply(){
+  try{
+    const saved=localStorage.getItem("pecom_theme_mode");
+    if(saved==="light"||saved==="dark")mode=saved;
+  }catch(e){}
+
+  function applyTheme(){
     const light=mode==="light";
+
     document.documentElement.classList.toggle("pecom-light",light);
     document.body.classList.toggle("pecom-light",light);
+
+    // Fallback directo para asegurar que el fondo general cambie.
+    document.documentElement.style.setProperty("background",light?"#ffffff":"#091018","important");
+    document.body.style.setProperty("background",light?"#ffffff":"#091018","important");
+    document.body.style.setProperty("color",light?"#17212b":"#e8eef3","important");
+
     if(btn){
       btn.textContent=light?"🌙":"☀️";
       btn.title=light?"Cambiar a modo noche":"Cambiar a modo día";
+      btn.style.setProperty("display","flex","important");
+      btn.style.setProperty("visibility","visible","important");
+      btn.style.setProperty("pointer-events","auto","important");
     }
   }
+
   if(btn){
     btn.onclick=function(e){
-      e.preventDefault();e.stopPropagation();
+      e.preventDefault();
+      e.stopPropagation();
       mode=mode==="light"?"dark":"light";
-      try{localStorage.setItem("pecom_theme_mode",mode)}catch(e){}
-      apply();
+      try{localStorage.setItem("pecom_theme_mode",mode)}catch(err){}
+      applyTheme();
     };
   }
-  apply();
 
-  const q=document.getElementById("quickNewRecordBtn");
-  if(q){
-    q.onclick=function(e){
-      e.preventDefault();e.stopPropagation();
-      const dlg=document.getElementById("newPdfRecordModal");
-      if(dlg){
-        dlg.classList.add("show");
-        dlg.style.display="flex";
-      }else{
-        alert("No se encontró la ventana de Nuevo registro.");
-      }
-    };
+  applyTheme();
+})();
+
+
+
+(function pecomNewRecordController(){
+  function canCreate(){
+    if(!window.cloudReady) return true;
+    return window.PECOM_ROLE==="admin" || window.PECOM_ROLE==="editor" || window.PECOM_CAN_EDIT===true;
   }
+
+  function prepareMasterModal(){
+    const dlg=document.getElementById("masterModal");
+    if(dlg && dlg.parentElement!==document.body)document.body.appendChild(dlg);
+    return dlg;
+  }
+
+  function openNewRecord(){
+    if(!canCreate()){
+      alert("Tu usuario tiene permiso de solo lectura.");
+      return;
+    }
+    const dlg=prepareMasterModal();
+    if(typeof openMaster==="function"){
+      try{
+        openMaster(null);
+        if(dlg){
+          dlg.classList.add("show");
+          dlg.style.display="flex";
+        }
+        return;
+      }catch(err){
+        console.error("openMaster",err);
+      }
+    }
+    alert("No se pudo abrir Nuevo registro.");
+  }
+
+  function bind(){
+    const q=document.getElementById("quickNewRecordBtn");
+    const nm=document.getElementById("newMaster");
+
+    if(q){
+      q.disabled=false;
+      q.style.pointerEvents="auto";
+      q.style.opacity="1";
+      q.onclick=function(e){
+        e.preventDefault();
+        e.stopPropagation();
+        openNewRecord();
+      };
+    }
+
+    if(nm){
+      nm.disabled=!canCreate();
+      nm.style.pointerEvents=canCreate()?"auto":"none";
+      nm.style.opacity=canCreate()?"1":".45";
+      nm.onclick=function(e){
+        e.preventDefault();
+        e.stopPropagation();
+        openNewRecord();
+      };
+    }
+  }
+
+  if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",bind);
+  else bind();
+
+  // Role/session rendering can recreate/disable controls; rebind after startup.
+  setTimeout(bind,500);
+  setTimeout(bind,1500);
+  window.pecomRefreshNewRecordButtons=bind;
 })();
 
 </script>
