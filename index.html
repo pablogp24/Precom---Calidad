@@ -457,7 +457,8 @@ body.admin-edit .admin-only{display:initial}
  <div class="card"><div class="card-head"><h2>Intercambio con Excel</h2></div><div class="card-body">
   <div class="notice">Exportá una copia actualizada del mismo archivo XLSM original, conservando su estructura, hojas, formato y macros. Incluye MATRIZ, MAESTRO_REGISTROS, REGISTROS, CHECKLIST_RESPUESTAS y PUNCH_LIST.</div>
   <div class="toolbar">
-   <button class="btn primary" id="exportExcel">📥 Exportar XLSM original</button>
+   <button class="btn primary" id="exportExcel" type="button">📥 Exportar XLSM original</button>
+   <span id="excelExportStatus" style="font-size:10px;color:var(--muted);align-self:center"></span>
    <button class="btn" id="importExcelBtn">📤 Importar Excel</button>
    <input type="file" id="importExcelFile" accept=".xlsx,.xls,.xlsm" hidden>
    <button class="btn" id="exportBackup">Exportar respaldo JSON</button>
@@ -1502,15 +1503,31 @@ async function ensureXLSXLoaded(){
   return false;
 }
 
+
 async function exportExcel(){
- if(!(await ensureXLSXLoaded())){alert("No se pudo cargar el módulo Excel. Verificá la conexión a Internet e intentá nuevamente.");return}
+ const btn=document.getElementById("exportExcel");
+ const statusEl=document.getElementById("excelExportStatus");
+ const setStatus=t=>{if(statusEl)statusEl.textContent=t||""};
  try{
+   if(btn){btn.disabled=true;btn.textContent="⏳ Generando XLSM..."}
+   setStatus("Preparando archivo...");
+
+   if(!(await ensureXLSXLoaded())){
+     throw new Error("No se pudo cargar el módulo Excel. La red puede estar bloqueando cdnjs/unpkg.");
+   }
+
+   if(!ORIGINAL_XLSM_B64 || ORIGINAL_XLSM_B64.length<1000){
+     throw new Error("La plantilla XLSM original no está disponible dentro de la aplicación.");
+   }
+
+   setStatus("Actualizando matriz...");
    const bin=atob(ORIGINAL_XLSM_B64);
    const u8=new Uint8Array(bin.length);
    for(let i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);
+
    const wb=XLSX.read(u8,{type:"array",bookVBA:true,cellStyles:true,cellFormula:true});
-   const ws=wb.Sheets["Matriz"];
-   if(!ws){alert('No se encontró la hoja "Matriz" en el archivo base.');return}
+   const ws=wb.Sheets["Matriz"]||wb.Sheets["MATRIZ"];
+   if(!ws)throw new Error('No se encontró la hoja "Matriz" en el archivo base.');
 
    const rowByTag={};
    const range=XLSX.utils.decode_range(ws["!ref"]||"A1:AB400");
@@ -1520,17 +1537,16 @@ async function exportExcel(){
    }
 
    state.tags.forEach(t=>{
-      const rr=rowByTag[t.tag]; if(rr===undefined)return;
-      for(let ci=9;ci<=27;ci++){ // J:AB
+      const rr=rowByTag[t.tag];
+      if(rr===undefined)return;
+      for(let ci=9;ci<=27;ci++){
          const col=XLSX.utils.encode_col(ci);
          const related=state.masters.filter(m=>m.origen_columna===col && applicable(t,m));
          const addr=XLSX.utils.encode_cell({r:rr,c:ci});
          if(related.length){
-            // Columna agrupada: queda 1 solo cuando TODOS sus formularios separados están completos.
             const done=related.every(m=>["REALIZADO","PRESENTADO"].includes(inst(t,m).estado));
             ws[addr]={t:"n",v:done?1:0};
          }else{
-            // No aplica: conservar el valor original de la matriz (N/A, blanco, etc.).
             const raw=t.matriz?t.matriz[col]:null;
             if(raw===null||raw===undefined||raw==="") delete ws[addr];
             else if(raw===0||raw===1) ws[addr]={t:"n",v:Number(raw)};
@@ -1539,11 +1555,49 @@ async function exportExcel(){
       }
    });
 
-   ws["!ref"]=ws["!ref"]||"A1:AB400";
-   XLSX.writeFile(wb,"Matriz_ODV-ALVS_Actualizada.xlsm",{bookType:"xlsm",bookVBA:true,compression:true,cellStyles:true});
- }catch(e){console.error(e);alert("No se pudo generar el XLSM original actualizado.");}
+   setStatus("Creando descarga...");
+   const out=XLSX.write(wb,{
+     bookType:"xlsm",
+     type:"array",
+     bookVBA:true,
+     compression:true,
+     cellStyles:true
+   });
+
+   const blob=new Blob([out],{
+     type:"application/vnd.ms-excel.sheet.macroEnabled.12"
+   });
+   const url=URL.createObjectURL(blob);
+   const a=document.createElement("a");
+   a.href=url;
+   a.download="Matriz_ODV-ALVS_Actualizada.xlsm";
+   a.style.display="none";
+   document.body.appendChild(a);
+   a.click();
+   setTimeout(()=>{
+     URL.revokeObjectURL(url);
+     a.remove();
+   },3000);
+   setStatus("Descarga iniciada.");
+ }catch(e){
+   console.error("Exportación XLSM:",e);
+   setStatus("Error al exportar.");
+   alert("No se pudo exportar el XLSM.\n\n"+(e?.message||e));
+ }finally{
+   if(btn){btn.disabled=false;btn.textContent="📥 Exportar XLSM original"}
+ }
 }
-exportExcel.onclick=exportExcel;importExcelBtn.onclick=()=>importExcelFile.click();
+
+const exportExcelButton=document.getElementById("exportExcel");
+if(exportExcelButton){
+ exportExcelButton.disabled=false;
+ exportExcelButton.onclick=null;
+ exportExcelButton.addEventListener("click",function(e){
+   e.preventDefault();
+   e.stopPropagation();
+   exportExcel();
+ });
+}importExcelBtn.onclick=()=>importExcelFile.click();
 importExcelFile.onchange=async()=>{
  if(typeof XLSX==="undefined"){alert("Necesitás conexión a Internet para importar Excel.");return}
  const f=importExcelFile.files[0];if(!f)return;
@@ -2684,6 +2738,21 @@ function refreshOnlineAdminUi(){
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",run);
   else run();
   setInterval(run,2000);
+})();
+
+
+(function keepExcelExportAvailable(){
+ const enable=()=>{
+   const b=document.getElementById("exportExcel");
+   if(b){
+     b.disabled=false;
+     b.style.pointerEvents="auto";
+     b.style.opacity="1";
+   }
+ };
+ if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",enable);
+ else enable();
+ setInterval(enable,1500);
 })();
 
 </script>
