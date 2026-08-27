@@ -397,16 +397,6 @@ body.admin-edit .admin-only{display:initial}
  </div>
 
  <div class="advance-collapsible" id="advancePanels">
- <div class="visual-progress-section">
-   <h3>Avance visual por Sistema</h3>
-   <div class="visual-progress-grid" id="systemsVisualProgress"></div>
- </div>
-
- <div class="visual-progress-section">
-   <h3>Avance visual por Subsistema</h3>
-   <div class="visual-progress-grid" id="subsystemsVisualProgress"></div>
- </div>
-
  <div class="progress-dashboard">
    <div class="progress-panel">
      <h3>📊 Avance por Sistema</h3>
@@ -1380,44 +1370,7 @@ function printBlankMaster(id){
  .check td{min-height:7mm}
  .notes{border:1px solid #333;min-height:28mm;padding:3px;font-size:8px}
  .sig{position:absolute;left:0;right:0;bottom:0}.sig td{height:5.5mm}.sig td:first-child{width:16%;font-weight:700}
- .brand img{max-width:100%;max-height:100%;object-fit:contain}</style>
-<style id="pecomHideVisualCardsOnly">
-#systemsVisualProgress,
-#subsystemsVisualProgress{
-  display:none !important;
-}
-#systemsVisualProgress.closest,
-#subsystemsVisualProgress.closest{display:none!important}
-
-/* Ocultar el título/contenedor visual completo usando :has, con fallback abajo */
-.visual-progress-section:has(#systemsVisualProgress),
-.visual-progress-section:has(#subsystemsVisualProgress){
-  display:none !important;
-}
-
-/* Mantener las tablas compactas originales tal como ya funcionaban */
-.progress-dashboard{
-  display:grid !important;
-  grid-template-columns:1fr 1fr !important;
-  gap:12px !important;
-}
-.progress-panel{
-  display:block !important;
-}
-.progress-scroll{
-  max-height:310px !important;
-  overflow:auto !important;
-}
-.advance-table{
-  width:100% !important;
-  border-collapse:collapse !important;
-}
-@media(max-width:850px){
-  .progress-dashboard{grid-template-columns:1fr !important}
-}
-</style>
-
-</head><body><div class="page">
+ .brand img{max-width:100%;max-height:100%;object-fit:contain}</style></head><body><div class="page">
  <div class="hdr">
    <div class="box center" style="padding:4px"><div class="t1">PeCOM-PRECOMISIONADO</div><div class="t2">${title}</div></div>
    <div class="box center" style="display:flex;align-items:center;justify-content:center;font-size:8px">(Código QR)</div>
@@ -2731,23 +2684,6 @@ function refreshOnlineAdminUi(){
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",run);
   else run();
   setInterval(run,2000);
-})();
-
-
-(function hideOnlyLargeVisualAdvanceCards(){
-  const run=()=>{
-    ["systemsVisualProgress","subsystemsVisualProgress"].forEach(id=>{
-      const el=document.getElementById(id);
-      if(el){
-        const sec=el.closest(".visual-progress-section");
-        if(sec) sec.style.display="none";
-      }
-    });
-    const dash=document.querySelector(".progress-dashboard");
-    if(dash) dash.style.display="grid";
-  };
-  if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",run);
-  else run();
 })();
 
 </script>
