@@ -330,6 +330,49 @@ body.admin-edit .admin-only{display:initial}
 .tag-record-tools{display:flex!important;justify-content:flex-end!important;gap:6px!important;flex-wrap:wrap!important}.tag-new-record,.tag-add-record{min-height:28px!important;height:28px!important;padding:0 8px!important;font-size:9px!important;border-radius:7px!important}.tag-new-record{background:#ff7a1a!important;border-color:#ff7a1a!important;color:#fff!important;font-weight:800!important}
 html.pecom-light,html.pecom-light body{background:#fff!important;color:#111827!important}html.pecom-light header,html.pecom-light main,html.pecom-light .page,html.pecom-light .nav,html.pecom-light .card,html.pecom-light .card-head,html.pecom-light .card-body,html.pecom-light .kpi,html.pecom-light .tag-card,html.pecom-light .tag-body,html.pecom-light .progress-panel,html.pecom-light .progress-scroll,html.pecom-light .modalbox,html.pecom-light .modalhead,html.pecom-light .modalbody,html.pecom-light .rule-box,html.pecom-light .filebox,html.pecom-light .toolbar,html.pecom-light .table-wrap{background:#fff!important;color:#111827!important}html.pecom-light .tag-head,html.pecom-light th,html.pecom-light .advance-table th,html.pecom-light .progress-panel h3{background:#eef3f7!important;color:#111827!important}html.pecom-light td,html.pecom-light .advance-table td{background:#fff!important;color:#111827!important}html.pecom-light input,html.pecom-light select,html.pecom-light textarea{background:#fff!important;color:#111827!important;border-color:#b8c5cf!important}html.pecom-light label,html.pecom-light p,html.pecom-light h1,html.pecom-light h2,html.pecom-light h3,html.pecom-light h4,html.pecom-light b,html.pecom-light strong{color:#111827}html.pecom-light .muted,html.pecom-light .brand p,html.pecom-light .reg small,html.pecom-light .adv-name small{color:#607080!important}html.pecom-light .reg{background:#fff!important;color:#111827!important}html.pecom-light .reg.pending{background:#fff6f7!important}html.pecom-light .reg.done{background:#f3fbf7!important}html.pecom-light .reg.obs{background:#fffaf0!important}html.pecom-light .reg.present{background:#f3f8fd!important}html.pecom-light .notice{background:#f1f7fb!important;color:#263746!important}html.pecom-light .viewer{background:#f2f5f7!important}html.pecom-light #pecomThemeToggle{background:#fff!important;color:#111827!important;border-color:#b8c5cf!important}
 </style>
+
+<style id="pecomModernDashboardCSS">
+/* ===== PECOM Dashboard Visual ===== */
+:root{--modern-blue:#0b63b6;--modern-navy:#12385c;--modern-line:#dce5ed;--modern-soft:#f5f8fb;--modern-green:#22a65a;--modern-yellow:#f4b400;--modern-red:#e7473c;--modern-orange:#e98900;--modern-gray:#cbd2d8}
+body{background:#f4f7fa!important;color:#172033!important}
+header{background:#fff!important;border-bottom:1px solid #d9e2ea!important;box-shadow:0 1px 4px rgba(20,48,75,.08);padding:10px 18px!important}
+.brand{max-width:1600px!important}.logo{width:170px!important;height:52px!important;background:#fff!important;padding:2px!important}.brand h1{font-size:24px!important;color:#111827!important;letter-spacing:-.3px}.brand p{color:#334155!important;font-size:13px!important}
+main{max-width:1600px!important;padding:10px 14px 22px!important}
+.nav{background:#fff!important;border:1px solid #dce5ed!important;border-radius:10px!important;padding:5px!important;gap:4px!important;box-shadow:0 1px 3px rgba(20,48,75,.05)}
+.nav button{background:#fff!important;color:#172033!important;border:1px solid transparent!important;border-radius:8px!important;padding:9px 13px!important;font-weight:700!important;box-shadow:none!important}
+.nav button.active{background:var(--modern-blue)!important;color:#fff!important;border-color:var(--modern-blue)!important}
+#configBtn,#pecomThemeToggle{background:#fff!important;color:#124d83!important;border:1px solid #b9ccdc!important;box-shadow:0 1px 4px rgba(20,48,75,.12)!important}
+.admin-source-note{font-size:11px!important}
+body:not(.admin-edit) .admin-source-note{display:none!important}
+
+#control>.classic-hero{margin-top:10px!important}
+.classic-hero{grid-template-columns:2fr 2fr repeat(3,1fr)!important;gap:9px!important}
+.hero-main,.hero-small{background:#fff!important;border:1px solid var(--modern-line)!important;color:#172033!important;border-radius:10px!important;padding:11px 13px!important;box-shadow:0 1px 3px rgba(20,48,75,.04)}
+.hero-main span,.hero-small span{color:#5d7185!important;font-size:11px!important}.hero-main b,.hero-small b{color:#0b5aa4!important;font-size:24px!important}.hero-main small{color:#718397!important}
+
+.modern-title-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:14px 0 8px}.modern-title-row h2{margin:0;font-size:20px;color:#111827}.modern-title-row h2::before{content:'▦';margin-right:9px;color:#0b5aa4}
+.modern-kpis{display:grid;grid-template-columns:repeat(6,minmax(120px,1fr));gap:10px;margin:8px 0 12px}.modern-kpi{background:#fff;border:1px solid var(--modern-line);border-radius:10px;padding:10px 12px;text-align:center}.modern-kpi span{display:block;font-size:11px;font-weight:800}.modern-kpi b{display:block;font-size:23px;margin-top:3px}.modern-kpi small{display:block;font-size:10px;color:#64748b;margin-top:1px}.modern-kpi.total{border-color:#b9d4ee}.modern-kpi.total span,.modern-kpi.total b{color:#0b5aa4}.modern-kpi.regs{border-color:#cce2c4}.modern-kpi.regs span,.modern-kpi.regs b{color:#4b841f}.modern-kpi.done{border-color:#bfe2cd}.modern-kpi.done span,.modern-kpi.done b{color:#159447}.modern-kpi.process{border-color:#f4dca7}.modern-kpi.process span,.modern-kpi.process b{color:#c67b00}.modern-kpi.pending{border-color:#efc4c4}.modern-kpi.pending span,.modern-kpi.pending b{color:#c9322c}.modern-kpi.obs{border-color:#f0d0aa}.modern-kpi.obs span,.modern-kpi.obs b{color:#c96f00}
+
+#control>.card{background:#fff!important;border:1px solid var(--modern-line)!important;border-radius:10px!important;box-shadow:0 1px 4px rgba(20,48,75,.05)!important}.card-head{background:#fff!important}.card-body{background:#fff!important}
+#control .toolbar{background:#fff!important;gap:8px!important}#control input,#control select{background:#fff!important;color:#172033!important;border:1px solid #cdd9e3!important;border-radius:8px!important;min-height:38px!important}
+#control .qf{border:1px solid #cdd9e3!important;background:#fff!important;color:#334155!important}#control .qf.primary{background:#0b63b6!important;color:#fff!important;border-color:#0b63b6!important}
+
+.tag-card{background:#fff!important;border:1px solid var(--modern-line)!important;border-radius:9px!important;margin-bottom:7px!important;box-shadow:none!important;overflow:hidden!important}.tag-head{background:#fff!important;color:#172033!important;grid-template-columns:1.25fr .8fr .8fr .55fr .65fr!important;gap:8px!important;padding:10px 12px!important;border-bottom:1px solid transparent!important}.tag-card.open .tag-head{border-bottom-color:var(--modern-line)!important}.tag-head:hover{background:#f8fbfd!important}.tag-head b{color:#173b62!important}.tag-head .tag-code{font-size:14px;color:#0b5aa4!important}.tag-head small{color:#687b8e!important}.tag-overall-status{display:inline-block;border-radius:7px;padding:4px 8px;font-size:10px;font-weight:900;border:1px solid}.tag-overall-status.done{background:#effaf3;color:#198944;border-color:#9bd4ad}.tag-overall-status.process{background:#fff8e8;color:#b77500;border-color:#f0cc76}.tag-overall-status.pending{background:#fff1f1;color:#c93630;border-color:#f0aaa6}.tag-overall-status.obs{background:#fff7ea;color:#b76900;border-color:#efc47b}
+.modern-bar{height:7px;background:#e5eaee;border-radius:99px;overflow:hidden;margin-top:5px}.modern-bar i{display:block;height:100%;background:#21aa59;border-radius:99px}
+.tag-body{background:#fff!important;padding:11px!important}.tag-modern-body{display:grid;grid-template-columns:300px minmax(430px,1fr) 330px;gap:12px}.tag-panel{border:1px solid var(--modern-line);border-radius:9px;padding:12px;background:#fff}.tag-panel h3{margin:0 0 10px;font-size:13px;color:#173b62;text-transform:uppercase;letter-spacing:.2px}
+.donut-wrap{display:grid;grid-template-columns:150px 1fr;align-items:center;gap:10px}.donut{width:138px;height:138px;border-radius:50%;position:relative;background:conic-gradient(var(--modern-green) 0 var(--doneEnd),var(--modern-blue) var(--doneEnd) var(--presentEnd),var(--modern-yellow) var(--presentEnd) var(--pendingEnd),var(--modern-orange) var(--pendingEnd) var(--obsEnd),var(--modern-gray) var(--obsEnd) 100%)}.donut:after{content:'';position:absolute;inset:28px;background:#fff;border-radius:50%;box-shadow:inset 0 0 0 1px #edf1f4}.donut-center{position:absolute;inset:0;z-index:2;display:flex;align-items:center;justify-content:center;flex-direction:column}.donut-center b{font-size:25px;color:#172033}.donut-center span{font-size:10px;color:#66788b}.donut-legend{font-size:10px}.donut-legend div{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:7px 0}.legend-label{display:flex;align-items:center;gap:6px}.legend-dot{width:8px;height:8px;border-radius:50%}.dot-done{background:var(--modern-green)}.dot-present{background:var(--modern-blue)}.dot-pending{background:var(--modern-yellow)}.dot-obs{background:var(--modern-orange)}.dot-na{background:var(--modern-gray)}
+.tag-record-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}.tag-record-head h3{margin:0}.tag-record-tools{display:flex!important;justify-content:flex-end!important;gap:6px!important;margin:0!important}.tag-new-record{background:#088444!important;border-color:#088444!important;color:#fff!important}.tag-add-record{background:#fff!important;border-color:#b8c9d8!important;color:#0b5aa4!important}.tag-record-tools .btn{height:30px!important;min-height:30px!important;padding:0 9px!important;font-size:10px!important}
+.regs.modern-regs{display:grid!important;grid-template-columns:repeat(3,minmax(125px,1fr));gap:8px!important}.reg{width:auto!important;min-height:78px!important;background:#fff!important;color:#172033!important;border:1px solid #dbe4eb!important;border-left:3px solid #b7c3ce!important;border-radius:8px!important;padding:8px!important;position:relative}.reg.done{border-left-color:var(--modern-green)!important}.reg.present{border-left-color:var(--modern-blue)!important}.reg.pending{border-left-color:var(--modern-red)!important}.reg.obs{border-left-color:var(--modern-orange)!important}.reg b{font-size:11px!important;color:#172033!important;padding-right:16px}.reg small{color:#65788b!important;font-size:9px!important}.reg .state{display:inline-block;margin-top:5px!important;border-radius:5px;padding:3px 5px;font-size:8px!important;background:#f3f6f8;color:#334155!important}.reg.done .state{background:#edf9f1;color:#198944!important}.reg.present .state{background:#eef6fd;color:#1769aa!important}.reg.pending .state{background:#fff0f0;color:#c93630!important}.reg.obs .state{background:#fff7e9;color:#b66d00!important}.reg-date{font-size:8px!important;color:#718397!important}.tag-reg-remove{top:5px!important;right:5px!important}
+.tag-info-list{font-size:11px;color:#475569}.tag-info-list dt{font-size:9px;color:#728398;font-weight:800;text-transform:uppercase;margin-top:10px}.tag-info-list dd{margin:2px 0 0;color:#172033;font-weight:700}.tag-info-list .last-update{font-weight:500}
+.progress-dashboard{gap:10px!important}.progress-panel{background:#fff!important;border-color:var(--modern-line)!important}.progress-panel h3{background:#f5f8fb!important;color:#173b62!important}.advance-table th{background:#eef3f7!important;color:#173b62!important}.advance-table td{color:#334155!important;background:#fff!important}
+
+html:not(.pecom-light) body{background:#0e1721!important;color:#e8eef3!important}html:not(.pecom-light) header,html:not(.pecom-light) .nav,html:not(.pecom-light) #control>.card,html:not(.pecom-light) .card-head,html:not(.pecom-light) .card-body,html:not(.pecom-light) .tag-card,html:not(.pecom-light) .tag-body,html:not(.pecom-light) .tag-panel,html:not(.pecom-light) .modern-kpi,html:not(.pecom-light) .hero-main,html:not(.pecom-light) .hero-small{background:#121e29!important;color:#e8eef3!important;border-color:#2b4052!important}html:not(.pecom-light) .brand h1,html:not(.pecom-light) .modern-title-row h2,html:not(.pecom-light) .tag-panel h3,html:not(.pecom-light) .tag-head b,html:not(.pecom-light) .reg b,html:not(.pecom-light) .tag-info-list dd{color:#e8eef3!important}html:not(.pecom-light) .tag-head,html:not(.pecom-light) .reg,html:not(.pecom-light) .donut:after{background:#121e29!important;color:#e8eef3!important}html:not(.pecom-light) .tag-head:hover{background:#172735!important}
+
+@media(max-width:1150px){.modern-kpis{grid-template-columns:repeat(3,1fr)}.tag-modern-body{grid-template-columns:260px 1fr}.tag-info-panel{grid-column:1/-1}.regs.modern-regs{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:760px){.classic-hero{grid-template-columns:1fr 1fr!important}.hero-main{grid-column:1/-1}.modern-kpis{grid-template-columns:repeat(2,1fr)}.tag-head{grid-template-columns:1fr 1fr!important}.tag-head .tag-description{grid-column:1/-1}.tag-modern-body{grid-template-columns:1fr}.tag-info-panel{grid-column:auto}.donut-wrap{grid-template-columns:140px 1fr}.regs.modern-regs{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:480px){.modern-kpis{grid-template-columns:1fr 1fr}.regs.modern-regs{grid-template-columns:1fr}.donut-wrap{grid-template-columns:1fr;justify-items:center}.tag-head{grid-template-columns:1fr!important}}
+</style>
+
 </head>
 
 <body>
@@ -383,7 +426,7 @@ html.pecom-light,html.pecom-light body{background:#fff!important;color:#111827!i
 <div><h1>Matriz ODV-ALVS · Precomisionado</h1><p>DUPLICAR NORTE UAM ALVS · Registros, checklist, punch y evidencias</p></div>
 </div></header>
 <main>
-<div class="notice"><b>Registros reales:</b> el Maestro inicial se tomó de <b>J7:AB7</b> de la matriz. Además se cargaron los registros <b>Piping P01 a P11</b> con checklist técnico y salida A4 PECOM para impresión.</div>
+<div class="notice admin-only admin-source-note"><b>Registros reales:</b> el Maestro inicial se tomó de <b>J7:AB7</b> de la matriz. Además se cargaron los registros <b>Piping P01 a P11</b> con checklist técnico y salida A4 PECOM para impresión.</div>
 <nav class="nav" id="nav">
 <button data-page="control" class="active" style="background:#12658f;border-color:#2581ad;color:#fff;border-radius:10px;padding:9px 14px;font-weight:700">▦ Control de registros</button>
 <button data-page="maestro" class="admin-only" style="background:#634aa0;border-color:#8068bc;color:#fff;border-radius:10px;padding:9px 14px;font-weight:700">▤ Maestro de registros</button>
@@ -428,7 +471,7 @@ html.pecom-light,html.pecom-light body{background:#fff!important;color:#111827!i
  </div>
  </div>
 
- <div class="notice" style="margin-bottom:12px"><b>Lógica tomada de la matriz original (J7:AB400):</b> <b>0 = lleva el registro / PENDIENTE</b> · <b>1 = REALIZADO</b> · cualquier otro valor o celda vacía = <b>NO APLICA</b>. Cuando una columna agrupa varios formularios, el programa los muestra separados.</div>
+ <div class="notice admin-only admin-source-note" style="margin-bottom:12px"><b>Lógica tomada de la matriz original (J7:AB400):</b> <b>0 = lleva el registro / PENDIENTE</b> · <b>1 = REALIZADO</b> · cualquier otro valor o celda vacía = <b>NO APLICA</b>. Cuando una columna agrupa varios formularios, el programa los muestra separados.</div>
 <div class="card"><div class="card-head"><h2>Control práctico de registros</h2></div><div class="card-body">
   <div class="toolbar">
    <input id="searchTag" class="search" placeholder="Buscar TAG, descripción o registro">
@@ -1017,7 +1060,17 @@ function setTagRecordOverride(tagName,masterId,mode,reason=""){
    // Se conserva el historial del registro en instances, pero deja de contar como aplicable.
  }
  if(!persist())return false;
- renderAll();
+ // Un cambio de aplicabilidad afecta al TAG y a los indicadores de avance.
+ // Evitamos renderAll(), porque reconstruir Maestro + Punch + toda la interfaz
+ // puede bloquear la pantalla en matrices grandes.
+ try{
+   if(typeof renderControl==="function") renderControl();
+   if(typeof renderHero==="function") renderHero();
+ }catch(err){
+   console.error("Error actualizando TAG",err);
+   // Fallback seguro si cambia la estructura futura del archivo.
+   if(typeof renderAll==="function") renderAll();
+ }
  return true;
 }
 
@@ -1478,7 +1531,75 @@ async function printOriginalCurrentRecord(withAnswers=true){
  .overlay{position:absolute;left:0;top:12.6176mm;width:210mm;height:271.7647mm;pointer-events:none}
  .mark{position:absolute;transform:translate(-50%,-50%);padding:0;border:0;background:transparent;font:900 3.5mm/1 Arial;color:#111}.mark.na{font-size:1.8mm}
  .field{position:absolute;box-sizing:border-box;display:flex;align-items:center;justify-content:center;text-align:center;font-family:Arial,sans-serif;font-weight:700;line-height:1;color:#111;white-space:normal;overflow:hidden;padding:.15mm .8mm 0 .8mm}.auto-sistema,.auto-subsistema{font-size:1.65mm}.auto-proyecto,.auto-documento,.auto-ubicacion,.auto-servicio{font-size:1.55mm}.exact-date{font-size:2.15mm!important;font-weight:700;white-space:nowrap;padding:.15mm .5mm 0 .5mm;align-items:center;justify-content:center;text-align:center}
- </style></head><body>${pageHtml}<script>window.onload=()=>setTimeout(()=>window.print(),450)<\/script></body></html>`);
+ </style></head><body>${pageHtml}<script>window.onload=()=>setTimeout(()=>window.print(),450)<\/script>
+<script id="pecomModernDashboardJS">
+(function(){
+  function e(v){return typeof esc==='function'?esc(v??''):String(v??'').replace(/[&<>\"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+  function numPct(n,d){return d?Math.round(n*100/d):0}
+  function statusFor(items){
+    if(!items.length)return {text:'SIN REGISTROS',cl:'pending'};
+    var obs=items.some(x=>x.i.estado==='OBSERVADO');
+    var pending=items.some(x=>x.i.estado==='PENDIENTE');
+    var done=items.filter(x=>x.i.estado==='REALIZADO'||x.i.estado==='PRESENTADO').length;
+    if(obs)return {text:'OBSERVADO',cl:'obs'};
+    if(done===items.length)return {text:'COMPLETADO',cl:'done'};
+    if(done>0)return {text:'EN PROCESO',cl:'process'};
+    if(pending)return {text:'PENDIENTE',cl:'pending'};
+    return {text:'EN PROCESO',cl:'process'};
+  }
+  function latestDate(items){
+    var vals=items.map(x=>x.i&&x.i.fecha).filter(Boolean).sort();
+    if(!vals.length)return 'Sin fecha';
+    return vals[vals.length-1].split('-').reverse().join('/');
+  }
+  function ensureModernShell(){
+    var control=document.getElementById('control'); if(!control)return;
+    if(!document.getElementById('modernTitle')){
+      var box=document.createElement('div'); box.id='modernTitle'; box.innerHTML='<div class="modern-title-row"><h2>MATRIZ GENERAL</h2></div><div class="modern-kpis" id="modernKpis"></div>';
+      var first=control.querySelector('.classic-hero'); control.insertBefore(box,first||control.firstChild);
+    }
+    var card=control.querySelector('.card'); if(card){var h=card.querySelector('.card-head h2');if(h)h.textContent='Control de TAGs y registros';}
+  }
+  function renderKpis(){
+    var box=document.getElementById('modernKpis'); if(!box||!window.state)return;
+    var tags=state.tags||[], stats=tags.map(function(t){var ms=applicableMasters(t),its=ms.map(m=>({m:m,i:inst(t,m)})),p=pct(its.map(x=>({instance:x.i})));return {its:its,p:p,st:statusFor(its)}});
+    var total=tags.length, withRegs=stats.filter(x=>x.its.length).length, completed=stats.filter(x=>x.its.length&&x.p===100).length, process=stats.filter(x=>x.its.length&&x.p>0&&x.p<100).length, pending=stats.filter(x=>x.its.some(y=>y.i.estado==='PENDIENTE')).length, obs=stats.filter(x=>x.its.some(y=>y.i.estado==='OBSERVADO')).length;
+    function k(cl,label,val){return '<div class="modern-kpi '+cl+'"><span>'+label+'</span><b>'+val.toLocaleString('es-AR')+'</b><small>'+numPct(val,total)+'%</small></div>'}
+    box.innerHTML=k('total','Total TAGs',total)+k('regs','Con registros',withRegs)+k('done','Completados',completed)+k('process','En proceso',process)+k('pending','Pendientes',pending)+k('obs','Observados',obs);
+  }
+  function modernRenderControl(){
+    ensureModernShell();
+    populateFilters();
+    var disc=(document.getElementById('filterDisc')?.value||'');
+    renderSystemProgress();
+    var q=norm(searchTag.value),sy=filterSys.value,su=filterSub.value;
+    var tags=state.tags.filter(t=>(!sy||t.sistema===sy)&&(!su||t.subsistema===su));
+    if(disc) tags=tags.filter(t=>applicableMasters(t).some(m=>(m.disciplina||m.aplica_especialidad||'Sin disciplina')===disc));
+    if(q)tags=tags.filter(t=>norm(t.tag+' '+t.descripcion).includes(q)||applicableMasters(t).some(m=>norm(m.nombre+' '+m.id).includes(q)));
+    tags=tags.filter(t=>{var arr=applicableMasters(t).map(m=>inst(t,m));if(quick==='PENDING')return arr.some(x=>x.estado==='PENDIENTE');if(quick==='DONE')return arr.some(x=>x.estado==='REALIZADO'||x.estado==='PRESENTADO');if(quick==='OBS')return arr.some(x=>x.estado==='OBSERVADO');return true;});
+    var sortMode=document.getElementById('sortControlRecords')?.value||'ORIGINAL';
+    if(sortMode!=='ORIGINAL'){var advanceOf=t=>{var ms=applicableMasters(t);if(!ms.length)return 0;return ms.filter(m=>['REALIZADO','PRESENTADO'].includes(inst(t,m).estado)).length/ms.length};tags=tags.slice().sort((a,b)=>{var av=advanceOf(a),bv=advanceOf(b);if(av===bv)return String(a.tag||'').localeCompare(String(b.tag||''));return sortMode==='DESC'?bv-av:av-bv})}
+    tagBoard.innerHTML=tags.slice(0,500).map(function(t,idx){
+      var ms=applicableMasters(t),items=ms.map(m=>({m:m,i:inst(t,m)})),p=pct(items.map(x=>({instance:x.i}))), pending=items.filter(x=>x.i.estado==='PENDIENTE').length, done=items.filter(x=>x.i.estado==='REALIZADO').length, presented=items.filter(x=>x.i.estado==='PRESENTADO').length, obs=items.filter(x=>x.i.estado==='OBSERVADO').length, st=statusFor(items), total=items.length||1;
+      var de=numPct(done,total), pe=de+numPct(presented,total), pne=pe+numPct(pending,total), oe=Math.min(100,pne+numPct(obs,total));
+      var regs=items.map(function(x){var ss=x.i.estado,cl=ss==='REALIZADO'?'done':ss==='PRESENTADO'?'present':ss==='OBSERVADO'?'obs':'pending';return '<div class="reg '+cl+'" data-record="'+e(t.tag)+'|||'+e(x.m.id)+'"><button type="button" class="tag-reg-remove" data-remove-record="'+e(t.tag)+'|||'+e(x.m.id)+'" title="Marcar este registro como No aplica para este TAG">−</button><b>'+e(x.m.nombre)+'</b><small>'+e(x.m.tipo)+' · '+e(x.m.origen_columna||'Nuevo')+(applicabilityOverride(t,x.m)==='IN'?' · AGREGADO POR INSPECCIÓN':'')+'</small><div class="state">'+ss+(x.i.tiene_adjunto?' · 📎':'')+'</div><div class="reg-date">📅 '+(x.i.fecha?x.i.fecha.split('-').reverse().join('/'):'Sin fecha')+'</div></div>'}).join('')||'<div class="empty">No hay registros aplicables.</div>';
+      return '<div class="tag-card" id="tc'+idx+'"><div class="tag-head" data-open="tc'+idx+'"><div class="tag-description"><b class="tag-code">'+e(t.tag)+'</b><div style="color:var(--muted);font-size:10px">'+e(t.descripcion||'Sin descripción')+'</div></div><div><small>Sistema</small><br><b>'+e(t.sistema||'-')+'</b></div><div><small>Subsistema</small><br><b>'+e(t.subsistema||'-')+'</b></div><div><b>'+p+'%</b><div class="modern-bar"><i style="width:'+p+'%"></i></div></div><div><span class="tag-overall-status '+st.cl+'">'+st.text+'</span></div></div><div class="tag-body"><div class="tag-modern-body"><div class="tag-panel"><h3>Progreso por registros</h3><div class="donut-wrap"><div class="donut" style="--doneEnd:'+de+'%;--presentEnd:'+pe+'%;--pendingEnd:'+pne+'%;--obsEnd:'+oe+'%"><div class="donut-center"><b>'+p+'%</b><span>Avance</span></div></div><div class="donut-legend"><div><span class="legend-label"><i class="legend-dot dot-done"></i>Realizados</span><b>'+done+'</b></div><div><span class="legend-label"><i class="legend-dot dot-present"></i>Presentados</span><b>'+presented+'</b></div><div><span class="legend-label"><i class="legend-dot dot-pending"></i>Pendientes</span><b>'+pending+'</b></div><div><span class="legend-label"><i class="legend-dot dot-obs"></i>Observados</span><b>'+obs+'</b></div><div><span class="legend-label"><i class="legend-dot dot-na"></i>Total</span><b>'+items.length+'</b></div></div></div></div><div class="tag-panel"><div class="tag-record-head"><h3>Registros del TAG ('+items.length+')</h3><div class="tag-record-tools"><button type="button" class="btn tag-new-record" data-new-record="'+e(t.tag)+'">＋ Nuevo</button><button type="button" class="btn tag-add-record" data-add-record="'+e(t.tag)+'">＋ Desde Maestro</button></div></div><div class="regs modern-regs">'+regs+'</div></div><div class="tag-panel tag-info-panel"><h3>Información del TAG</h3><dl class="tag-info-list"><dt>Descripción</dt><dd>'+e(t.descripcion||'-')+'</dd><dt>Sistema</dt><dd>'+e(t.sistema||'-')+(t.desc_sistema?' · '+e(t.desc_sistema):'')+'</dd><dt>Subsistema</dt><dd>'+e(t.subsistema||'-')+(t.desc_subsistema?' · '+e(t.desc_subsistema):'')+'</dd><dt>Total registros aplicables</dt><dd>'+items.length+'</dd><dt>Última actualización</dt><dd class="last-update">'+latestDate(items)+'</dd></dl></div></div></div></div>';
+    }).join('')||'<div class="empty">No hay TAGs para este filtro.</div>';
+    document.querySelectorAll('[data-open]').forEach(x=>x.onclick=()=>document.getElementById(x.dataset.open).classList.toggle('open'));
+    document.querySelectorAll('[data-record]').forEach(x=>x.onclick=ev=>{if(ev.target.closest('[data-remove-record]'))return;var a=x.dataset.record.split('|||');openRecord(a[0],a[1])});
+    document.querySelectorAll('[data-add-record]').forEach(function(b){b.style.display=canAdjustTagRecords()?'inline-flex':'none';b.onclick=function(ev){ev.preventDefault();ev.stopPropagation();(window.pecomOpenMasterPicker||openAddRecordToTag)(b.dataset.addRecord)}});
+    document.querySelectorAll('[data-remove-record]').forEach(function(b){b.style.display=canAdjustTagRecords()?'inline-flex':'none';b.onclick=function(ev){ev.preventDefault();ev.stopPropagation();var a=b.dataset.removeRecord.split('|||');removeRecordFromTag(a[0],a[1])}});
+    renderKpis();
+  }
+  window.pecomModernRenderControl=modernRenderControl;
+  try{renderControl=modernRenderControl}catch(err){window.renderControl=modernRenderControl}
+  setTimeout(function(){try{modernRenderControl()}catch(e){console.warn('Modern dashboard:',e)}},120);
+  // Prefer day mode on first visit; user choice remains persisted by existing theme controller.
+  try{if(!localStorage.getItem('pecom_theme'))document.documentElement.classList.add('pecom-light')}catch(e){}
+})();
+</script>
+
+</body></html>`);
  popup.document.close();
 }
 function printPecomCurrentRecord(){
@@ -3879,6 +4000,7 @@ function refreshOnlineAdminUi(){
     const btn=document.getElementById("tagRecordApplicabilitySave");
     if(!btn)return;
     btn.onclick=()=>{
+      if(btn.dataset.busy==="1")return;
       if(!(window.PECOM_ROLE==="admin" || window.PECOM_ROLE==="editor" || window.PECOM_CAN_EDIT===true || !window.cloudReady)){
         alert("Tu usuario tiene permiso de solo lectura.");
         return;
@@ -3888,15 +4010,38 @@ function refreshOnlineAdminUi(){
         alert("Seleccioná un registro del Maestro.");
         return;
       }
+      const tagName=currentApplicabilityTag.tag;
       const reason=document.getElementById("tagRecordApplicabilityReason")?.value||"Agregado por inspección";
-      const ok=setTagRecordOverride(currentApplicabilityTag.tag,id,"IN",reason);
-      if(ok){
-        const dlg=document.getElementById("tagRecordApplicabilityModal");
-        if(dlg){
-          dlg.classList.remove("show");
-          dlg.style.display="none";
+      btn.dataset.busy="1";
+      btn.disabled=true;
+      const oldText=btn.textContent;
+      btn.textContent="Agregando…";
+      try{
+        const ok=setTagRecordOverride(tagName,id,"IN",reason);
+        if(ok){
+          const dlg=document.getElementById("tagRecordApplicabilityModal");
+          if(dlg){
+            dlg.classList.remove("show");
+            dlg.style.display="none";
+          }
+          // Mantener abierto el TAG que se estaba editando.
+          requestAnimationFrame(()=>{
+            document.querySelectorAll("[data-add-record]").forEach(x=>{
+              if(x.dataset.addRecord===tagName){
+                const card=x.closest(".tag-card");
+                if(card)card.classList.add("open");
+              }
+            });
+          });
+          alert("Registro agregado al TAG desde el Maestro.");
         }
-        alert("Registro agregado al TAG desde el Maestro.");
+      }catch(err){
+        console.error("Agregar desde Maestro",err);
+        alert("No se pudo agregar el registro al TAG. Revisá la consola para más detalle.");
+      }finally{
+        btn.dataset.busy="0";
+        btn.disabled=false;
+        btn.textContent=oldText;
       }
     };
   };
