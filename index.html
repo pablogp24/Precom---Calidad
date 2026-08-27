@@ -940,10 +940,34 @@ function populateFilters(){
  }
 
  const os=filterSys.value,ob=filterSub.value;
- const ss=[...new Set(state.tags.map(t=>t.sistema).filter(Boolean))].sort();
- filterSys.innerHTML='<option value="">Todos los sistemas</option>'+ss.map(s=>`<option>${esc(s)}</option>`).join("");filterSys.value=os;
- const sb=[...new Set(state.tags.filter(t=>!filterSys.value||t.sistema===filterSys.value).map(t=>t.subsistema).filter(Boolean))].sort();
- filterSub.innerHTML='<option value="">Todos los subsistemas</option>'+sb.map(s=>`<option>${esc(s)}</option>`).join("");if(sb.includes(ob))filterSub.value=ob;
+
+ const sysInfo={};
+ state.tags.forEach(t=>{
+   if(!t.sistema)return;
+   if(!sysInfo[t.sistema])sysInfo[t.sistema]={codigo:t.sistema,nombre:t.desc_sistema||""};
+   else if(!sysInfo[t.sistema].nombre && t.desc_sistema)sysInfo[t.sistema].nombre=t.desc_sistema;
+ });
+ const ss=Object.keys(sysInfo).sort();
+ filterSys.innerHTML='<option value="">Todos los sistemas</option>'+ss.map(code=>{
+   const nombre=sysInfo[code]?.nombre||"";
+   return `<option value="${esc(code)}">${esc(code)}${nombre?` · ${esc(nombre)}`:""}</option>`;
+ }).join("");
+ if(ss.includes(os))filterSys.value=os;
+
+ const subInfo={};
+ state.tags
+   .filter(t=>!filterSys.value||t.sistema===filterSys.value)
+   .forEach(t=>{
+     if(!t.subsistema)return;
+     if(!subInfo[t.subsistema])subInfo[t.subsistema]={codigo:t.subsistema,nombre:t.desc_subsistema||""};
+     else if(!subInfo[t.subsistema].nombre && t.desc_subsistema)subInfo[t.subsistema].nombre=t.desc_subsistema;
+   });
+ const sb=Object.keys(subInfo).sort((a,b)=>String(a).localeCompare(String(b),undefined,{numeric:true}));
+ filterSub.innerHTML='<option value="">Todos los subsistemas</option>'+sb.map(code=>{
+   const nombre=subInfo[code]?.nombre||"";
+   return `<option value="${esc(code)}">${esc(code)}${nombre?` · ${esc(nombre)}`:""}</option>`;
+ }).join("");
+ if(sb.includes(ob))filterSub.value=ob;
 }
 
 function progressForTags(tagList){
@@ -1450,6 +1474,14 @@ function printBlankMaster(id){
   line-height:1.15;
   white-space:normal;
   overflow-wrap:anywhere;
+}
+</style>
+
+
+<style id="pecomDesktopFilterNamesCss">
+#filterSys,#filterSub{
+  min-width:210px !important;
+  max-width:320px !important;
 }
 </style>
 
