@@ -329,14 +329,19 @@ body.admin-edit .admin-only{display:initial}
 <div id="cloudLogin" style="position:fixed;inset:0;z-index:30000;background:#0d1624;display:flex;align-items:center;justify-content:center;padding:18px">
  <div style="width:min(430px,96vw);background:#fff;color:#142033;border-radius:14px;padding:22px;box-shadow:0 12px 45px rgba(0,0,0,.4)">
   <div style="font-size:21px;font-weight:800">PECOM · Precomisionado</div>
-  <div style="font-size:12px;margin-top:5px;color:#64748b">Acceso online autorizado</div>
+  <div style="font-size:12px;margin-top:5px;color:#64748b">Acceso online autorizado · correo + contraseña</div>
   <div id="cloudSetupWarning" style="display:none;margin-top:12px;padding:10px;background:#fff4d8;border:1px solid #e5b955;border-radius:8px;font-size:12px">
    Falta configurar Supabase en <b>online-config.js</b>.
   </div>
   <label style="display:block;margin-top:16px;font-size:12px;font-weight:700">Correo autorizado
-   <input id="cloudEmail" type="email" placeholder="usuario@empresa.com" style="width:100%;margin-top:5px;padding:11px;border:1px solid #cbd5e1;border-radius:8px;font-size:16px">
+   <input id="cloudEmail" type="email" placeholder="usuario@empresa.com" autocomplete="username" style="width:100%;margin-top:5px;padding:11px;border:1px solid #cbd5e1;border-radius:8px;font-size:16px">
   </label>
-  <button id="cloudSendLink" type="button" style="width:100%;margin-top:12px;padding:11px;border:0;border-radius:8px;background:#1268aa;color:#fff;font-weight:800;cursor:pointer">Enviar enlace de acceso</button>
+  <label style="display:block;margin-top:10px;font-size:12px;font-weight:700">Contraseña
+   <input id="cloudPassword" type="password" placeholder="Tu contraseña" autocomplete="current-password" style="width:100%;margin-top:5px;padding:11px;border:1px solid #cbd5e1;border-radius:8px;font-size:16px">
+  </label>
+  <button id="cloudLoginBtn" type="button" style="width:100%;margin-top:12px;padding:11px;border:0;border-radius:8px;background:#1268aa;color:#fff;font-weight:800;cursor:pointer">Ingresar</button>
+  <button id="cloudSignupBtn" type="button" style="width:100%;margin-top:8px;padding:10px;border:1px solid #1268aa;border-radius:8px;background:#fff;color:#1268aa;font-weight:800;cursor:pointer">Crear contraseña / primer ingreso</button>
+  <button id="cloudResetBtn" type="button" style="width:100%;margin-top:8px;padding:8px;border:0;background:transparent;color:#51657c;font-weight:700;cursor:pointer">Olvidé mi contraseña</button>
   <div id="cloudLoginMsg" style="font-size:11px;color:#64748b;margin-top:10px;min-height:16px"></div>
  </div>
 </div>
@@ -2434,18 +2439,68 @@ if(pdfCreateBtn){
    sb=window.supabase.createClient(cfg.supabaseUrl,cfg.supabaseAnonKey);
    const {data:{session}}=await sb.auth.getSession();
    await bootSession(session);
-   sb.auth.onAuthStateChange((event,session)=>{if(event==="SIGNED_IN")bootSession(session)});
+
+ sb.auth.onAuthStateChange(async(event,session)=>{
+   if(event==="PASSWORD_RECOVERY"){
+     const newPass=prompt("Ingresá una nueva contraseña (mínimo 8 caracteres):");
+     if(newPass && newPass.length>=8){
+       const {error}=await sb.auth.updateUser({password:newPass});
+       alert(error ? "No se pudo cambiar la contraseña: "+error.message : "Contraseña actualizada. Ya podés ingresar normalmente.");
+     }
+   }else if(event==="SIGNED_IN"){
+     bootSession(session);
+   }
+ });
  }
 
- const send=document.getElementById("cloudSendLink");
- if(send)send.onclick=async()=>{
+ const loginBtn=document.getElementById("cloudLoginBtn");
+ if(loginBtn)loginBtn.onclick=async()=>{
    const email=(document.getElementById("cloudEmail")?.value||"").trim().toLowerCase();
-   if(!email){msgEl().textContent="Ingresá un correo.";return}
-   msgEl().textContent="Enviando...";
-   const redirectTo=location.origin+location.pathname;
-   const {error}=await sb.auth.signInWithOtp({email,options:{emailRedirectTo:redirectTo}});
-   msgEl().textContent=error?"Error: "+error.message:"Te enviamos un enlace de acceso al correo.";
+   const password=document.getElementById("cloudPassword")?.value||"";
+   if(!email||!password){msgEl().textContent="Ingresá correo y contraseña.";return}
+   msgEl().textContent="Ingresando...";
+   const {data,error}=await sb.auth.signInWithPassword({email,password});
+   if(error){msgEl().textContent="Error: "+error.message;return}
+   msgEl().textContent="Acceso correcto.";
+   await bootSession(data.session);
  };
+
+ const signupBtn=document.getElementById("cloudSignupBtn");
+ if(signupBtn)signupBtn.onclick=async()=>{
+   const email=(document.getElementById("cloudEmail")?.value||"").trim().toLowerCase();
+   const password=document.getElementById("cloudPassword")?.value||"";
+   if(!email){msgEl().textContent="Ingresá tu correo.";return}
+   if(password.length<8){msgEl().textContent="La contraseña debe tener al menos 8 caracteres.";return}
+   msgEl().textContent="Creando usuario...";
+   const {data,error}=await sb.auth.signUp({
+     email,password,
+     options:{emailRedirectTo:location.origin+location.pathname}
+   });
+   if(error){msgEl().textContent="Error: "+error.message;return}
+   if(data.session){
+     msgEl().textContent="Usuario creado. Ingresando...";
+     await bootSession(data.session);
+   }else{
+     msgEl().textContent="Usuario creado. Si Supabase solicita confirmación, revisá el correo una sola vez y luego ingresá con tu contraseña.";
+   }
+ };
+
+ const resetBtn=document.getElementById("cloudResetBtn");
+ if(resetBtn)resetBtn.onclick=async()=>{
+   const email=(document.getElementById("cloudEmail")?.value||"").trim().toLowerCase();
+   if(!email){msgEl().textContent="Ingresá tu correo primero.";return}
+   msgEl().textContent="Enviando recuperación...";
+   const {error}=await sb.auth.resetPasswordForEmail(email,{redirectTo:location.origin+location.pathname});
+   msgEl().textContent=error?"Error: "+error.message:"Te enviamos un correo para recuperar la contraseña.";
+ };
+
+
+ ["cloudEmail","cloudPassword"].forEach(id=>{
+   const el=document.getElementById(id);
+   if(el)el.addEventListener("keydown",e=>{
+     if(e.key==="Enter")document.getElementById("cloudLoginBtn")?.click();
+   });
+ });
 
  const usersBtn=document.getElementById("onlineUsersBtn");
  if(usersBtn)usersBtn.onclick=()=>{modal("usersOnlineModal",true);listUsers()};
