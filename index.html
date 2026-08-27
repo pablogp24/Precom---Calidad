@@ -422,6 +422,11 @@ body.admin-edit .admin-only{display:initial}
    <button class="btn qf" data-qf="PENDING">Pendiente</button>
    <button class="btn qf" data-qf="DONE">Realizado</button>
    <button class="btn qf" data-qf="OBS">Observado</button>
+   <select id="sortControlRecords" class="compact-sort" title="Ordenar por avance">
+    <option value="ORIGINAL">↕ Orden</option>
+    <option value="DESC">↓ Mayor</option>
+    <option value="ASC">↑ Menor</option>
+   </select>
   </div>
   <div id="tagBoard"></div>
  </div></div>
@@ -1083,9 +1088,25 @@ function renderControl(){
   if(quick==="DONE")return arr.some(x=>x.estado==="REALIZADO"||x.estado==="PRESENTADO");
   if(quick==="OBS")return arr.some(x=>x.estado==="OBSERVADO"); return true;
  });
+
+ const sortMode=document.getElementById("sortControlRecords")?.value||"ORIGINAL";
+ if(sortMode!=="ORIGINAL"){
+   const advanceOf=t=>{
+     const ms=applicableMasters(t);
+     if(!ms.length)return 0;
+     const done=ms.filter(m=>["REALIZADO","PRESENTADO"].includes(inst(t,m).estado)).length;
+     return done/ms.length;
+   };
+   tags=tags.slice().sort((a,b)=>{
+     const av=advanceOf(a),bv=advanceOf(b);
+     if(av===bv)return String(a.tag||"").localeCompare(String(b.tag||""));
+     return sortMode==="DESC" ? bv-av : av-bv;
+   });
+ }
+
  tagBoard.innerHTML=tags.slice(0,500).map((t,idx)=>{
   const ms=applicableMasters(t), items=ms.map(m=>({m,i:inst(t,m)})), p=pct(items.map(x=>({instance:x.i}))), pending=items.filter(x=>x.i.estado==="PENDIENTE").length;
-  return `<div class="tag-card" id="tc${idx}"><div class="tag-head" data-open="tc${idx}"><div class="tdesc"><b>${esc(t.tag)}</b><div style="color:var(--muted);font-size:11px">${esc(t.descripcion)}</div></div><div><small style="color:var(--muted)">Sistema</small><br>${esc(t.sistema||"-")}</div><div><small style="color:var(--muted)">Subsistema</small><br>${esc(t.subsistema||"-")}</div><div><b>${p}%</b><div style="color:var(--muted);font-size:10px">${pending} pendientes</div><div class="progress"><i style="width:${p}%"></i></div></div></div>
+  return `<div class="tag-card" id="tc${idx}"><div class="tag-head" data-open="tc${idx}"><div class="tdesc"><b>${esc(t.tag)}</b><div style="color:var(--muted);font-size:11px">${esc(t.descripcion)}</div></div><div><small style="color:var(--muted)">Sistema</small><br>${esc(t.sistema||"-")}</div><div><small style="color:var(--muted)">Subsistema</small><br><b>${esc(t.subsistema||"-")}</b>${t.desc_subsistema?`<div class="tag-subsystem-name">${esc(t.desc_subsistema)}</div>`:""}</div><div><b>${p}%</b><div style="color:var(--muted);font-size:10px">${pending} pendientes</div><div class="progress"><i style="width:${p}%"></i></div></div></div>
   <div class="tag-body"><div class="regs">${items.map(x=>{
     const st=x.i.estado,cl=st==="REALIZADO"?"done":st==="PRESENTADO"?"present":st==="OBSERVADO"?"obs":"pending";
     return `<div class="reg ${cl}" data-record="${esc(t.tag)}|||${esc(x.m.id)}"><b>${esc(x.m.nombre)}</b><small>${esc(x.m.tipo)} · ${esc(x.m.origen_columna||"Nuevo")}</small><div class="state">${st}${x.i.tiene_adjunto?" · 📎":""}</div><div class="reg-date">📅 ${x.i.fecha ? x.i.fecha.split("-").reverse().join("/") : "Sin fecha"}</div></div>`
@@ -1095,6 +1116,17 @@ function renderControl(){
  document.querySelectorAll("[data-record]").forEach(x=>x.onclick=()=>{const [tag,id]=x.dataset.record.split("|||");openRecord(tag,id)});
 }
 searchTag.oninput=renderControl;filterSys.onchange=renderControl;filterSub.onchange=renderControl;
+const sortControlRecordsEl=document.getElementById("sortControlRecords");
+if(sortControlRecordsEl){
+  try{
+    const saved=localStorage.getItem("pecom_sort_control_records");
+    if(["ORIGINAL","DESC","ASC"].includes(saved))sortControlRecordsEl.value=saved;
+  }catch(e){}
+  sortControlRecordsEl.onchange=()=>{
+    try{localStorage.setItem("pecom_sort_control_records",sortControlRecordsEl.value)}catch(e){}
+    renderControl();
+  };
+}
 document.querySelectorAll(".qf").forEach(b=>b.onclick=()=>{quick=b.dataset.qf;document.querySelectorAll(".qf").forEach(x=>x.classList.remove("primary"));b.classList.add("primary");renderControl()});
 
 const DB="odv_alvs_files_v5",STORE="files";
@@ -1371,7 +1403,44 @@ function printBlankMaster(id){
  .check td{min-height:7mm}
  .notes{border:1px solid #333;min-height:28mm;padding:3px;font-size:8px}
  .sig{position:absolute;left:0;right:0;bottom:0}.sig td{height:5.5mm}.sig td:first-child{width:16%;font-weight:700}
- .brand img{max-width:100%;max-height:100%;object-fit:contain}</style></head><body><div class="page">
+ .brand img{max-width:100%;max-height:100%;object-fit:contain}</style>
+<style id="pecomCompactSortCss">
+#sortControlRecords.compact-sort{
+  width:92px !important;
+  min-width:92px !important;
+  max-width:92px !important;
+  height:31px !important;
+  padding:4px 20px 4px 7px !important;
+  border-radius:8px !important;
+  font-size:9px !important;
+  font-weight:700 !important;
+  flex:0 0 92px !important;
+}
+@media(max-width:600px){
+  #sortControlRecords.compact-sort{
+    width:86px !important;
+    min-width:86px !important;
+    max-width:86px !important;
+    flex-basis:86px !important;
+    height:30px !important;
+  }
+}
+</style>
+
+
+<style id="pecomSubsystemNameCss">
+.tag-subsystem-name{
+  margin-top:2px;
+  max-width:190px;
+  color:#9fc2da;
+  font-size:9px;
+  line-height:1.15;
+  white-space:normal;
+  overflow-wrap:anywhere;
+}
+</style>
+
+</head><body><div class="page">
  <div class="hdr">
    <div class="box center" style="padding:4px"><div class="t1">PeCOM-PRECOMISIONADO</div><div class="t2">${title}</div></div>
    <div class="box center" style="display:flex;align-items:center;justify-content:center;font-size:8px">(Código QR)</div>
