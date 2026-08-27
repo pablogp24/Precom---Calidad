@@ -325,6 +325,7 @@ body.admin-edit .admin-only{display:initial}
 </head>
 
 <body>
+<button type="button" id="pecomThemeToggle" title="Cambiar modo día/noche" aria-label="Cambiar modo día/noche">☀️</button>
 
 <div id="cloudLogin" style="position:fixed;inset:0;z-index:30000;background:#0d1624;display:flex;align-items:center;justify-content:center;padding:18px">
  <div style="width:min(430px,96vw);background:#fff;color:#142033;border-radius:14px;padding:22px;box-shadow:0 12px 45px rgba(0,0,0,.4)">
@@ -1651,6 +1652,35 @@ function printBlankMaster(id){
  font-size:9px!important;
  border-radius:8px!important;
 }
+</style>
+
+
+<style id="pecomThemeToggleCss">
+#pecomThemeToggle{
+ position:fixed;top:10px;right:10px;z-index:99999;
+ width:34px;min-width:34px;height:34px;min-height:34px;
+ padding:0;border-radius:50%;border:1px solid var(--border,#405466);
+ background:var(--panel,#122331);color:var(--text,#fff);
+ display:flex;align-items:center;justify-content:center;
+ font-size:16px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.2)
+}
+body.pecom-light{
+ --bg:#f3f6f8;--panel:#ffffff;--card:#ffffff;--text:#17212b;
+ --muted:#617181;--border:#cbd5df;
+ background:#f3f6f8!important;color:#17212b!important
+}
+body.pecom-light header,body.pecom-light .topbar,body.pecom-light .header{background:#fff!important;color:#17212b!important}
+body.pecom-light .card,body.pecom-light .tag-card,body.pecom-light .progress-panel,
+body.pecom-light .modalbox{background:#fff!important;color:#17212b!important;border-color:#cbd5df!important}
+body.pecom-light input,body.pecom-light select,body.pecom-light textarea{
+ background:#fff!important;color:#17212b!important;border-color:#aebbc7!important
+}
+body.pecom-light .tag-body,body.pecom-light .reg{color:#17212b}
+body.pecom-light .notice{color:#314353}
+body.pecom-light .advance-table th{background:#e6edf3!important;color:#17212b!important}
+body.pecom-light .advance-table td{color:#17212b!important;border-color:#d6dee5!important}
+body.pecom-light #pecomThemeToggle{background:#fff;color:#17212b}
+@media(max-width:700px){#pecomThemeToggle{top:7px;right:7px;width:32px;min-width:32px;height:32px;min-height:32px}}
 </style>
 
 </head><body><div class="page">
@@ -3035,6 +3065,26 @@ function refreshOnlineAdminUi(){
  if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",enable);
  else enable();
  setInterval(enable,1500);
+})();
+
+
+(function setupPecomTheme(){
+ const btn=document.getElementById("pecomThemeToggle");
+ if(!btn)return;
+ let theme="dark";
+ try{theme=localStorage.getItem("pecom_theme")||"dark"}catch(e){}
+ const apply=()=>{
+   const light=theme==="light";
+   document.body.classList.toggle("pecom-light",light);
+   btn.textContent=light?"🌙":"☀️";
+   btn.title=light?"Cambiar a modo noche":"Cambiar a modo día";
+ };
+ btn.addEventListener("click",()=>{
+   theme=theme==="light"?"dark":"light";
+   try{localStorage.setItem("pecom_theme",theme)}catch(e){}
+   apply();
+ });
+ apply();
 })();
 
 </script>
