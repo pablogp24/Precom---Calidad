@@ -1305,7 +1305,7 @@ function renderControl(){
  });
  document.querySelectorAll("[data-add-record]").forEach(b=>{
    b.style.display=canAdjustTagRecords()?"inline-flex":"none";
-   b.onclick=(ev)=>{ev.stopPropagation();openAddRecordToTag(b.dataset.addRecord)};
+   b.onclick=(ev)=>{ev.preventDefault();ev.stopPropagation();(window.pecomOpenMasterPicker||openAddRecordToTag)(b.dataset.addRecord)};
  });
  document.querySelectorAll("[data-remove-record]").forEach(b=>{
    b.style.display=canAdjustTagRecords()?"inline-flex":"none";
@@ -1994,6 +1994,251 @@ html.pecom-light #pecomThemeToggle{
   height:28px!important;
   padding:0 8px!important;
   font-size:9px!important;
+}
+</style>
+
+
+<style id="pecomApprovedVisual">
+/* Compact top-left theme control */
+#pecomThemeToggle{
+  position:fixed!important;
+  top:10px!important;
+  left:10px!important;
+  z-index:50000!important;
+  width:42px!important;
+  min-width:42px!important;
+  height:34px!important;
+  min-height:34px!important;
+  padding:0!important;
+  border-radius:10px!important;
+  border:1px solid #3a5366!important;
+  background:#112536!important;
+  color:#fff!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  font-size:16px!important;
+  cursor:pointer!important;
+  box-shadow:0 3px 10px rgba(0,0,0,.18)!important;
+}
+
+/* Main navigation: smaller, colorful, modern */
+#nav.nav{
+  display:flex!important;
+  align-items:center!important;
+  gap:6px!important;
+  flex-wrap:wrap!important;
+  padding:6px 0!important;
+  margin-bottom:10px!important;
+  background:transparent!important;
+}
+#nav.nav > button,
+#nav.nav > .btn{
+  height:34px!important;
+  min-height:34px!important;
+  padding:0 11px!important;
+  border-radius:8px!important;
+  font-size:10px!important;
+  font-weight:750!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:5px!important;
+  white-space:nowrap!important;
+}
+#nav.nav > button[data-page="control"]{
+  background:#0d73b6!important;border-color:#0d73b6!important;color:#fff!important;
+}
+#nav.nav > button[data-page="maestro"]{
+  background:#6750a4!important;border-color:#6750a4!important;color:#fff!important;
+}
+#nav.nav > button[data-page="punch"]{
+  background:#d76a1f!important;border-color:#d76a1f!important;color:#fff!important;
+}
+#nav.nav > button[data-page="excel"]{
+  background:#23905f!important;border-color:#23905f!important;color:#fff!important;
+}
+#quickNewRecordBtn{
+  background:#ff7a1a!important;border-color:#ff7a1a!important;color:#fff!important;
+}
+#onlineUsersBtn{
+  background:#ffffff!important;border-color:#cfd8e1!important;color:#5a3b8e!important;
+}
+#newPdfRecordBtn{
+  background:#eef4f8!important;border-color:#ced9e1!important;color:#284154!important;
+}
+
+/* Cards, shadows and spacing */
+.card,.kpi,.tag-card,.progress-panel{
+  box-shadow:0 2px 10px rgba(28,52,72,.07)!important;
+}
+.kpi,.card,.tag-card,.progress-panel{
+  border-radius:12px!important;
+}
+
+/* ===== TRUE DAY MODE ===== */
+html.pecom-light{
+  --bg:#ffffff!important;
+  --panel:#ffffff!important;
+  --card:#ffffff!important;
+  --card2:#f8fafc!important;
+  --line:#d8e1e8!important;
+  --text:#111827!important;
+  --muted:#657586!important;
+  background:#ffffff!important;
+  color:#111827!important;
+}
+
+html.pecom-light,
+html.pecom-light body,
+html.pecom-light main,
+html.pecom-light section,
+html.pecom-light .page,
+html.pecom-light .content,
+html.pecom-light .container,
+html.pecom-light .wrap{
+  background:#ffffff!important;
+  color:#111827!important;
+}
+
+html.pecom-light header{
+  background:#ffffff!important;
+  color:#111827!important;
+  border-color:#e0e6eb!important;
+}
+html.pecom-light .brand h1,
+html.pecom-light .brand p{
+  color:#111827!important;
+}
+
+html.pecom-light .notice{
+  background:#f1f7fb!important;
+  color:#1f2d38!important;
+  border:1px solid #cfe0ed!important;
+}
+
+html.pecom-light .card,
+html.pecom-light .kpi,
+html.pecom-light .tag-card,
+html.pecom-light .tag-body,
+html.pecom-light .progress-panel,
+html.pecom-light .modalbox,
+html.pecom-light .modalbody,
+html.pecom-light .rule-box,
+html.pecom-light .filebox{
+  background:#ffffff!important;
+  color:#111827!important;
+  border-color:#d8e1e8!important;
+}
+
+html.pecom-light .tag-head{
+  background:#ffffff!important;
+  color:#111827!important;
+}
+html.pecom-light .tag-head:hover{
+  background:#f8fafc!important;
+}
+
+html.pecom-light .reg{
+  background:#ffffff!important;
+  color:#111827!important;
+  border-color:#d8e1e8!important;
+}
+html.pecom-light .reg.pending{background:#fff8f8!important}
+html.pecom-light .reg.done{background:#f7fcf9!important}
+html.pecom-light .reg.obs{background:#fffbf4!important}
+html.pecom-light .reg.present{background:#f7fbff!important}
+
+html.pecom-light input,
+html.pecom-light select,
+html.pecom-light textarea{
+  background:#ffffff!important;
+  color:#111827!important;
+  border-color:#c6d0d9!important;
+}
+html.pecom-light input::placeholder,
+html.pecom-light textarea::placeholder{
+  color:#7d8b98!important;
+}
+
+html.pecom-light table,
+html.pecom-light tbody,
+html.pecom-light tr,
+html.pecom-light td{
+  background:#ffffff!important;
+  color:#111827!important;
+  border-color:#e1e7ec!important;
+}
+html.pecom-light th{
+  background:#f1f5f8!important;
+  color:#111827!important;
+  border-color:#d6dfe6!important;
+}
+
+html.pecom-light .classic-hero,
+html.pecom-light #fixedGeneralSummary{
+  background:#ffffff!important;
+}
+html.pecom-light .classic-hero .hero-main,
+html.pecom-light .classic-hero .hero-small{
+  background:#ffffff!important;
+  color:#111827!important;
+  border:1px solid #d8e1e8!important;
+  box-shadow:0 2px 10px rgba(28,52,72,.06)!important;
+}
+html.pecom-light .classic-hero span,
+html.pecom-light .classic-hero small{
+  color:#657586!important;
+}
+
+html.pecom-light .tag-system-name,
+html.pecom-light .tag-subsystem-name,
+html.pecom-light small,
+html.pecom-light .muted{
+  color:#657586!important;
+}
+
+html.pecom-light #pecomThemeToggle{
+  background:#ffffff!important;
+  color:#111827!important;
+  border-color:#cdd7df!important;
+}
+
+/* Keep nav colored in day mode, as in the approved mockup */
+html.pecom-light #nav.nav > button[data-page="control"]{
+  background:#0d73b6!important;color:#fff!important;border-color:#0d73b6!important;
+}
+html.pecom-light #nav.nav > button[data-page="punch"]{
+  background:#d76a1f!important;color:#fff!important;border-color:#d76a1f!important;
+}
+html.pecom-light #nav.nav > button[data-page="excel"]{
+  background:#23905f!important;color:#fff!important;border-color:#23905f!important;
+}
+html.pecom-light #quickNewRecordBtn{
+  background:#ff7a1a!important;color:#fff!important;border-color:#ff7a1a!important;
+}
+html.pecom-light #onlineUsersBtn{
+  background:#fff!important;color:#5a3b8e!important;border-color:#d4dce4!important;
+}
+
+/* Per-TAG master picker */
+#tagRecordApplicabilityModal .modalbox{
+  max-width:760px!important;
+}
+#tagRecordMasterSearch{
+  min-height:36px!important;
+}
+#tagRecordApplicabilitySelect{
+  min-height:220px!important;
+  background:#fff!important;
+  color:#111827!important;
+}
+
+@media(max-width:700px){
+  #nav.nav{gap:4px!important}
+  #nav.nav > button,#nav.nav > .btn{
+    height:31px!important;min-height:31px!important;padding:0 8px!important;font-size:9px!important;
+  }
 }
 </style>
 
@@ -3508,6 +3753,176 @@ function refreshOnlineAdminUi(){
   setTimeout(bind,500);
   setTimeout(bind,1500);
   window.pecomRefreshNewRecordButtons=bind;
+})();
+
+
+(function pecomMasterPickerRobust(){
+  function moveModal(){
+    const dlg=document.getElementById("tagRecordApplicabilityModal");
+    if(dlg && dlg.parentElement!==document.body) document.body.appendChild(dlg);
+  }
+
+  function canCreate(){
+    if(!window.cloudReady) return true;
+    return window.PECOM_ROLE==="admin" || window.PECOM_ROLE==="editor" || window.PECOM_CAN_EDIT===true;
+  }
+
+  window.pecomOpenMasterPicker=function(tagName){
+    if(!canCreate()){
+      alert("Tu usuario tiene permiso de solo lectura.");
+      return;
+    }
+
+    moveModal();
+
+    const t=state.tags.find(x=>x.tag===tagName);
+    if(!t){
+      alert("No se encontró el TAG.");
+      return;
+    }
+
+    currentApplicabilityTag=t;
+
+    const select=document.getElementById("tagRecordApplicabilitySelect");
+    const search=document.getElementById("tagRecordMasterSearch");
+    const saveBtn=document.getElementById("tagRecordApplicabilitySave");
+    const sub=document.getElementById("tagRecordApplicabilitySub");
+
+    if(!select || !saveBtn){
+      alert("No se encontró el selector de registros del Maestro.");
+      return;
+    }
+
+    // Todo registro activo del Maestro que todavía NO está visible/aplicable en este TAG.
+    const candidates=state.masters
+      .filter(m=>m && m.activo!==false)
+      .filter(m=>!applicable(t,m))
+      .sort((a,b)=>
+        String(a.disciplina||"").localeCompare(String(b.disciplina||"")) ||
+        String(a.nombre||"").localeCompare(String(b.nombre||""))
+      );
+
+    function paint(){
+      const q=norm(search?.value||"");
+      const rows=candidates.filter(m=>{
+        const blob=[m.id,m.nombre,m.disciplina,m.nro_registro,m.procedimiento].join(" ");
+        return !q || norm(blob).includes(q);
+      });
+
+      select.innerHTML=rows.map(m=>{
+        const disc=m.disciplina||"Sin disciplina";
+        const nro=m.nro_registro?` · ${esc(m.nro_registro)}`:"";
+        return `<option value="${esc(m.id)}">${esc(m.id)} · ${esc(m.nombre)} · ${esc(disc)}${nro}</option>`;
+      }).join("");
+
+      if(!rows.length){
+        select.innerHTML='<option value="">No hay registros disponibles del Maestro</option>';
+      }
+      saveBtn.disabled=!rows.length;
+    }
+
+    if(sub) sub.textContent=t.tag+" · "+(t.descripcion||"");
+    if(search){
+      search.value="";
+      search.oninput=paint;
+    }
+    const reason=document.getElementById("tagRecordApplicabilityReason");
+    if(reason) reason.value="";
+
+    paint();
+
+    const dlg=document.getElementById("tagRecordApplicabilityModal");
+    if(dlg){
+      dlg.classList.add("show");
+      dlg.style.setProperty("display","flex","important");
+      dlg.style.setProperty("z-index","40000","important");
+    }
+  };
+
+  function rebind(){
+    moveModal();
+    document.querySelectorAll("[data-add-record]").forEach(b=>{
+      b.disabled=!canCreate();
+      b.style.display=canCreate()?"inline-flex":"none";
+      b.style.pointerEvents=canCreate()?"auto":"none";
+      b.onclick=(e)=>{
+        e.preventDefault();
+        e.stopPropagation();
+        window.pecomOpenMasterPicker(b.dataset.addRecord);
+      };
+    });
+  }
+
+  if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",rebind);
+  else rebind();
+  setTimeout(rebind,500);
+  setTimeout(rebind,1500);
+  window.pecomRebindMasterPicker=rebind;
+})();
+
+
+(function pecomMasterPickerSaveFix(){
+  const bind=()=>{
+    const btn=document.getElementById("tagRecordApplicabilitySave");
+    if(!btn)return;
+    btn.onclick=()=>{
+      if(!(window.PECOM_ROLE==="admin" || window.PECOM_ROLE==="editor" || window.PECOM_CAN_EDIT===true || !window.cloudReady)){
+        alert("Tu usuario tiene permiso de solo lectura.");
+        return;
+      }
+      const id=document.getElementById("tagRecordApplicabilitySelect")?.value||"";
+      if(!currentApplicabilityTag || !id){
+        alert("Seleccioná un registro del Maestro.");
+        return;
+      }
+      const reason=document.getElementById("tagRecordApplicabilityReason")?.value||"Agregado por inspección";
+      const ok=setTagRecordOverride(currentApplicabilityTag.tag,id,"IN",reason);
+      if(ok){
+        const dlg=document.getElementById("tagRecordApplicabilityModal");
+        if(dlg){
+          dlg.classList.remove("show");
+          dlg.style.display="none";
+        }
+        alert("Registro agregado al TAG desde el Maestro.");
+      }
+    };
+  };
+  if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",bind);
+  else bind();
+  setTimeout(bind,700);
+})();
+
+
+(function pecomThemeFinal(){
+  const btn=document.getElementById("pecomThemeToggle");
+  let mode="dark";
+  try{
+    const saved=localStorage.getItem("pecom_theme_final");
+    if(saved==="light"||saved==="dark") mode=saved;
+  }catch(e){}
+
+  function apply(){
+    const light=mode==="light";
+    document.documentElement.classList.toggle("pecom-light",light);
+    document.body.classList.toggle("pecom-light",light);
+    document.documentElement.style.backgroundColor=light?"#ffffff":"#091018";
+    document.body.style.backgroundColor=light?"#ffffff":"#091018";
+    document.body.style.color=light?"#111827":"#e8eef3";
+    if(btn){
+      btn.textContent=light?"🌙":"☀️";
+      btn.title=light?"Cambiar a modo noche":"Cambiar a modo día";
+    }
+  }
+
+  if(btn){
+    btn.onclick=(e)=>{
+      e.preventDefault(); e.stopPropagation();
+      mode=mode==="light"?"dark":"light";
+      try{localStorage.setItem("pecom_theme_final",mode)}catch(err){}
+      apply();
+    };
+  }
+  apply();
 })();
 
 </script>
