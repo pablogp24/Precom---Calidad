@@ -1106,7 +1106,7 @@ function renderControl(){
 
  tagBoard.innerHTML=tags.slice(0,500).map((t,idx)=>{
   const ms=applicableMasters(t), items=ms.map(m=>({m,i:inst(t,m)})), p=pct(items.map(x=>({instance:x.i}))), pending=items.filter(x=>x.i.estado==="PENDIENTE").length;
-  return `<div class="tag-card" id="tc${idx}"><div class="tag-head" data-open="tc${idx}"><div class="tdesc"><b>${esc(t.tag)}</b><div style="color:var(--muted);font-size:11px">${esc(t.descripcion)}</div></div><div><small style="color:var(--muted)">Sistema</small><br>${esc(t.sistema||"-")}</div><div><small style="color:var(--muted)">Subsistema</small><br><b>${esc(t.subsistema||"-")}</b>${t.desc_subsistema?`<div class="tag-subsystem-name">${esc(t.desc_subsistema)}</div>`:""}</div><div><b>${p}%</b><div style="color:var(--muted);font-size:10px">${pending} pendientes</div><div class="progress"><i style="width:${p}%"></i></div></div></div>
+  return `<div class="tag-card" id="tc${idx}"><div class="tag-head" data-open="tc${idx}"><div class="tdesc"><b>${esc(t.tag)}</b><div style="color:var(--muted);font-size:11px">${esc(t.descripcion)}</div></div><div><small style="color:var(--muted)">Sistema</small><br><b>${esc(t.sistema||"-")}</b>${t.desc_sistema?`<div class="tag-system-name">${esc(t.desc_sistema)}</div>`:""}</div><div><small style="color:var(--muted)">Subsistema</small><br><b>${esc(t.subsistema||"-")}</b>${t.desc_subsistema?`<div class="tag-subsystem-name">${esc(t.desc_subsistema)}</div>`:""}</div><div><b>${p}%</b><div style="color:var(--muted);font-size:10px">${pending} pendientes</div><div class="progress"><i style="width:${p}%"></i></div></div></div>
   <div class="tag-body"><div class="regs">${items.map(x=>{
     const st=x.i.estado,cl=st==="REALIZADO"?"done":st==="PRESENTADO"?"present":st==="OBSERVADO"?"obs":"pending";
     return `<div class="reg ${cl}" data-record="${esc(t.tag)}|||${esc(x.m.id)}"><b>${esc(x.m.nombre)}</b><small>${esc(x.m.tipo)} · ${esc(x.m.origen_columna||"Nuevo")}</small><div class="state">${st}${x.i.tiene_adjunto?" · 📎":""}</div><div class="reg-date">📅 ${x.i.fecha ? x.i.fecha.split("-").reverse().join("/") : "Sin fecha"}</div></div>`
@@ -1430,6 +1430,19 @@ function printBlankMaster(id){
 
 <style id="pecomSubsystemNameCss">
 .tag-subsystem-name{
+  margin-top:2px;
+  max-width:190px;
+  color:#9fc2da;
+  font-size:9px;
+  line-height:1.15;
+  white-space:normal;
+  overflow-wrap:anywhere;
+}
+</style>
+
+
+<style id="pecomSystemNameCss">
+.tag-system-name{
   margin-top:2px;
   max-width:190px;
   color:#9fc2da;
