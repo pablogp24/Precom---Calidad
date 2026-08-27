@@ -352,6 +352,10 @@ body.admin-edit .admin-only{display:initial}
   <div class="notice">Agregá los correos que querés habilitar. Quien no esté en esta lista no puede acceder a la matriz compartida.</div>
   <div class="toolbar" style="margin-top:10px">
    <input id="onlineUserEmail" type="email" placeholder="usuario@empresa.com" style="flex:1;min-width:230px">
+   <select id="onlineUserRole">
+    <option value="editor">Editor</option>
+    <option value="viewer">Solo lectura</option>
+   </select>
    <button class="btn primary" id="onlineAddUser">Autorizar usuario</button>
   </div>
   <div id="onlineUsersList" style="margin-top:12px"></div>
@@ -865,6 +869,10 @@ let quick="ALL",currentRecord=null,currentMaster=null,currentPunch=null,pendingF
 
 function persist(){
  try{
+   if(window.cloudReady && window.PECOM_ROLE==="viewer"){
+     alert("Tu usuario tiene permiso de solo lectura.");
+     return false;
+   }
    localStorage.setItem(KEY,JSON.stringify(state));
    if(window.cloudReady && typeof window.cloudSaveState==="function") window.cloudSaveState(state);
    return true;
@@ -1335,6 +1343,7 @@ saveRecord.onclick=async()=>{
  if(!persist())return;
  modal("recordModal",false);
  renderAll();
+   if(window.PECOM_ROLE) setTimeout(()=>applyPecomRole(window.PECOM_ROLE),0);
 };
 
 editRecord.onclick=async()=>{if(!currentRecord)return;const i=inst(currentRecord.t,currentRecord.m),f=await dbGet(recKey(currentRecord.t.tag,currentRecord.m.id));recordForm.style.display="";recordViewer.style.display="none";rFileName.textContent=f?"Archivo actual: "+f.name:""};
@@ -1550,6 +1559,7 @@ importExcelFile.onchange=async()=>{
       state.masters=JSON.parse(JSON.stringify(INITIAL_MASTERS));
       state.instances={}; // 0/1 vuelven a gobernar el estado inicial.
       persist();renderAll();
+   if(window.PECOM_ROLE) setTimeout(()=>applyPecomRole(window.PECOM_ROLE),0);
       alert(`Matriz analizada: ${newTags.length} TAG. 0=PENDIENTE, 1=REALIZADO, resto=NO APLICA.`);
    }else{
       alert('El archivo no contiene una hoja llamada "Matriz".');
@@ -2334,6 +2344,59 @@ if(pdfCreateBtn){
 
 
 
+
+/* ===== ROLES ONLINE PECOM ===== */
+window.PECOM_ROLE = "viewer";
+window.PECOM_CAN_EDIT = false;
+
+function applyPecomRole(role){
+  window.PECOM_ROLE = role || "viewer";
+  window.PECOM_CAN_EDIT = (role==="admin" || role==="editor");
+
+  document.documentElement.dataset.pecomRole = window.PECOM_ROLE;
+  document.body.dataset.pecomRole = window.PECOM_ROLE;
+
+  // Elements that modify data are disabled for viewer.
+  document.querySelectorAll("button,input,select,textarea").forEach(el=>{
+    const id=(el.id||"").toLowerCase();
+    const text=(el.textContent||"").toLowerCase();
+    const adminOnly =
+      id.includes("config") || id.includes("onlineusers") ||
+      text.includes("configuración") || text.includes("usuarios");
+
+    const safeViewer =
+      el.closest("#cloudLogin") || el.closest("#cloudLoginOverlay") ||
+      el.hasAttribute("data-close") ||
+      text.includes("imprimir") || text.includes("ver") ||
+      text.includes("abrir") || text.includes("export") ||
+      id.includes("search") || id.includes("filter");
+
+    if(window.PECOM_ROLE==="viewer" && !safeViewer){
+      if(["INPUT","TEXTAREA","SELECT"].includes(el.tagName)){
+        el.disabled=true;
+      }else if(el.tagName==="BUTTON" && !adminOnly){
+        // Keep navigation buttons enabled.
+        if(!el.dataset.page && !el.closest("nav")) el.disabled=true;
+      }
+    }
+    if(window.PECOM_ROLE!=="admin" && adminOnly){
+      el.style.display="none";
+    }
+  });
+
+  const badge=document.getElementById("cloudStatus");
+  if(badge){
+    const label=window.PECOM_ROLE==="admin"?"Administrador":window.PECOM_ROLE==="editor"?"Editor":"Solo lectura";
+    badge.textContent="☁ "+label;
+  }
+}
+
+function canEditOrWarn(){
+  if(window.PECOM_CAN_EDIT) return true;
+  alert("Tu usuario tiene permiso de solo lectura.");
+  return false;
+}
+
 /* ===== PECOM ONLINE MULTIUSUARIO ===== */
 (function(){
  const cfg=window.PECOM_ONLINE||{};
@@ -2347,9 +2410,12 @@ if(pdfCreateBtn){
  function isAdmin(){return currentEmail && String(currentEmail).toLowerCase()===String(cfg.adminEmail||"").toLowerCase()}
 
  async function allowed(email){
-   const {data,error}=await sb.from("allowed_users").select("email").eq("email",String(email).toLowerCase()).maybeSingle();
+   const normalized=String(email).toLowerCase();
+   const admin=String(cfg.adminEmail||"").toLowerCase();
+   if(normalized===admin) return {allowed:true,role:"admin"};
+   const {data,error}=await sb.from("allowed_users").select("email,role").eq("email",normalized).maybeSingle();
    if(error)throw error;
-   return !!data || String(email).toLowerCase()===String(cfg.adminEmail||"").toLowerCase();
+   return data?{allowed:true,role:data.role||"viewer"}:{allowed:false,role:null};
  }
 
  async function loadRemote(){
@@ -2384,9 +2450,9 @@ if(pdfCreateBtn){
  async function listUsers(){
    if(!isAdmin())return;
    const box=document.getElementById("onlineUsersList");if(!box)return;
-   const {data,error}=await sb.from("allowed_users").select("email,created_at").order("email");
+   const {data,error}=await sb.from("allowed_users").select("email,role,created_at").order("email");
    if(error){box.textContent="No se pudo cargar la lista.";return}
-   box.innerHTML=(data||[]).map(u=>`<div class="online-user-row"><span>${esc(u.email)}</span><button class="btn onlineRemoveUser" data-email="${esc(u.email)}">Quitar</button></div>`).join("") || '<div class="notice">No hay usuarios adicionales autorizados.</div>';
+   box.innerHTML=(data||[]).map(u=>`<div class="online-user-row"><span>${esc(u.email)} <b>· ${u.role==="editor"?"Editor":"Solo lectura"}</b></span><button class="btn onlineRemoveUser" data-email="${esc(u.email)}">Quitar</button></div>`).join("") || '<div class="notice">No hay usuarios adicionales autorizados.</div>';
    box.querySelectorAll(".onlineRemoveUser").forEach(b=>b.onclick=async()=>{
      if(!confirm("¿Quitar acceso a "+b.dataset.email+"?"))return;
      await sb.from("allowed_users").delete().eq("email",b.dataset.email);
@@ -2402,13 +2468,15 @@ if(pdfCreateBtn){
    }
    currentEmail=session.user.email.toLowerCase();
    try{
-     if(!(await allowed(currentEmail))){
+     const access=await allowed(currentEmail);
+     if(!access.allowed){
        await sb.auth.signOut();
        msgEl().textContent="Este correo no está autorizado.";
        loginEl().style.display="flex";
        status("☁ Acceso denegado");
        return;
      }
+     applyPecomRole(access.role);
 
      // Primero carga/sincroniza. Solo después oculta el login.
      window.cloudReady=true;
@@ -2524,7 +2592,8 @@ if(pdfCreateBtn){
    if(!isAdmin())return;
    const email=(document.getElementById("onlineUserEmail")?.value||"").trim().toLowerCase();
    if(!email)return;
-   const {error}=await sb.from("allowed_users").upsert({email},{onConflict:"email"});
+   const role=document.getElementById("onlineUserRole")?.value||"viewer";
+   const {error}=await sb.from("allowed_users").upsert({email,role},{onConflict:"email"});
    if(error){alert(error.message);return}
    document.getElementById("onlineUserEmail").value="";
    listUsers();
