@@ -1492,8 +1492,28 @@ pTag.onchange=fillPunchRegs;
 savePunch.onclick=()=>{const p=currentPunch||{id:Date.now()};p.tag=pTag.value;p.registro=pReg.value;p.categoria=pCategory.value;p.estado=pStatus.value;p.responsable=pResp.value;p.fecha_objetivo=pDue.value;p.descripcion=pDesc.value;p.cierre=pClose.value;if(!currentPunch)state.punches.push(p);persist();modal("punchModal",false);renderAll()};
 
 
-function exportExcel(){
- if(typeof XLSX==="undefined"){alert("Necesitás conexión a Internet para cargar el módulo Excel.");return}
+
+async function ensureXLSXLoaded(){
+  if(typeof XLSX!=="undefined") return true;
+  const urls=[
+    "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js",
+    "https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js"
+  ];
+  for(const url of urls){
+    try{
+      await new Promise((resolve,reject)=>{
+        const sc=document.createElement("script");
+        sc.src=url; sc.onload=resolve; sc.onerror=reject;
+        document.head.appendChild(sc);
+      });
+      if(typeof XLSX!=="undefined") return true;
+    }catch(e){}
+  }
+  return false;
+}
+
+async function exportExcel(){
+ if(!(await ensureXLSXLoaded())){alert("No se pudo cargar el módulo Excel. Verificá la conexión a Internet e intentá nuevamente.");return}
  try{
    const bin=atob(ORIGINAL_XLSM_B64);
    const u8=new Uint8Array(bin.length);
@@ -2345,6 +2365,18 @@ if(pdfCreateBtn){
 
 
 
+
+function forceExcelExportEnabled(){
+  ["exportExcel","exportBackup"].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el){
+      el.disabled=false;
+      el.style.pointerEvents="auto";
+      el.style.opacity="1";
+    }
+  });
+}
+
 /* ===== ROLES ONLINE PECOM ===== */
 window.PECOM_ROLE = "viewer";
 window.PECOM_CAN_EDIT = false;
@@ -2373,6 +2405,7 @@ function applyPecomRole(role){
     const safeViewer =
       el.closest("#cloudLogin") || el.closest("#cloudLoginOverlay") ||
       el.hasAttribute("data-close") ||
+      id==="exportexcel" || id==="exportbackup" ||
       text.includes("imprimir") || text.includes("ver") ||
       text.includes("abrir") || text.includes("export") ||
       id.includes("search") || id.includes("filter");
@@ -2390,6 +2423,7 @@ function applyPecomRole(role){
     }
   });
 
+  forceExcelExportEnabled();
   const badge=document.getElementById("cloudStatus");
   if(badge){
     const label=window.PECOM_ROLE==="admin"?"Administrador":window.PECOM_ROLE==="editor"?"Editor":"Solo lectura";
@@ -2403,6 +2437,25 @@ function canEditOrWarn(){
   return false;
 }
 
+
+function refreshOnlineAdminUi(){
+  try{
+    const btn=document.getElementById("onlineUsersBtn");
+    const email=String(currentEmail||"").trim().toLowerCase();
+    const configured=String((window.PECOM_ONLINE||{}).adminEmail||"").trim().toLowerCase();
+    const isAdm=email==="pablo.perez@pecomenergia.com.ar" || (!!configured && email===configured);
+    if(btn){
+      btn.hidden=!isAdm;
+      btn.style.setProperty("display",isAdm?"inline-block":"none","important");
+      btn.disabled=false;
+    }
+    if(isAdm){
+      window.PECOM_ROLE="admin";
+      window.PECOM_CAN_EDIT=true;
+    }
+  }catch(e){console.error("refreshOnlineAdminUi",e)}
+}
+
 /* ===== PECOM ONLINE MULTIUSUARIO ===== */
 (function(){
  const cfg=window.PECOM_ONLINE||{};
@@ -2413,12 +2466,18 @@ function canEditOrWarn(){
 
  function status(txt){const e=statusEl();if(e)e.textContent=txt}
  function configured(){return cfg.supabaseUrl && cfg.supabaseAnonKey && !String(cfg.supabaseUrl).includes("PEGAR_") && !String(cfg.supabaseAnonKey).includes("PEGAR_")}
- function isAdmin(){return currentEmail && String(currentEmail).toLowerCase()===String(cfg.adminEmail||"").toLowerCase()}
+ function isAdmin(){
+   const email=String(currentEmail||"").trim().toLowerCase();
+   const configuredAdmin=String(cfg.adminEmail||"").trim().toLowerCase();
+   const fallbackAdmin="pablo.perez@pecomenergia.com.ar";
+   return !!email && (email===configuredAdmin || email===fallbackAdmin);
+ }
 
  async function allowed(email){
    const normalized=String(email).toLowerCase();
-   const admin=String(cfg.adminEmail||"").toLowerCase();
-   if(normalized===admin) return {allowed:true,role:"admin"};
+   const admin=String(cfg.adminEmail||"").trim().toLowerCase();
+   const fallbackAdmin="pablo.perez@pecomenergia.com.ar";
+   if(normalized===admin || normalized===fallbackAdmin) return {allowed:true,role:"admin"};
    const {data,error}=await sb.from("allowed_users").select("email,role").eq("email",normalized).maybeSingle();
    if(error)throw error;
    return data?{allowed:true,role:data.role||"viewer"}:{allowed:false,role:null};
@@ -2483,6 +2542,7 @@ function canEditOrWarn(){
        return;
      }
      applyPecomRole(access.role);
+     refreshOnlineAdminUi();
 
      // Primero carga/sincroniza. Solo después oculta el login.
      window.cloudReady=true;
@@ -2492,6 +2552,7 @@ function canEditOrWarn(){
        ub.hidden=!isAdmin();
      }
      await loadRemote();
+     refreshOnlineAdminUi();
 
      loginEl().style.display="none";
      status("☁ Sincronizado");
@@ -2514,6 +2575,7 @@ function canEditOrWarn(){
           state=payload.new.payload;
           try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){}
           renderAll();
+          refreshOnlineAdminUi();
           status("☁ Actualizado");
         }
       }
@@ -2621,6 +2683,17 @@ function canEditOrWarn(){
   };
   if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",run);
   else run();
+})();
+
+
+(function pecomFinalUiFix(){
+  const run=()=>{
+    forceExcelExportEnabled();
+    if(typeof refreshOnlineAdminUi==="function") refreshOnlineAdminUi();
+  };
+  if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",run);
+  else run();
+  setInterval(run,2000);
 })();
 
 </script>
