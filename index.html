@@ -3676,25 +3676,71 @@ function refreshOnlineAdminUi(){
        alert(error ? "No se pudo cambiar la contraseña: "+error.message : "Contraseña actualizada. Ya podés ingresar normalmente.");
      }
    }else if(event==="SIGNED_IN"){
-     await bootSession(session);
+     // El botón de ingreso abre la sesión directamente. Este evento queda como respaldo
+     // para sesiones restauradas o enlaces de recuperación.
+     if(loginEl()?.style.display!=="none") await bootSession(session);
    }
  });
  }
 
  const loginBtn=document.getElementById("cloudLoginBtn");
+ function withTimeout(promise,ms,label){
+   return Promise.race([
+     promise,
+     new Promise((_,reject)=>setTimeout(()=>reject(new Error(label||"Tiempo de espera agotado")),ms))
+   ]);
+ }
  if(loginBtn)loginBtn.onclick=async()=>{
    const email=(document.getElementById("cloudEmail")?.value||"").trim().toLowerCase();
    const password=document.getElementById("cloudPassword")?.value||"";
    if(!email||!password){msgEl().textContent="Ingresá correo y contraseña.";return}
-   if(!sb){msgEl().textContent="La conexión todavía no está lista. Recargá la página e intentá nuevamente.";return}
-   msgEl().textContent="Ingresando...";
+   if(!sb){
+     msgEl().textContent="No se pudo iniciar la conexión online. Verificá online-config.js y recargá la página.";
+     return;
+   }
+   msgEl().style.color="#52657c";
+   msgEl().textContent="Validando usuario...";
    loginBtn.disabled=true;
    loginBtn.textContent="Ingresando...";
    try{
-     const {error}=await sb.auth.signInWithPassword({email,password});
-     if(error){msgEl().textContent="Error: "+error.message;return}
-     // onAuthStateChange(SIGNED_IN) realiza bootSession una sola vez.
-     msgEl().textContent="Acceso correcto. Abriendo matriz...";
+     const result=await withTimeout(
+       sb.auth.signInWithPassword({email,password}),
+       12000,
+       "Supabase no respondió en 12 segundos. Revisá la conexión o la configuración online."
+     );
+     if(result?.error){
+       msgEl().style.color="#b42318";
+       msgEl().textContent="Error de acceso: "+result.error.message;
+       return;
+     }
+     const session=result?.data?.session;
+     if(!session){
+       msgEl().style.color="#b42318";
+       msgEl().textContent="Supabase validó la solicitud pero no devolvió una sesión. Revisá la confirmación del usuario.";
+       return;
+     }
+
+     // Abrir la pantalla inmediatamente. La carga remota continúa dentro de bootSession.
+     currentEmail=String(session.user?.email||email).toLowerCase();
+     loginEl().style.display="none";
+     msgEl().textContent="";
+     status("☁ Abriendo matriz...");
+
+     try{
+       await withTimeout(bootSession(session),15000,"La sesión inició, pero la matriz tardó demasiado en cargar los datos online.");
+     }catch(bootErr){
+       console.error("bootSession timeout/error",bootErr);
+       // Mantener la matriz visible con los datos locales aunque la nube falle.
+       window.cloudReady=false;
+       status("☁ Modo local · error de sincronización");
+       try{renderAll();refreshOnlineAdminUi();}catch(e){console.error(e)}
+       setTimeout(()=>alert("Se inició sesión, pero falló la sincronización online. La matriz se abrió con los datos disponibles en este equipo.\n\nDetalle: "+(bootErr?.message||bootErr)),50);
+     }
+   }catch(e){
+     console.error("Login PECOM",e);
+     loginEl().style.display="flex";
+     msgEl().style.color="#b42318";
+     msgEl().textContent=e?.message||"No se pudo iniciar sesión.";
    }finally{
      loginBtn.disabled=false;
      loginBtn.textContent="Ingresar";
