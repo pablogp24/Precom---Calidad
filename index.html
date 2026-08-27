@@ -325,7 +325,8 @@ body.admin-edit .admin-only{display:initial}
 </head>
 
 <body>
-<button type="button" id="pecomThemeToggle" title="Cambiar modo día/noche" aria-label="Cambiar modo día/noche">
+<button type="button" id="pecomThemeToggle" data-theme-control="1"
+        title="Cambiar modo día/noche" aria-label="Cambiar modo día/noche">
   <span id="pecomThemeIcon">☀️</span>
 </button>
 
@@ -374,10 +375,10 @@ body.admin-edit .admin-only{display:initial}
 <main>
 <div class="notice"><b>Registros reales:</b> el Maestro inicial se tomó de <b>J7:AB7</b> de la matriz. Además se cargaron los registros <b>Piping P01 a P11</b> con checklist técnico y salida A4 PECOM para impresión.</div>
 <nav class="nav" id="nav">
-<button data-page="control" class="active"><span class="navIcon">▦</span><span>Control de registros</span></button>
-<button data-page="maestro" class="admin-only"><span class="navIcon">▤</span><span>Maestro de registros</span></button>
-<button data-page="punch"><span class="navIcon">⚠</span><span>Punch A/B/C</span></button>
-<button data-page="excel"><span class="navIcon">▧</span><span>Excel</span></button>
+<button data-page="control" class="active">Control de registros</button>
+<button data-page="maestro" class="admin-only">Maestro de registros</button>
+<button data-page="punch">Punch A/B/C</button>
+<button data-page="excel">Excel</button>
 
 <button type="button" class="btn" id="configBtn" title="Configuración protegida">⚙ Configuración</button>
 
@@ -975,6 +976,34 @@ document.querySelectorAll('#nav button[data-page]').forEach(b=>b.addEventListene
 
 
 let currentApplicabilityTag=null;
+
+
+function refreshRecordCreationControls(){
+  try{
+    const can = !window.cloudReady || window.PECOM_ROLE==="admin" || window.PECOM_ROLE==="editor" || window.PECOM_CAN_EDIT===true;
+
+    const pdfBtn=document.getElementById("newPdfRecordBtn");
+    if(pdfBtn){
+      pdfBtn.disabled=!can;
+      pdfBtn.style.pointerEvents=can?"auto":"none";
+      pdfBtn.style.opacity=can?"1":".45";
+      pdfBtn.title=can?"Agregar registro nuevo en PDF":"Solo administrador/editor";
+    }
+
+    const masterBtn=document.getElementById("newMaster");
+    if(masterBtn){
+      masterBtn.disabled=!can;
+      masterBtn.style.pointerEvents=can?"auto":"none";
+      masterBtn.style.opacity=can?"1":".45";
+    }
+
+    document.querySelectorAll("[data-add-record]").forEach(b=>{
+      b.disabled=!can;
+      b.style.display=can?"inline-flex":"none";
+      b.style.pointerEvents=can?"auto":"none";
+    });
+  }catch(e){console.error("refreshRecordCreationControls",e)}
+}
 
 function canAdjustTagRecords(){
  return !window.cloudReady || window.PECOM_ROLE==="admin" || window.PECOM_ROLE==="editor" || window.PECOM_CAN_EDIT===true;
@@ -1658,240 +1687,67 @@ function printBlankMaster(id){
 </style>
 
 
-<style id="pecomModernNavStable">
-/* Solo estética de la navegación principal */
-#nav.nav{
-  display:flex !important;
-  align-items:center !important;
-  gap:8px !important;
-  padding:8px 10px !important;
-  margin-bottom:14px !important;
-  overflow-x:auto !important;
-  background:#0b1620 !important;
-  border:1px solid #2a4153 !important;
-  border-radius:14px !important;
-  box-shadow:0 2px 8px rgba(0,0,0,.14) !important;
-}
-
-#nav.nav > button[data-page]{
-  display:inline-flex !important;
-  align-items:center !important;
-  justify-content:center !important;
-  gap:7px !important;
-  flex:0 0 auto !important;
-  min-height:38px !important;
-  height:38px !important;
-  padding:0 14px !important;
-  border-radius:10px !important;
-  border:1px solid transparent !important;
-  background:transparent !important;
-  color:#879bab !important;
-  font-size:11px !important;
-  font-weight:700 !important;
-  box-shadow:none !important;
-}
-
-#nav.nav > button[data-page] .navIcon{
-  display:inline-flex !important;
-  width:18px !important;
-  height:18px !important;
-  align-items:center !important;
-  justify-content:center !important;
-  font-size:15px !important;
-  color:#7590a4 !important;
-}
-
-#nav.nav > button[data-page]:hover{
-  background:#132536 !important;
-  border-color:#355166 !important;
-  color:#f0f6fa !important;
-}
-
-#nav.nav > button[data-page].active{
-  background:linear-gradient(180deg,#1b3142,#132536) !important;
-  border-color:#3a5870 !important;
-  color:#ffffff !important;
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.05) !important;
-}
-
-#nav.nav > button[data-page].active .navIcon{
-  color:#78b9e8 !important;
-}
-
-/* Botones auxiliares de la barra, sin tocar Configuración fija */
-#nav.nav > #newPdfRecordBtn,
-#nav.nav > #onlineUsersBtn{
-  display:inline-flex !important;
-  align-items:center !important;
-  justify-content:center !important;
-  min-height:36px !important;
-  height:36px !important;
-  padding:0 12px !important;
-  border-radius:9px !important;
-  font-size:10px !important;
-  font-weight:700 !important;
-}
-
-#nav.nav > #newPdfRecordBtn{
-  background:#eef4f8 !important;
-  color:#263d4f !important;
-  border-color:#c7d4de !important;
-}
-
-#nav.nav > #onlineUsersBtn{
-  background:#e4f5ef !important;
-  color:#155d49 !important;
-  border-color:#b8dfd2 !important;
-}
-
-@media(max-width:700px){
-  #nav.nav{gap:5px !important;padding:6px !important}
-  #nav.nav > button[data-page]{
-    min-height:34px !important;
-    height:34px !important;
-    padding:0 10px !important;
-    font-size:10px !important;
-  }
-}
-</style>
-
-
-<style id="pecomModernColorTheme">
-:root{
-  --pecom-bg:#08121b;
-  --pecom-surface:#0f1d29;
-  --pecom-surface-2:#142534;
-  --pecom-border:#294356;
-  --pecom-text:#edf5fb;
-  --pecom-muted:#91a8b9;
-  --pecom-shadow:0 8px 24px rgba(0,0,0,.18);
-}
-
-/* ===== BOTÓN DÍA / NOCHE ===== */
+<style id="pecomModernColorThemeStable">
+/* Botón de tema: arriba izquierda */
 #pecomThemeToggle{
-  position:fixed !important;
-  top:10px !important;
-  left:10px !important;
-  right:auto !important;
-  z-index:2147483647 !important;
-  width:36px !important;
-  min-width:36px !important;
-  max-width:36px !important;
-  height:36px !important;
-  min-height:36px !important;
-  max-height:36px !important;
-  padding:0 !important;
-  border-radius:12px !important;
-  border:1px solid #39566d !important;
-  background:linear-gradient(180deg,#183044,#102231) !important;
-  color:#fff !important;
-  display:flex !important;
-  align-items:center !important;
-  justify-content:center !important;
-  visibility:visible !important;
-  opacity:1 !important;
-  pointer-events:auto !important;
-  cursor:pointer !important;
-  box-shadow:0 4px 14px rgba(0,0,0,.25) !important;
+ position:fixed!important;
+ top:10px!important;left:10px!important;right:auto!important;
+ z-index:25000!important;
+ width:38px!important;min-width:38px!important;height:38px!important;min-height:38px!important;
+ padding:0!important;border-radius:12px!important;
+ border:1px solid #3d5c72!important;
+ background:linear-gradient(180deg,#183247,#102433)!important;
+ color:#fff!important;
+ display:flex!important;align-items:center!important;justify-content:center!important;
+ visibility:visible!important;opacity:1!important;pointer-events:auto!important;
+ cursor:pointer!important;box-shadow:0 4px 14px rgba(0,0,0,.28)!important;
 }
-#pecomThemeToggle:hover{
-  transform:translateY(-1px);
-  filter:brightness(1.1);
-}
+#pecomThemeToggle:hover{filter:brightness(1.12);transform:translateY(-1px)}
 
-/* ===== NAVEGACIÓN MÁS MODERNA Y COLORIDA ===== */
+/* Navegación llamativa/moderna sin tocar funcionalidad */
 #nav.nav{
-  background:linear-gradient(180deg,#0d1b27,#0a1620) !important;
-  border-color:#2c475b !important;
-  box-shadow:var(--pecom-shadow) !important;
+ display:flex!important;align-items:center!important;gap:8px!important;flex-wrap:wrap!important;
+ padding:8px 10px!important;margin-bottom:14px!important;
+ background:linear-gradient(180deg,#0e1e2a,#091620)!important;
+ border:1px solid #2d485c!important;border-radius:14px!important;
+ box-shadow:0 8px 24px rgba(0,0,0,.16)!important;
 }
+#nav.nav>button[data-page]{
+ min-height:38px!important;height:38px!important;
+ padding:0 14px!important;border-radius:10px!important;
+ border:1px solid transparent!important;font-size:11px!important;font-weight:750!important;
+ color:#f7fbfd!important;box-shadow:0 3px 10px rgba(0,0,0,.12)!important;
+ transition:transform .12s ease,filter .12s ease!important;
+}
+#nav.nav>button[data-page="control"]{background:#12658f!important;border-color:#2581ad!important}
+#nav.nav>button[data-page="maestro"]{background:#634aa0!important;border-color:#8068bc!important}
+#nav.nav>button[data-page="punch"]{background:#b65b22!important;border-color:#d3763d!important}
+#nav.nav>button[data-page="excel"]{background:#24805f!important;border-color:#3a9b78!important}
+#nav.nav>button[data-page]:hover{filter:brightness(1.12)!important;transform:translateY(-1px)!important}
+#nav.nav>button[data-page].active{outline:2px solid rgba(255,255,255,.28)!important;outline-offset:1px!important}
 
-#nav.nav > button[data-page]{
-  border:1px solid transparent !important;
-  color:#b2c4d2 !important;
+#newPdfRecordBtn{
+ background:linear-gradient(180deg,#f3f7fa,#dde8ef)!important;
+ color:#233d50!important;border-color:#c2d0da!important;
 }
+#onlineUsersBtn{
+ background:linear-gradient(180deg,#dff6ed,#c7ebdd)!important;
+ color:#155a45!important;border-color:#acd9c8!important;
+}
+#configBtn{background:#ff7b1a!important;border-color:#ff7b1a!important;color:#fff!important}
 
-/* Control */
-#nav.nav > button[data-page="control"]{
-  background:linear-gradient(180deg,#123f58,#0f3146) !important;
-  border-color:#1f607e !important;
-  color:#dff5ff !important;
+/* Modo Día completo */
+html.pecom-light,html.pecom-light body{
+ --bg:#f4f7fa!important;--panel:#ffffff!important;--card:#ffffff!important;
+ --card2:#f4f7fa!important;--line:#d2dce4!important;--text:#17212b!important;--muted:#647586!important;
+ background:#f4f7fa!important;color:#17212b!important;
 }
-/* Maestro */
-#nav.nav > button[data-page="maestro"]{
-  background:linear-gradient(180deg,#3b2d62,#2b2148) !important;
-  border-color:#62508d !important;
-  color:#eee7ff !important;
+html.pecom-light body,html.pecom-light main,html.pecom-light section,html.pecom-light .page{
+ background:#f4f7fa!important;color:#17212b!important;
 }
-/* Punch */
-#nav.nav > button[data-page="punch"]{
-  background:linear-gradient(180deg,#5a3421,#3d2519) !important;
-  border-color:#8a5333 !important;
-  color:#ffe9d7 !important;
-}
-/* Excel */
-#nav.nav > button[data-page="excel"]{
-  background:linear-gradient(180deg,#1b4c3a,#15382c) !important;
-  border-color:#36765d !important;
-  color:#e1fff3 !important;
-}
-
-#nav.nav > button[data-page]:hover{
-  filter:brightness(1.14) !important;
-  transform:translateY(-1px) !important;
-  box-shadow:0 5px 14px rgba(0,0,0,.18) !important;
-}
-#nav.nav > button[data-page].active{
-  outline:2px solid rgba(255,255,255,.18) !important;
-  box-shadow:0 0 0 1px rgba(255,255,255,.06),0 6px 16px rgba(0,0,0,.22) !important;
-}
-
-/* PDF y Usuarios */
-#nav.nav > #newPdfRecordBtn{
-  background:linear-gradient(180deg,#eff4f8,#dfe8ef) !important;
-  color:#20394c !important;
-  border-color:#c1d0da !important;
-}
-#nav.nav > #onlineUsersBtn{
-  background:linear-gradient(180deg,#dff7ee,#c9ecdf) !important;
-  color:#115842 !important;
-  border-color:#afdccc !important;
-}
-
-/* KPIs y tarjetas con mejor profundidad */
-.kpi,.card,.progress-panel,.tag-card{
-  box-shadow:0 5px 18px rgba(0,0,0,.10);
-}
-.hero-main,.hero-small{
-  box-shadow:0 6px 18px rgba(0,0,0,.12);
-}
-
-/* ===== MODO DÍA REAL ===== */
-html.pecom-light,
-html.pecom-light body{
-  background:#f4f7fa !important;
-  color:#17212b !important;
-}
-html.pecom-light body,
-html.pecom-light main,
-html.pecom-light section,
-html.pecom-light .page,
-html.pecom-light .content,
-html.pecom-light .container,
-html.pecom-light .wrap{
-  background:#f4f7fa !important;
-  color:#17212b !important;
-}
-
-html.pecom-light header{
-  background:#ffffff !important;
-  border-color:#d4dee6 !important;
-}
-html.pecom-light .brand h1,
-html.pecom-light .brand p{
-  color:#17212b !important;
-}
-
+html.pecom-light header{background:#fff!important;border-color:#d2dce4!important}
+html.pecom-light .brand h1{color:#17212b!important}
+html.pecom-light .brand p{color:#647586!important}
 html.pecom-light .card,
 html.pecom-light .kpi,
 html.pecom-light .tag-card,
@@ -1901,105 +1757,34 @@ html.pecom-light .modalbox,
 html.pecom-light .modalbody,
 html.pecom-light .rule-box,
 html.pecom-light .filebox{
-  background:#ffffff !important;
-  color:#17212b !important;
-  border-color:#d4dee6 !important;
+ background:#fff!important;color:#17212b!important;border-color:#d2dce4!important;
 }
-
-html.pecom-light .tag-head{
-  background:#eef3f7 !important;
-  color:#17212b !important;
+html.pecom-light .tag-head{background:#edf3f7!important;color:#17212b!important}
+html.pecom-light .tag-head:hover{background:#e4edf3!important}
+html.pecom-light .reg{background:#fff!important;color:#17212b!important}
+html.pecom-light input,html.pecom-light select,html.pecom-light textarea{
+ background:#fff!important;color:#17212b!important;border-color:#b8c4ce!important;
 }
-html.pecom-light .tag-head:hover{
-  background:#e6edf3 !important;
+html.pecom-light table,html.pecom-light tbody,html.pecom-light td{
+ background:#fff!important;color:#17212b!important;border-color:#d7e0e6!important;
 }
-html.pecom-light .reg{
-  background:#ffffff !important;
-  color:#17212b !important;
-  border-color:#d5dde5 !important;
-}
-html.pecom-light .reg.pending{border-left-color:#d94f62 !important}
-html.pecom-light .reg.done{border-left-color:#2f9d69 !important}
-html.pecom-light .reg.present{border-left-color:#3f88c5 !important}
-html.pecom-light .reg.obs{border-left-color:#d39b2a !important}
-
-html.pecom-light input,
-html.pecom-light select,
-html.pecom-light textarea{
-  background:#ffffff !important;
-  color:#17212b !important;
-  border-color:#b9c5cf !important;
-}
-html.pecom-light input::placeholder,
-html.pecom-light textarea::placeholder{
-  color:#778796 !important;
-}
-
-html.pecom-light table,
-html.pecom-light tbody,
-html.pecom-light td{
-  background:#ffffff !important;
-  color:#17212b !important;
-  border-color:#d8e0e6 !important;
-}
-html.pecom-light th{
-  background:#e9eff4 !important;
-  color:#17212b !important;
-  border-color:#cbd5df !important;
-}
-html.pecom-light .advance-table tr:hover td{
-  background:#f2f6f9 !important;
-}
-html.pecom-light .notice{
-  background:#eef5fa !important;
-  color:#314354 !important;
-  border-color:#c8dae8 !important;
-}
+html.pecom-light th{background:#e8eef3!important;color:#17212b!important}
+html.pecom-light .notice{background:#eef5fa!important;color:#314354!important;border-color:#c6d9e7!important}
 html.pecom-light .classic-hero .hero-main,
-html.pecom-light .classic-hero .hero-small{
-  background:linear-gradient(180deg,#e7f3fb,#d8eaf6) !important;
-  color:#16354c !important;
-}
+html.pecom-light .classic-hero .hero-small{background:#e4f1f9!important;color:#16354c!important}
 html.pecom-light .classic-hero span,
-html.pecom-light .classic-hero small{
-  color:#506b7e !important;
-}
-
-html.pecom-light #nav.nav{
-  background:#ffffff !important;
-  border-color:#d2dce4 !important;
-  box-shadow:0 5px 18px rgba(40,70,90,.08) !important;
-}
-/* En claro conservamos color, pero más suave */
-html.pecom-light #nav.nav > button[data-page="control"]{
-  background:#e7f4fb !important;color:#164764 !important;border-color:#bfdeef !important;
-}
-html.pecom-light #nav.nav > button[data-page="maestro"]{
-  background:#eee9fa !important;color:#493871 !important;border-color:#d7cdef !important;
-}
-html.pecom-light #nav.nav > button[data-page="punch"]{
-  background:#fff0e5 !important;color:#744326 !important;border-color:#efd0ba !important;
-}
-html.pecom-light #nav.nav > button[data-page="excel"]{
-  background:#e6f5ee !important;color:#1c5d47 !important;border-color:#c4e5d8 !important;
-}
-
-html.pecom-light #pecomThemeToggle{
-  background:#ffffff !important;
-  color:#17212b !important;
-  border-color:#b9c5cf !important;
-  box-shadow:0 4px 12px rgba(40,60,80,.12) !important;
-}
+html.pecom-light .classic-hero small{color:#577084!important}
+html.pecom-light #nav.nav{background:#fff!important;border-color:#d0dbe3!important}
+html.pecom-light #nav.nav>button[data-page="control"]{background:#dff1fa!important;color:#164b68!important;border-color:#b9dcec!important}
+html.pecom-light #nav.nav>button[data-page="maestro"]{background:#eee8fa!important;color:#4b3974!important;border-color:#d3c7eb!important}
+html.pecom-light #nav.nav>button[data-page="punch"]{background:#ffede1!important;color:#79421f!important;border-color:#efcdb5!important}
+html.pecom-light #nav.nav>button[data-page="excel"]{background:#e3f4ed!important;color:#1d5f49!important;border-color:#bfe2d4!important}
+html.pecom-light #pecomThemeToggle{background:#fff!important;color:#17212b!important;border-color:#b8c4ce!important}
 
 @media(max-width:700px){
-  #pecomThemeToggle{
-    top:7px !important;
-    left:7px !important;
-    width:34px !important;
-    min-width:34px !important;
-    height:34px !important;
-    min-height:34px !important;
-  }
+ #pecomThemeToggle{top:7px!important;left:7px!important;width:34px!important;min-width:34px!important;height:34px!important;min-height:34px!important}
+ #nav.nav{gap:5px!important;padding:6px!important}
+ #nav.nav>button[data-page]{height:34px!important;min-height:34px!important;padding:0 10px!important;font-size:10px!important}
 }
 </style>
 
@@ -2990,6 +2775,10 @@ if(pdfCreateBtn){
 
  const create=document.getElementById("npdfCreate");
  if(create)create.onclick=async()=>{
+  if(!(window.PECOM_ROLE==="admin" || window.PECOM_ROLE==="editor" || window.PECOM_CAN_EDIT===true)){
+    alert("Solo un Administrador o Editor puede crear registros.");
+    return;
+  }
   const id=(document.getElementById("npdfId")?.value||"").trim();
   const name=(document.getElementById("npdfName")?.value||"").trim();
   const file=document.getElementById("npdfFile")?.files?.[0];
@@ -3081,6 +2870,7 @@ function applyPecomRole(role){
     const safeViewer =
       el.closest("#cloudLogin") || el.closest("#cloudLoginOverlay") ||
       el.hasAttribute("data-close") ||
+      el.hasAttribute("data-theme-control") ||
       id==="exportexcel" || id==="exportbackup" ||
       text.includes("imprimir") || text.includes("ver") ||
       text.includes("abrir") || text.includes("export") ||
@@ -3100,6 +2890,7 @@ function applyPecomRole(role){
   });
 
   forceExcelExportEnabled();
+  refreshRecordCreationControls();
   const badge=document.getElementById("cloudStatus");
   if(badge){
     const label=window.PECOM_ROLE==="admin"?"Administrador":window.PECOM_ROLE==="editor"?"Editor":"Solo lectura";
@@ -3388,42 +3179,85 @@ function refreshOnlineAdminUi(){
 })();
 
 
-(function pecomThemeController(){
+(function reinforceNewPdfRecordButton(){
+  const bind=()=>{
+    const btn=document.getElementById("newPdfRecordBtn");
+    const dlg=document.getElementById("newPdfRecordModal");
+    if(dlg && dlg.parentElement!==document.body)document.body.appendChild(dlg);
+    if(btn){
+      btn.onclick=(e)=>{
+        e.preventDefault();e.stopPropagation();
+        if(!(window.PECOM_ROLE==="admin" || window.PECOM_ROLE==="editor" || window.PECOM_CAN_EDIT===true)){
+          alert("Solo un Administrador o Editor puede crear registros.");
+          return;
+        }
+        if(dlg){
+          dlg.classList.add("show");
+          dlg.style.display="flex";
+        }else{
+          alert("No se encontró la ventana para crear el registro.");
+        }
+      };
+    }
+    refreshRecordCreationControls();
+  };
+  if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",bind);
+  else bind();
+  setTimeout(bind,500);
+  setTimeout(bind,1800);
+})();
+
+
+(function reinforceNewMasterButton(){
+  const bind=()=>{
+    const btn=document.getElementById("newMaster");
+    if(!btn)return;
+    btn.onclick=(e)=>{
+      e.preventDefault();e.stopPropagation();
+      if(!(window.PECOM_ROLE==="admin" || window.PECOM_ROLE==="editor" || window.PECOM_CAN_EDIT===true)){
+        alert("Solo un Administrador o Editor puede crear registros.");
+        return;
+      }
+      openMaster(null);
+    };
+  };
+  if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",bind);
+  else bind();
+  setTimeout(bind,700);
+})();
+
+
+(function pecomThemeStable(){
   function init(){
     const btn=document.getElementById("pecomThemeToggle");
     const icon=document.getElementById("pecomThemeIcon");
     if(!btn)return;
-
     let mode="dark";
     try{
       const saved=localStorage.getItem("pecom_theme_mode");
       if(saved==="light"||saved==="dark")mode=saved;
     }catch(e){}
-
-    function apply(){
+    const apply=()=>{
       const light=mode==="light";
       document.documentElement.classList.toggle("pecom-light",light);
       document.body.classList.toggle("pecom-light",light);
       if(icon)icon.textContent=light?"🌙":"☀️";
       btn.title=light?"Cambiar a modo noche":"Cambiar a modo día";
-      btn.setAttribute("aria-pressed",String(light));
+      btn.disabled=false;
       btn.style.setProperty("display","flex","important");
-      btn.style.setProperty("visibility","visible","important");
-    }
-
-    btn.onclick=function(e){
-      e.preventDefault();
-      e.stopPropagation();
+      btn.style.setProperty("pointer-events","auto","important");
+    };
+    btn.onclick=(e)=>{
+      e.preventDefault();e.stopPropagation();
       mode=mode==="light"?"dark":"light";
       try{localStorage.setItem("pecom_theme_mode",mode)}catch(err){}
       apply();
     };
-
     apply();
   }
-
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);
   else init();
+  setTimeout(init,900);
 })();
 
 </script>
