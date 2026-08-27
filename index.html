@@ -325,6 +325,10 @@ body.admin-edit .admin-only{display:initial}
 </head>
 
 <body>
+<button type="button" id="pecomThemeToggle" title="Cambiar modo día/noche" aria-label="Cambiar modo día/noche">
+  <span id="pecomThemeIcon">☀️</span>
+</button>
+
 
 <div id="cloudLogin" style="position:fixed;inset:0;z-index:30000;background:#0d1624;display:flex;align-items:center;justify-content:center;padding:18px">
  <div style="width:min(430px,96vw);background:#fff;color:#142033;border-radius:14px;padding:22px;box-shadow:0 12px 45px rgba(0,0,0,.4)">
@@ -1751,6 +1755,254 @@ function printBlankMaster(id){
 }
 </style>
 
+
+<style id="pecomModernColorTheme">
+:root{
+  --pecom-bg:#08121b;
+  --pecom-surface:#0f1d29;
+  --pecom-surface-2:#142534;
+  --pecom-border:#294356;
+  --pecom-text:#edf5fb;
+  --pecom-muted:#91a8b9;
+  --pecom-shadow:0 8px 24px rgba(0,0,0,.18);
+}
+
+/* ===== BOTÓN DÍA / NOCHE ===== */
+#pecomThemeToggle{
+  position:fixed !important;
+  top:10px !important;
+  left:10px !important;
+  right:auto !important;
+  z-index:2147483647 !important;
+  width:36px !important;
+  min-width:36px !important;
+  max-width:36px !important;
+  height:36px !important;
+  min-height:36px !important;
+  max-height:36px !important;
+  padding:0 !important;
+  border-radius:12px !important;
+  border:1px solid #39566d !important;
+  background:linear-gradient(180deg,#183044,#102231) !important;
+  color:#fff !important;
+  display:flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  visibility:visible !important;
+  opacity:1 !important;
+  pointer-events:auto !important;
+  cursor:pointer !important;
+  box-shadow:0 4px 14px rgba(0,0,0,.25) !important;
+}
+#pecomThemeToggle:hover{
+  transform:translateY(-1px);
+  filter:brightness(1.1);
+}
+
+/* ===== NAVEGACIÓN MÁS MODERNA Y COLORIDA ===== */
+#nav.nav{
+  background:linear-gradient(180deg,#0d1b27,#0a1620) !important;
+  border-color:#2c475b !important;
+  box-shadow:var(--pecom-shadow) !important;
+}
+
+#nav.nav > button[data-page]{
+  border:1px solid transparent !important;
+  color:#b2c4d2 !important;
+}
+
+/* Control */
+#nav.nav > button[data-page="control"]{
+  background:linear-gradient(180deg,#123f58,#0f3146) !important;
+  border-color:#1f607e !important;
+  color:#dff5ff !important;
+}
+/* Maestro */
+#nav.nav > button[data-page="maestro"]{
+  background:linear-gradient(180deg,#3b2d62,#2b2148) !important;
+  border-color:#62508d !important;
+  color:#eee7ff !important;
+}
+/* Punch */
+#nav.nav > button[data-page="punch"]{
+  background:linear-gradient(180deg,#5a3421,#3d2519) !important;
+  border-color:#8a5333 !important;
+  color:#ffe9d7 !important;
+}
+/* Excel */
+#nav.nav > button[data-page="excel"]{
+  background:linear-gradient(180deg,#1b4c3a,#15382c) !important;
+  border-color:#36765d !important;
+  color:#e1fff3 !important;
+}
+
+#nav.nav > button[data-page]:hover{
+  filter:brightness(1.14) !important;
+  transform:translateY(-1px) !important;
+  box-shadow:0 5px 14px rgba(0,0,0,.18) !important;
+}
+#nav.nav > button[data-page].active{
+  outline:2px solid rgba(255,255,255,.18) !important;
+  box-shadow:0 0 0 1px rgba(255,255,255,.06),0 6px 16px rgba(0,0,0,.22) !important;
+}
+
+/* PDF y Usuarios */
+#nav.nav > #newPdfRecordBtn{
+  background:linear-gradient(180deg,#eff4f8,#dfe8ef) !important;
+  color:#20394c !important;
+  border-color:#c1d0da !important;
+}
+#nav.nav > #onlineUsersBtn{
+  background:linear-gradient(180deg,#dff7ee,#c9ecdf) !important;
+  color:#115842 !important;
+  border-color:#afdccc !important;
+}
+
+/* KPIs y tarjetas con mejor profundidad */
+.kpi,.card,.progress-panel,.tag-card{
+  box-shadow:0 5px 18px rgba(0,0,0,.10);
+}
+.hero-main,.hero-small{
+  box-shadow:0 6px 18px rgba(0,0,0,.12);
+}
+
+/* ===== MODO DÍA REAL ===== */
+html.pecom-light,
+html.pecom-light body{
+  background:#f4f7fa !important;
+  color:#17212b !important;
+}
+html.pecom-light body,
+html.pecom-light main,
+html.pecom-light section,
+html.pecom-light .page,
+html.pecom-light .content,
+html.pecom-light .container,
+html.pecom-light .wrap{
+  background:#f4f7fa !important;
+  color:#17212b !important;
+}
+
+html.pecom-light header{
+  background:#ffffff !important;
+  border-color:#d4dee6 !important;
+}
+html.pecom-light .brand h1,
+html.pecom-light .brand p{
+  color:#17212b !important;
+}
+
+html.pecom-light .card,
+html.pecom-light .kpi,
+html.pecom-light .tag-card,
+html.pecom-light .tag-body,
+html.pecom-light .progress-panel,
+html.pecom-light .modalbox,
+html.pecom-light .modalbody,
+html.pecom-light .rule-box,
+html.pecom-light .filebox{
+  background:#ffffff !important;
+  color:#17212b !important;
+  border-color:#d4dee6 !important;
+}
+
+html.pecom-light .tag-head{
+  background:#eef3f7 !important;
+  color:#17212b !important;
+}
+html.pecom-light .tag-head:hover{
+  background:#e6edf3 !important;
+}
+html.pecom-light .reg{
+  background:#ffffff !important;
+  color:#17212b !important;
+  border-color:#d5dde5 !important;
+}
+html.pecom-light .reg.pending{border-left-color:#d94f62 !important}
+html.pecom-light .reg.done{border-left-color:#2f9d69 !important}
+html.pecom-light .reg.present{border-left-color:#3f88c5 !important}
+html.pecom-light .reg.obs{border-left-color:#d39b2a !important}
+
+html.pecom-light input,
+html.pecom-light select,
+html.pecom-light textarea{
+  background:#ffffff !important;
+  color:#17212b !important;
+  border-color:#b9c5cf !important;
+}
+html.pecom-light input::placeholder,
+html.pecom-light textarea::placeholder{
+  color:#778796 !important;
+}
+
+html.pecom-light table,
+html.pecom-light tbody,
+html.pecom-light td{
+  background:#ffffff !important;
+  color:#17212b !important;
+  border-color:#d8e0e6 !important;
+}
+html.pecom-light th{
+  background:#e9eff4 !important;
+  color:#17212b !important;
+  border-color:#cbd5df !important;
+}
+html.pecom-light .advance-table tr:hover td{
+  background:#f2f6f9 !important;
+}
+html.pecom-light .notice{
+  background:#eef5fa !important;
+  color:#314354 !important;
+  border-color:#c8dae8 !important;
+}
+html.pecom-light .classic-hero .hero-main,
+html.pecom-light .classic-hero .hero-small{
+  background:linear-gradient(180deg,#e7f3fb,#d8eaf6) !important;
+  color:#16354c !important;
+}
+html.pecom-light .classic-hero span,
+html.pecom-light .classic-hero small{
+  color:#506b7e !important;
+}
+
+html.pecom-light #nav.nav{
+  background:#ffffff !important;
+  border-color:#d2dce4 !important;
+  box-shadow:0 5px 18px rgba(40,70,90,.08) !important;
+}
+/* En claro conservamos color, pero más suave */
+html.pecom-light #nav.nav > button[data-page="control"]{
+  background:#e7f4fb !important;color:#164764 !important;border-color:#bfdeef !important;
+}
+html.pecom-light #nav.nav > button[data-page="maestro"]{
+  background:#eee9fa !important;color:#493871 !important;border-color:#d7cdef !important;
+}
+html.pecom-light #nav.nav > button[data-page="punch"]{
+  background:#fff0e5 !important;color:#744326 !important;border-color:#efd0ba !important;
+}
+html.pecom-light #nav.nav > button[data-page="excel"]{
+  background:#e6f5ee !important;color:#1c5d47 !important;border-color:#c4e5d8 !important;
+}
+
+html.pecom-light #pecomThemeToggle{
+  background:#ffffff !important;
+  color:#17212b !important;
+  border-color:#b9c5cf !important;
+  box-shadow:0 4px 12px rgba(40,60,80,.12) !important;
+}
+
+@media(max-width:700px){
+  #pecomThemeToggle{
+    top:7px !important;
+    left:7px !important;
+    width:34px !important;
+    min-width:34px !important;
+    height:34px !important;
+    min-height:34px !important;
+  }
+}
+</style>
+
 </head><body><div class="page">
  <div class="hdr">
    <div class="box center" style="padding:4px"><div class="t1">PeCOM-PRECOMISIONADO</div><div class="t2">${title}</div></div>
@@ -3133,6 +3385,45 @@ function refreshOnlineAdminUi(){
  if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",enable);
  else enable();
  setInterval(enable,1500);
+})();
+
+
+(function pecomThemeController(){
+  function init(){
+    const btn=document.getElementById("pecomThemeToggle");
+    const icon=document.getElementById("pecomThemeIcon");
+    if(!btn)return;
+
+    let mode="dark";
+    try{
+      const saved=localStorage.getItem("pecom_theme_mode");
+      if(saved==="light"||saved==="dark")mode=saved;
+    }catch(e){}
+
+    function apply(){
+      const light=mode==="light";
+      document.documentElement.classList.toggle("pecom-light",light);
+      document.body.classList.toggle("pecom-light",light);
+      if(icon)icon.textContent=light?"🌙":"☀️";
+      btn.title=light?"Cambiar a modo noche":"Cambiar a modo día";
+      btn.setAttribute("aria-pressed",String(light));
+      btn.style.setProperty("display","flex","important");
+      btn.style.setProperty("visibility","visible","important");
+    }
+
+    btn.onclick=function(e){
+      e.preventDefault();
+      e.stopPropagation();
+      mode=mode==="light"?"dark":"light";
+      try{localStorage.setItem("pecom_theme_mode",mode)}catch(err){}
+      apply();
+    };
+
+    apply();
+  }
+
+  if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);
+  else init();
 })();
 
 </script>
