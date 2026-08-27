@@ -397,6 +397,104 @@ html:not(.pecom-light) body{background:#0e1721!important;color:#e8eef3!important
  </div>
 </div>
 
+<script>
+/* ===== LOGIN BLINDADO PECOM V4 =====
+   Se enlaza inmediatamente después del formulario y no depende del resto de la aplicación. */
+(function pecomLoginShield(){
+  const btn=document.getElementById('cloudLoginBtn');
+  const login=document.getElementById('cloudLogin');
+  const msg=document.getElementById('cloudLoginMsg');
+  const emailEl=document.getElementById('cloudEmail');
+  const passEl=document.getElementById('cloudPassword');
+  if(!btn||!login||!msg) return;
+
+  function say(text,bad){
+    msg.style.display='block';
+    msg.style.minHeight='18px';
+    msg.style.marginTop='10px';
+    msg.style.fontWeight='700';
+    msg.style.color=bad?'#b42318':'#52657c';
+    msg.textContent=text||'';
+  }
+  function cfg(){ return window.PECOM_ONLINE||{}; }
+  function adminEmail(email){
+    const configured=String(cfg().adminEmail||'').trim().toLowerCase();
+    const e=String(email||'').trim().toLowerCase();
+    return e==='pablo.perez@pecomenergia.com.ar' || (!!configured && e===configured);
+  }
+  async function getClient(){
+    const c=cfg();
+    if(!c.supabaseUrl || !c.supabaseAnonKey){
+      throw new Error('Falta la configuración online. Verificá que online-config.js esté subido junto al index.html.');
+    }
+    if(!window.supabase || typeof window.supabase.createClient!=='function'){
+      throw new Error('No cargó la librería de Supabase. Revisá la conexión a internet o el acceso al CDN.');
+    }
+    if(!window.__PECOM_LOGIN_SB){
+      window.__PECOM_LOGIN_SB=window.supabase.createClient(c.supabaseUrl,c.supabaseAnonKey);
+    }
+    return window.__PECOM_LOGIN_SB;
+  }
+
+  async function loginNow(ev){
+    if(ev){ ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); }
+    const email=String(emailEl?.value||'').trim().toLowerCase();
+    const password=String(passEl?.value||'');
+    if(!email||!password){ say('Ingresá correo y contraseña.',true); return; }
+
+    btn.disabled=true;
+    btn.textContent='Ingresando...';
+    say('Validando usuario…',false);
+    try{
+      const sb=await getClient();
+      const timeout=new Promise((_,rej)=>setTimeout(()=>rej(new Error('Supabase no respondió en 15 segundos.')),15000));
+      const auth=await Promise.race([sb.auth.signInWithPassword({email,password}),timeout]);
+      if(auth?.error) throw auth.error;
+      const session=auth?.data?.session;
+      if(!session) throw new Error('No se recibió una sesión válida.');
+
+      let role='viewer';
+      if(adminEmail(email)) role='admin';
+      else {
+        const q=await sb.from('allowed_users').select('email,role').eq('email',email).maybeSingle();
+        if(q.error) throw q.error;
+        if(!q.data){ await sb.auth.signOut(); throw new Error('Este correo no está autorizado.'); }
+        role=q.data.role||'viewer';
+      }
+
+      window.PECOM_ROLE=role;
+      window.PECOM_CAN_EDIT=(role==='admin'||role==='editor');
+      window.cloudReady=true;
+      window.__PECOM_LOGIN_SESSION=session;
+      login.style.setProperty('display','none','important');
+      say('',false);
+
+      // Deja que el resto de la aplicación termine de inicializarse sin bloquear el acceso.
+      setTimeout(()=>{
+        try{ if(typeof window.renderAll==='function') window.renderAll(); }catch(e){ console.error('renderAll post-login',e); }
+        try{ if(typeof window.refreshOnlineAdminUi==='function') window.refreshOnlineAdminUi(); }catch(e){}
+      },50);
+    }catch(err){
+      console.error('PECOM login V4',err);
+      login.style.setProperty('display','flex','important');
+      say('No se pudo ingresar: '+(err?.message||String(err)),true);
+    }finally{
+      btn.disabled=false;
+      btn.textContent='Ingresar';
+    }
+  }
+
+  // Captura: este controlador se ejecuta antes que cualquier onclick posterior.
+  btn.addEventListener('click',loginNow,true);
+  [emailEl,passEl].forEach(el=>el&&el.addEventListener('keydown',e=>{
+    if(e.key==='Enter') loginNow(e);
+  },true));
+
+  // Indicador de que el JS del login sí cargó.
+  window.__PECOM_LOGIN_SHIELD_READY=true;
+})();
+</script>
+
 <div class="modal" id="usersOnlineModal"><div class="modalbox" style="max-width:720px">
  <div class="modalhead"><div><b>Usuarios online autorizados</b><div style="font-size:11px;color:var(--muted)">Solo administrador</div></div><button class="btn" data-close="usersOnlineModal">✕</button></div>
  <div class="modalbody">
