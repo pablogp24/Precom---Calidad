@@ -1,5 +1,5 @@
 window.PECOM_ONLINE = {
-  supabaseUrl: "PEGAR_SUPABASE_URL",
-  supabaseAnonKey: "PEGAR_SUPABASE_ANON_KEY",
-  adminEmail: "PEGAR_TU_EMAIL_ADMIN"
+  supabaseUrl: "https://fujtkmsmoeewfelhpckh.supabase.co",
+  supabaseAnonKey: "sb_publishable_okl7QJvuSMDWa_aw2yUABw_XFjc39IT",
+  adminEmail: "pablo.perez@pecomenergia.com.ar"
 };
