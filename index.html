@@ -2333,6 +2333,26 @@ if(pdfCreateBtn){
 
 
 
+
+function forceShowPecomApp(){
+  try{
+    document.documentElement.style.background='';
+    document.body.style.background='';
+    document.body.style.overflow='';
+    document.documentElement.classList.remove('cloud-locked','locked','loading');
+    document.body.classList.remove('cloud-locked','locked','loading');
+    const login1=document.getElementById('cloudLogin');
+    if(login1){login1.style.display='none';login1.style.visibility='hidden';login1.style.opacity='0';login1.style.pointerEvents='none';}
+    const login2=document.getElementById('cloudLoginOverlay');
+    if(login2){login2.classList.add('hidden');login2.style.display='none';login2.style.visibility='hidden';login2.style.opacity='0';login2.style.pointerEvents='none';}
+    const candidates=[document.getElementById('app'),document.querySelector('main'),document.querySelector('.app'),document.querySelector('.container')].filter(Boolean);
+    candidates.forEach(el=>{el.style.display='';el.style.visibility='visible';el.style.opacity='1';});
+    document.querySelectorAll('.page').forEach(el=>{el.style.visibility='visible';el.style.opacity='1';});
+    if(!document.querySelector('.page.active')){const first=document.querySelector('.page');if(first)first.classList.add('active');}
+    const active=document.querySelector('.page.active');
+    if(active){active.style.display='';active.style.visibility='visible';active.style.opacity='1';}
+  }catch(err){console.error('forceShowPecomApp:',err);}
+}
 /* ===== PECOM ONLINE MULTIUSUARIO ===== */
 (function(){
  const cfg=window.PECOM_ONLINE||{};
@@ -2415,12 +2435,15 @@ if(pdfCreateBtn){
      cloudUser=email;
      cloudIsAdmin=(email===admin);
      hideLogin();
+     forceShowPecomApp();
      document.body.classList.remove("cloud-locked");
      document.documentElement.classList.remove("cloud-locked");
      const app=document.getElementById("app");
      if(app) app.style.display="";
      await cloudLoad();
+     forceShowPecomApp();
      updateOnlineUI();
+     setTimeout(forceShowPecomApp,150);
    }catch(err){
      console.error("PECOM bootSession:",err);
      showLogin("No se pudo abrir la matriz: "+(err?.message||err));
@@ -2493,5 +2516,28 @@ if(pdfCreateBtn){
  if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();
 })();
 
+
+(function pecomUiWatchdog(){
+  setInterval(()=>{
+    try{
+      const login=document.getElementById('cloudLogin')||document.getElementById('cloudLoginOverlay');
+      const loginVisible=login && getComputedStyle(login).display!=='none' && getComputedStyle(login).visibility!=='hidden' && !login.classList.contains('hidden');
+      const active=document.querySelector('.page.active');
+      const activeVisible=active && getComputedStyle(active).display!=='none' && getComputedStyle(active).visibility!=='hidden' && parseFloat(getComputedStyle(active).opacity||'1')>0;
+      if(!loginVisible && !activeVisible){forceShowPecomApp();}
+    }catch(e){}
+  },1200);
+})();
+
+window.addEventListener('error',ev=>{
+  try{
+    const login=document.getElementById('cloudLogin')||document.getElementById('cloudLoginOverlay');
+    if(login){
+      login.style.display='flex';login.style.visibility='visible';login.style.opacity='1';
+      const msg=document.getElementById('cloudLoginMsg');
+      if(msg)msg.textContent='Error al cargar la matriz: '+(ev.message||'error desconocido');
+    }
+  }catch(e){}
+});
 </script>
 </body></html>
