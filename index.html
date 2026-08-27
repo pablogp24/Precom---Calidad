@@ -1683,6 +1683,105 @@ body.pecom-light #pecomThemeToggle{background:#fff;color:#17212b}
 @media(max-width:700px){#pecomThemeToggle{top:7px;right:7px;width:32px;min-width:32px;height:32px;min-height:32px}}
 </style>
 
+
+<style id="pecomThemeToggleVisibleFix">
+#pecomThemeToggle{
+  position:fixed !important;
+  top:10px !important;
+  right:56px !important;
+  z-index:200000 !important;
+  display:flex !important;
+  visibility:visible !important;
+  opacity:1 !important;
+  pointer-events:auto !important;
+  width:34px !important;
+  min-width:34px !important;
+  max-width:34px !important;
+  height:34px !important;
+  min-height:34px !important;
+  max-height:34px !important;
+  padding:0 !important;
+  border-radius:50% !important;
+}
+@media(max-width:700px){
+  #pecomThemeToggle{
+    top:7px !important;
+    right:50px !important;
+    width:32px !important;
+    min-width:32px !important;
+    height:32px !important;
+    min-height:32px !important;
+  }
+}
+</style>
+
+
+<style id="pecomTrueLightMode">
+/* MODO DÍA: fondo realmente blanco */
+body.pecom-light,
+body.pecom-light main,
+body.pecom-light .main,
+body.pecom-light .content,
+body.pecom-light .container,
+body.pecom-light .wrap{
+  background:#ffffff !important;
+  color:#17212b !important;
+}
+body.pecom-light .section,
+body.pecom-light .panel,
+body.pecom-light .card,
+body.pecom-light .tag-card,
+body.pecom-light .tag-body,
+body.pecom-light .progress-panel,
+body.pecom-light .modalbox{
+  background:#ffffff !important;
+  color:#17212b !important;
+  border-color:#d5dde5 !important;
+}
+body.pecom-light .reg{
+  background:#f7f9fb !important;
+  color:#17212b !important;
+  border-color:#d5dde5 !important;
+}
+body.pecom-light header,
+body.pecom-light .header,
+body.pecom-light .topbar{
+  background:#ffffff !important;
+  color:#17212b !important;
+  border-color:#d5dde5 !important;
+}
+body.pecom-light input,
+body.pecom-light select,
+body.pecom-light textarea{
+  background:#ffffff !important;
+  color:#17212b !important;
+  border-color:#b9c5cf !important;
+}
+body.pecom-light .progress-scroll,
+body.pecom-light .table-wrap{
+  background:#ffffff !important;
+}
+body.pecom-light table,
+body.pecom-light tbody,
+body.pecom-light td{
+  background:#ffffff !important;
+  color:#17212b !important;
+}
+body.pecom-light th{
+  background:#edf2f6 !important;
+  color:#17212b !important;
+}
+body.pecom-light small,
+body.pecom-light .muted{
+  color:#647586 !important;
+}
+body.pecom-light #pecomThemeToggle{
+  background:#ffffff !important;
+  color:#17212b !important;
+  border-color:#aebbc7 !important;
+}
+</style>
+
 </head><body><div class="page">
  <div class="hdr">
    <div class="box center" style="padding:4px"><div class="t1">PeCOM-PRECOMISIONADO</div><div class="t2">${title}</div></div>
@@ -3085,6 +3184,43 @@ function refreshOnlineAdminUi(){
    apply();
  });
  apply();
+})();
+
+
+(function ensureThemeButtonVisible(){
+  function ensure(){
+    let btn=document.getElementById("pecomThemeToggle");
+    if(!btn){
+      btn=document.createElement("button");
+      btn.type="button";
+      btn.id="pecomThemeToggle";
+      btn.setAttribute("aria-label","Cambiar modo día/noche");
+      document.body.appendChild(btn);
+
+      let theme="dark";
+      try{theme=localStorage.getItem("pecom_theme")||"dark"}catch(e){}
+      const apply=()=>{
+        const light=theme==="light";
+        document.body.classList.toggle("pecom-light",light);
+        btn.textContent=light?"🌙":"☀️";
+        btn.title=light?"Cambiar a modo noche":"Cambiar a modo día";
+      };
+      btn.onclick=()=>{
+        theme=theme==="light"?"dark":"light";
+        try{localStorage.setItem("pecom_theme",theme)}catch(e){}
+        apply();
+      };
+      apply();
+    }
+    btn.style.setProperty("display","flex","important");
+    btn.style.setProperty("visibility","visible","important");
+    btn.style.setProperty("opacity","1","important");
+    btn.style.setProperty("pointer-events","auto","important");
+  }
+  if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",ensure);
+  else ensure();
+  setTimeout(ensure,300);
+  setTimeout(ensure,1200);
 })();
 
 </script>
