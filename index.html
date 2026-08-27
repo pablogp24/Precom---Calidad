@@ -379,7 +379,7 @@ body.admin-edit .admin-only{display:initial}
 
 <button type="button" class="btn" id="newPdfRecordBtn" title="Agregar registro nuevo en PDF">＋ PDF</button>
 
-<button type="button" class="btn admin-only" id="onlineUsersBtn" style="display:none">👥 Usuarios</button>
+<button type="button" class="btn" id="onlineUsersBtn" style="display:none">👥 Usuarios</button>
 </nav>
 
 <section id="control" class="page active">
@@ -2351,6 +2351,12 @@ window.PECOM_CAN_EDIT = false;
 
 function applyPecomRole(role){
   window.PECOM_ROLE = role || "viewer";
+  const onlineUsersButton=document.getElementById("onlineUsersBtn");
+  if(onlineUsersButton){
+    const showUsers=(window.PECOM_ROLE==="admin");
+    onlineUsersButton.hidden=!showUsers;
+    onlineUsersButton.style.setProperty("display",showUsers?"inline-block":"none","important");
+  }
   window.PECOM_CAN_EDIT = (role==="admin" || role==="editor");
 
   document.documentElement.dataset.pecomRole = window.PECOM_ROLE;
@@ -2361,8 +2367,8 @@ function applyPecomRole(role){
     const id=(el.id||"").toLowerCase();
     const text=(el.textContent||"").toLowerCase();
     const adminOnly =
-      id.includes("config") || id.includes("onlineusers") ||
-      text.includes("configuración") || text.includes("usuarios");
+      id.includes("config") ||
+      text.includes("configuración");
 
     const safeViewer =
       el.closest("#cloudLogin") || el.closest("#cloudLoginOverlay") ||
@@ -2481,7 +2487,10 @@ function canEditOrWarn(){
      // Primero carga/sincroniza. Solo después oculta el login.
      window.cloudReady=true;
      const ub=document.getElementById("onlineUsersBtn");
-     if(ub)ub.style.display=isAdmin()?"inline-block":"none";
+     if(ub){
+       ub.style.setProperty("display",isAdmin()?"inline-block":"none","important");
+       ub.hidden=!isAdmin();
+     }
      await loadRemote();
 
      loginEl().style.display="none";
