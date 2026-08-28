@@ -1687,9 +1687,13 @@ async function printOriginalCurrentRecord(withAnswers=true){
   function renderKpis(){
     var box=document.getElementById('modernKpis'); if(!box||!window.state)return;
     var tags=state.tags||[], stats=tags.map(function(t){var ms=applicableMasters(t),its=ms.map(m=>({m:m,i:inst(t,m)})),p=pct(its.map(x=>({instance:x.i})));return {its:its,p:p,st:statusFor(its)}});
-    var total=tags.length, withRegs=stats.filter(x=>x.its.length).length, completed=stats.filter(x=>x.its.length&&x.p===100).length, process=stats.filter(x=>x.its.length&&x.p>0&&x.p<100).length, pending=stats.filter(x=>x.its.some(y=>y.i.estado==='PENDIENTE')).length, obs=stats.filter(x=>x.its.some(y=>y.i.estado==='OBSERVADO')).length;
-    function k(cl,label,val){return '<div class="modern-kpi '+cl+'"><span>'+label+'</span><b>'+val.toLocaleString('es-AR')+'</b><small>'+numPct(val,total)+'%</small></div>'}
-    box.innerHTML=k('total','Total TAGs',total)+k('regs','Con registros',withRegs)+k('done','Completados',completed)+k('process','En proceso',process)+k('pending','Pendientes',pending)+k('obs','Observados',obs);
+    var allRegs=[];
+    stats.forEach(function(x){(x.its||[]).forEach(function(y){allRegs.push(y.i||{})})});
+    var total=allRegs.length;
+    var completed=allRegs.filter(function(i){return i.estado==='REALIZADO'||i.estado==='PRESENTADO'}).length;
+    var pending=allRegs.filter(function(i){return i.estado==='PENDIENTE'}).length;
+    function k(cl,label,val){return '<div class="modern-kpi '+cl+'"><span>'+label+'</span><b>'+val.toLocaleString('es-AR')+'</b><small>'+(total?numPct(val,total):0)+'%</small></div>'}
+    box.innerHTML=k('total','Total de registros',total)+k('done','Completados',completed)+k('pending','Pendientes',pending);
   }
   function modernRenderControl(){
     ensureModernShell();
@@ -4364,5 +4368,52 @@ function refreshOnlineAdminUi(){
   try{if(!localStorage.getItem('pecom_theme'))document.documentElement.classList.add('pecom-light')}catch(e){}
 })();
 
+</script>
+
+<style id="pecom-v9-fixes">
+#modernKpis{grid-template-columns:repeat(3,minmax(180px,1fr))!important}
+#modernKpis .modern-kpi{min-height:84px!important}
+.reg[data-record]{cursor:pointer!important;position:relative!important}
+.reg[data-record]:hover{box-shadow:0 3px 12px rgba(0,0,0,.12)!important;transform:translateY(-1px)}
+@media(max-width:700px){#modernKpis{grid-template-columns:1fr!important}}
+</style>
+<script id="pecom-v9-record-click-fix">
+(function(){
+  if(window.__PECOM_RECORD_DELEGATE_V9__) return;
+  window.__PECOM_RECORD_DELEGATE_V9__=true;
+  function openFromCard(card,ev){
+    if(!card) return;
+    if(ev && ev.target && ev.target.closest && ev.target.closest('[data-remove-record]')) return;
+    var raw=card.getAttribute('data-record')||'';
+    var sep=raw.indexOf('|||');
+    if(sep<0) return;
+    var tag=raw.slice(0,sep), id=raw.slice(sep+3);
+    var fn=window.pecomOpenRecord||window.openRecord;
+    if(typeof fn!=='function'){
+      console.error('PECOM: función openRecord no disponible');
+      alert('No se pudo abrir el registro. Recargá la página una vez y volvé a intentarlo.');
+      return;
+    }
+    try{
+      var r=fn(tag,id);
+      if(r && typeof r.catch==='function') r.catch(function(err){console.error(err);alert('No se pudo abrir el registro: '+(err&&err.message?err.message:err));});
+    }catch(err){
+      console.error(err);
+      alert('No se pudo abrir el registro: '+(err&&err.message?err.message:err));
+    }
+  }
+  document.addEventListener('click',function(ev){
+    var card=ev.target&&ev.target.closest?ev.target.closest('.reg[data-record]'):null;
+    if(!card) return;
+    ev.preventDefault();ev.stopPropagation();
+    openFromCard(card,ev);
+  },true);
+  document.addEventListener('keydown',function(ev){
+    if(ev.key!=='Enter'&&ev.key!==' ') return;
+    var card=ev.target&&ev.target.closest?ev.target.closest('.reg[data-record]'):null;
+    if(!card) return;
+    ev.preventDefault();ev.stopPropagation();openFromCard(card,ev);
+  },true);
+})();
 </script>
 </body></html>
