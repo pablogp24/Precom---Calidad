@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#071019">
 <title>PECOM · Matriz ODV-ALVS</title>
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script>window.XLSX={utils:{},writeFile:function(){}};</script>
 <style>
 :root{
  --bg:#091018;--panel:#101923;--card:#14202b;--card2:#182735;--line:#263847;
@@ -327,7 +327,7 @@ body.admin-edit .admin-only{display:initial}
 
 
 <script src="online-config.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-stub.js"></script>
 
 
 <style id="pecomInspectorTagAndThemeFinalFix">
@@ -380,6 +380,28 @@ html:not(.pecom-light) body{background:#0e1721!important;color:#e8eef3!important
 @media(max-width:480px){.modern-kpis{grid-template-columns:1fr 1fr}.regs.modern-regs{grid-template-columns:1fr}.donut-wrap{grid-template-columns:1fr;justify-items:center}.tag-head{grid-template-columns:1fr!important}}
 </style>
 
+
+<style id="pecom-v11-kpi-rings">
+#modernKpis{grid-template-columns:repeat(5,minmax(170px,1fr))!important;gap:10px!important}
+#modernKpis .modern-kpi{min-height:96px!important;display:flex!important;align-items:center!important;justify-content:space-between!important;text-align:left!important;padding:12px 14px!important}
+#modernKpis .modern-kpi-copy{min-width:0}
+#modernKpis .modern-kpi span{font-size:11px!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#modernKpis .modern-kpi b{font-size:24px!important;margin-top:5px!important}
+#modernKpis .modern-kpi small{font-size:10px!important}
+#modernKpis .mini-donut{--ring:#0b66c3;width:54px;height:54px;min-width:54px;border-radius:50%;display:grid;place-items:center;position:relative;background:conic-gradient(var(--ring) calc(var(--p)*1%),#e5e7eb 0)}
+#modernKpis .mini-donut::after{content:"";position:absolute;inset:8px;border-radius:50%;background:#fff}
+#modernKpis .mini-donut strong{position:relative;z-index:1;font-size:11px;color:#1f2937}
+#modernKpis .modern-kpi.total .mini-donut{--ring:#0b66c3}
+#modernKpis .modern-kpi.regs .mini-donut{--ring:#2494d4}
+#modernKpis .modern-kpi.done .mini-donut{--ring:#159447}
+#modernKpis .modern-kpi.pending .mini-donut{--ring:#d93b33}
+#modernKpis .modern-kpi.obs .mini-donut{--ring:#d98400}
+html:not(.pecom-light) #modernKpis .mini-donut::after{background:#121e29!important}
+html:not(.pecom-light) #modernKpis .mini-donut strong{color:#e8eef3!important}
+@media(max-width:1100px){#modernKpis{grid-template-columns:repeat(3,minmax(170px,1fr))!important}}
+@media(max-width:700px){#modernKpis{grid-template-columns:repeat(2,minmax(150px,1fr))!important}}
+@media(max-width:450px){#modernKpis{grid-template-columns:1fr!important}}
+</style>
 </head>
 
 <body>
@@ -4337,9 +4359,18 @@ function refreshOnlineAdminUi(){
   function renderKpis(){
     var box=document.getElementById('modernKpis'); if(!box)return;
     var tags=state.tags||[], stats=tags.map(function(t){var ms=applicableMasters(t),its=ms.map(m=>({m:m,i:inst(t,m)})),p=pct(its.map(x=>({instance:x.i})));return {its:its,p:p,st:statusFor(its)}});
-    var total=tags.length, withRegs=stats.filter(x=>x.its.length).length, completed=stats.filter(x=>x.its.length&&x.p===100).length, process=stats.filter(x=>x.its.length&&x.p>0&&x.p<100).length, pending=stats.filter(x=>x.its.some(y=>y.i.estado==='PENDIENTE')).length, obs=stats.filter(x=>x.its.some(y=>y.i.estado==='OBSERVADO')).length;
-    function k(cl,label,val){return '<div class="modern-kpi '+cl+'"><span>'+label+'</span><b>'+val.toLocaleString('es-AR')+'</b><small>'+numPct(val,total)+'%</small></div>'}
-    box.innerHTML=k('total','Total TAGs',total)+k('regs','Con registros',withRegs)+k('done','Completados',completed)+k('process','En proceso',process)+k('pending','Pendientes',pending)+k('obs','Observados',obs);
+    var totalTags=tags.length;
+    var allRecords=[];
+    tags.forEach(function(t){applicableMasters(t).forEach(function(m){allRecords.push(inst(t,m));});});
+    var totalRecords=allRecords.length;
+    var completed=allRecords.filter(function(i){return i.estado==='REALIZADO'||i.estado==='PRESENTADO'}).length;
+    var pending=allRecords.filter(function(i){return i.estado==='PENDIENTE'}).length;
+    var obs=allRecords.filter(function(i){return i.estado==='OBSERVADO'}).length;
+    function k(cl,label,val,p){
+      p=Math.max(0,Math.min(100,Number(p)||0));
+      return '<div class="modern-kpi '+cl+'"><div class="modern-kpi-copy"><span>'+label+'</span><b>'+val.toLocaleString('es-AR')+'</b><small>'+p+'%</small></div><div class="mini-donut" style="--p:'+p+'"><strong>'+p+'%</strong></div></div>'
+    }
+    box.innerHTML=k('total','Total de TAGs',totalTags,100)+k('regs','Total de registros',totalRecords,100)+k('done','Registros completados',completed,numPct(completed,totalRecords))+k('pending','Registros pendientes',pending,numPct(pending,totalRecords))+k('obs','Registros observados',obs,numPct(obs,totalRecords));
   }
   function modernRenderControl(){
     ensureModernShell();
