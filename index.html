@@ -1128,7 +1128,11 @@ function pct(items){
  const done=items.filter(x=>x.instance.estado==="REALIZADO"||x.instance.estado==="PRESENTADO").length;
  return Math.round(done*100/items.length)
 }
-function modal(id,show=true){document.getElementById(id).classList.toggle("show",show)}
+function modal(id,show=true){
+ const el=document.getElementById(id);if(!el)return;
+ if(show){el.style.removeProperty("display");el.classList.add("show");}
+ else{el.classList.remove("show");el.style.removeProperty("display");}
+}
 document.querySelectorAll("[data-close]").forEach(b=>b.addEventListener("click",()=>modal(b.dataset.close,false)));
 document.querySelectorAll('#nav button[data-page]').forEach(b=>b.addEventListener("click",()=>{
  document.querySelectorAll('#nav button[data-page]').forEach(x=>x.classList.remove("active"));
@@ -4413,6 +4417,84 @@ function refreshOnlineAdminUi(){
     var card=ev.target&&ev.target.closest?ev.target.closest('.reg[data-record]'):null;
     if(!card) return;
     ev.preventDefault();ev.stopPropagation();openFromCard(card,ev);
+  },true);
+})();
+</script>
+
+<style id="pecom-v10-modal-fixes">
+.modal{overscroll-behavior:contain}
+.modal.show{display:flex!important}
+.modal:not(.show){display:none!important}
+.reg[data-record]{pointer-events:auto!important}
+.reg[data-record] > *:not([data-remove-record]){pointer-events:none}
+</style>
+<script id="pecom-v10-modal-record-repair">
+(function(){
+  function flattenModals(){
+    document.querySelectorAll('.modal .modal').forEach(function(m){document.body.appendChild(m);});
+  }
+  function closeModal(el){
+    if(!el)return;
+    el.classList.remove('show');
+    el.style.removeProperty('display');
+  }
+  function openRecordFromCard(card){
+    if(!card)return;
+    var raw=card.getAttribute('data-record')||'';
+    var parts=raw.split('|||');
+    if(parts.length<2)return;
+    // Garantizar que el modal de ejecución nunca quede dentro de otro modal.
+    var rm=document.getElementById('recordModal');
+    if(rm && rm.parentElement!==document.body)document.body.appendChild(rm);
+    rm && rm.style.removeProperty('display');
+    var fn=window.pecomOpenRecord||window.openRecord;
+    if(typeof fn!=='function'){
+      alert('No se encontró la función para abrir el registro.');
+      return;
+    }
+    try{
+      var ret=fn(parts[0],parts.slice(1).join('|||'));
+      if(ret&&typeof ret.catch==='function')ret.catch(function(err){console.error(err);alert('No se pudo abrir el registro: '+(err&&err.message?err.message:err));});
+    }catch(err){console.error(err);alert('No se pudo abrir el registro: '+(err&&err.message?err.message:err));}
+  }
+  function init(){
+    flattenModals();
+    // Los modales que pueden abrirse desde otros modales deben quedar todos al nivel de BODY.
+    ['tagRecordApplicabilityModal','recordModal','masterModal','configModal','layoutEditorModal','originalEditorModal','templateModal','usersOnlineModal'].forEach(function(id){
+      var el=document.getElementById(id);if(el&&el.parentElement!==document.body)document.body.appendChild(el);
+      if(el)el.style.removeProperty('display');
+    });
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true}); else init();
+  setTimeout(init,100);
+  setTimeout(init,900);
+
+  // Cierre universal: X, Cancelar y cualquier botón data-close.
+  document.addEventListener('click',function(ev){
+    var b=ev.target&&ev.target.closest?ev.target.closest('[data-close]'):null;
+    if(b){
+      ev.preventDefault();ev.stopPropagation();
+      closeModal(document.getElementById(b.getAttribute('data-close')));
+      return;
+    }
+    // Clic en el fondo oscuro cierra solamente ese modal.
+    var bg=ev.target&&ev.target.classList&&ev.target.classList.contains('modal')?ev.target:null;
+    if(bg&&bg.classList.contains('show'))closeModal(bg);
+  },true);
+  document.addEventListener('keydown',function(ev){
+    if(ev.key==='Escape'){
+      var shown=[].slice.call(document.querySelectorAll('.modal.show'));
+      if(shown.length){ev.preventDefault();closeModal(shown[shown.length-1]);}
+    }
+  },true);
+
+  // Clic directo y permanente en cualquier tarjeta de registro.
+  document.addEventListener('click',function(ev){
+    if(ev.target&&ev.target.closest&&ev.target.closest('[data-remove-record]'))return;
+    var card=ev.target&&ev.target.closest?ev.target.closest('.reg[data-record]'):null;
+    if(!card)return;
+    ev.preventDefault();ev.stopImmediatePropagation();
+    openRecordFromCard(card);
   },true);
 })();
 </script>
