@@ -1498,15 +1498,43 @@ async function dbGet(k){const d=await db();return new Promise((res,rej)=>{const 
 async function dbPut(k,f){const d=await db();return new Promise((res,rej)=>{const tx=d.transaction(STORE,"readwrite");tx.objectStore(STORE).put(f,k);tx.oncomplete=res;tx.onerror=()=>rej(tx.error)})}
 rFile.onchange=()=>{pendingFile=rFile.files[0]||null;rFileName.textContent=pendingFile?pendingFile.name:""};
 async function openRecord(tagName,id){
- const t=state.tags.find(x=>x.tag===tagName),m=state.masters.find(x=>x.id===id);if(!t||!m)return;
- currentRecord={t,m};const i=inst(t,m),file=await dbGet(recKey(t.tag,m.id));
- const tpl=await getEffectiveTemplate(m.id);
- const hasTpl=(tpl.urls||[]).length>0;
+ const t=state.tags.find(x=>x.tag===tagName),m=state.masters.find(x=>x.id===id);
+ if(!t||!m){alert("No se encontró el TAG o el registro seleccionado.");return;}
+ currentRecord={t,m};
+ const i=inst(t,m);
+
+ // Abrir el formulario inmediatamente. Los archivos y la plantilla se cargan después.
  recTitle.textContent=m.nombre;
- recSub.textContent=t.tag+" · "+m.tipo+(hasTpl?(tpl.source==="override"?" · FORMATO ACTUALIZADO":" · FORMATO PDF ORIGINAL"):" · FORMATO SIN PDF FUENTE");
- rTag.value=t.tag;rName.value=m.nombre;rType.value=m.tipo;rState.value=i.estado;rResp.value=i.responsable;rDate.value=i.fecha;rDoc.value=i.documento;rObs.value=i.observacion;rFile.value="";pendingFile=null;rFileName.textContent=file?"Archivo actual: "+(file.name||"evidencia"):"";
+ recSub.textContent=t.tag+" · "+m.tipo+" · Cargando formato…";
+ rTag.value=t.tag;rName.value=m.nombre;rType.value=m.tipo;rState.value=i.estado;rResp.value=i.responsable;rDate.value=i.fecha;rDoc.value=i.documento;rObs.value=i.observacion;
+ rFile.value="";pendingFile=null;rFileName.textContent="Cargando adjuntos…";
  buildChecklist(m,i);
+ recordForm.style.display="";
+ recordViewer.style.display="none";
+ if(window.originalFormatBox) originalFormatBox.style.display="none";
+ if(window.printPecomRecord) printPecomRecord.style.display="none";
+ const rp=(state.punches||[]).find(p=>p.tag===t.tag&&p.registro===m.id&&p.estado==="ABIERTO");
+ if(window.rPunchCategory)rPunchCategory.value=rp?.categoria||"";
+ if(window.rPunchResp)rPunchResp.value=rp?.responsable||"";
+ if(window.rPunchDue)rPunchDue.value=rp?.fecha_objetivo||"";
+ if(window.rPunchDesc)rPunchDesc.value=rp?.descripcion||"";
+ modal("recordModal",true);
+
+ // Nunca dejar que IndexedDB o la plantilla bloqueen la apertura del registro.
+ const safeTimeout=(promise,ms,fallback)=>Promise.race([
+   Promise.resolve(promise).catch(()=>fallback),
+   new Promise(res=>setTimeout(()=>res(fallback),ms))
+ ]);
+ const [file,tplRaw]=await Promise.all([
+   safeTimeout(dbGet(recKey(t.tag,m.id)),1800,null),
+   safeTimeout(getEffectiveTemplate(m.id),2500,{urls:[],types:[],names:[],source:""})
+ ]);
+ const tpl=tplRaw||{urls:[],types:[],names:[],source:""};
+ const hasTpl=(tpl.urls||[]).length>0;
  currentRecord.template=tpl;
+ recSub.textContent=m.nombre ? t.tag+" · "+m.tipo+(hasTpl?(tpl.source==="override"?" · FORMATO ACTUALIZADO":" · FORMATO PDF ORIGINAL"):" · FORMATO SIN PDF FUENTE") : t.tag+" · "+m.tipo;
+ rFileName.textContent=file?"Archivo actual: "+(file.name||"evidencia"):"Sin archivo adjunto";
+
  if(window.originalFormatBox){
    originalFormatBox.style.display=hasTpl?"block":"none";
    if(hasTpl){
@@ -1517,15 +1545,10 @@ async function openRecord(tagName,id){
        :`<img src="${u}" alt="Vista del formato oficial" style="width:100%;max-width:520px;border:1px solid var(--border);border-radius:8px;background:white">`;
    }else originalFormatThumb.innerHTML="";
  }
- if(window.printPecomRecord){printPecomRecord.style.display=hasTpl?"inline-block":"none";}
- const rp=(state.punches||[]).find(p=>p.tag===t.tag&&p.registro===m.id&&p.estado==="ABIERTO");
- if(window.rPunchCategory)rPunchCategory.value=rp?.categoria||"";
- if(window.rPunchResp)rPunchResp.value=rp?.responsable||"";
- if(window.rPunchDue)rPunchDue.value=rp?.fecha_objetivo||"";
- if(window.rPunchDesc)rPunchDesc.value=rp?.descripcion||"";
- if((i.estado==="REALIZADO"||i.estado==="PRESENTADO")&&file){showViewer(file)}else{recordForm.style.display="";recordViewer.style.display="none"}
- modal("recordModal",true)
+ if(window.printPecomRecord)printPecomRecord.style.display=hasTpl?"inline-block":"none";
+ if((i.estado==="REALIZADO"||i.estado==="PRESENTADO")&&file)showViewer(file);
 }
+
 function buildChecklist(m,i){
  if(m.tipo!=="CHECKLIST"){checkArea.innerHTML="";return}
  checkArea.innerHTML=`<div class="rule-box"><b>Checklist</b>`+(m.checklist||[]).map(it=>{
@@ -1687,7 +1710,7 @@ async function printOriginalCurrentRecord(withAnswers=true){
       return '<div class="tag-card" id="tc'+idx+'"><div class="tag-head" data-open="tc'+idx+'"><div class="tag-description"><b class="tag-code">'+e(t.tag)+'</b><div style="color:var(--muted);font-size:10px">'+e(t.descripcion||'Sin descripción')+'</div></div><div><small>Sistema</small><br><b>'+e(t.sistema||'-')+'</b></div><div><small>Subsistema</small><br><b>'+e(t.subsistema||'-')+'</b></div><div><b>'+p+'%</b><div class="modern-bar"><i style="width:'+p+'%"></i></div></div><div><span class="tag-overall-status '+st.cl+'">'+st.text+'</span></div></div><div class="tag-body"><div class="tag-modern-body"><div class="tag-panel"><div class="tag-record-head"><h3>Registros del TAG ('+items.length+')</h3><div class="tag-record-tools"><button type="button" class="btn tag-new-record" data-new-record="'+e(t.tag)+'">＋ Nuevo</button><button type="button" class="btn tag-add-record" data-add-record="'+e(t.tag)+'">＋ Desde Maestro</button></div></div><div class="regs modern-regs">'+regs+'</div></div><div class="tag-panel tag-info-panel"><h3>Información del TAG</h3><dl class="tag-info-list"><dt>Descripción</dt><dd>'+e(t.descripcion||'-')+'</dd><dt>Sistema</dt><dd>'+e(t.sistema||'-')+(t.desc_sistema?' · '+e(t.desc_sistema):'')+'</dd><dt>Subsistema</dt><dd>'+e(t.subsistema||'-')+(t.desc_subsistema?' · '+e(t.desc_subsistema):'')+'</dd><dt>Total registros aplicables</dt><dd>'+items.length+'</dd><dt>Última actualización</dt><dd class="last-update">'+latestDate(items)+'</dd></dl></div></div></div></div>';
     }).join('')||'<div class="empty">No hay TAGs para este filtro.</div>';
     document.querySelectorAll('[data-open]').forEach(x=>x.onclick=()=>document.getElementById(x.dataset.open).classList.toggle('open'));
-    document.querySelectorAll('[data-record]').forEach(x=>x.onclick=ev=>{if(ev.target.closest('[data-remove-record]'))return;ev.preventDefault();ev.stopPropagation();var a=x.dataset.record.split('|||');var fn=window.pecomOpenRecord||window.openRecord;if(typeof fn==='function'){Promise.resolve(fn(a[0],a[1])).catch(function(err){console.error(err);alert('No se pudo abrir el registro: '+(err&&err.message?err.message:err))})}else{alert('No se encontró la función para abrir el registro.')}});
+    document.querySelectorAll('[data-record]').forEach(function(x){x.style.cursor='pointer';x.setAttribute('tabindex','0');var go=function(ev){if(ev.target&&ev.target.closest&&ev.target.closest('[data-remove-record]'))return;if(ev.type==='keydown'&&ev.key!=='Enter'&&ev.key!==' ')return;ev.preventDefault();ev.stopPropagation();var a=x.dataset.record.split('|||');Promise.resolve(openRecord(a[0],a[1])).catch(function(err){console.error(err);alert('No se pudo abrir el registro: '+(err&&err.message?err.message:err))});};x.onclick=go;x.onkeydown=go;});
     document.querySelectorAll('[data-add-record]').forEach(function(b){b.style.display=canAdjustTagRecords()?'inline-flex':'none';b.onclick=function(ev){ev.preventDefault();ev.stopPropagation();(window.pecomOpenMasterPicker||openAddRecordToTag)(b.dataset.addRecord)}});
     document.querySelectorAll('[data-remove-record]').forEach(function(b){b.style.display=canAdjustTagRecords()?'inline-flex':'none';b.onclick=function(ev){ev.preventDefault();ev.stopPropagation();var a=b.dataset.removeRecord.split('|||');removeRecordFromTag(a[0],a[1])}});
     renderKpis();
@@ -4329,7 +4352,7 @@ function refreshOnlineAdminUi(){
       return '<div class="tag-card" id="tc'+idx+'"><div class="tag-head" data-open="tc'+idx+'"><div class="tag-description"><b class="tag-code">'+e(t.tag)+'</b><div style="color:var(--muted);font-size:10px">'+e(t.descripcion||'Sin descripción')+'</div></div><div><small>Sistema</small><br><b>'+e(t.sistema||'-')+'</b></div><div><small>Subsistema</small><br><b>'+e(t.subsistema||'-')+'</b></div><div><b>'+p+'%</b><div class="modern-bar"><i style="width:'+p+'%"></i></div></div><div><span class="tag-overall-status '+st.cl+'">'+st.text+'</span></div></div><div class="tag-body"><div class="tag-modern-body"><div class="tag-panel"><div class="tag-record-head"><h3>Registros del TAG ('+items.length+')</h3><div class="tag-record-tools"><button type="button" class="btn tag-new-record" data-new-record="'+e(t.tag)+'">＋ Nuevo</button><button type="button" class="btn tag-add-record" data-add-record="'+e(t.tag)+'">＋ Desde Maestro</button></div></div><div class="regs modern-regs">'+regs+'</div></div><div class="tag-panel tag-info-panel"><h3>Información del TAG</h3><dl class="tag-info-list"><dt>Descripción</dt><dd>'+e(t.descripcion||'-')+'</dd><dt>Sistema</dt><dd>'+e(t.sistema||'-')+(t.desc_sistema?' · '+e(t.desc_sistema):'')+'</dd><dt>Subsistema</dt><dd>'+e(t.subsistema||'-')+(t.desc_subsistema?' · '+e(t.desc_subsistema):'')+'</dd><dt>Total registros aplicables</dt><dd>'+items.length+'</dd><dt>Última actualización</dt><dd class="last-update">'+latestDate(items)+'</dd></dl></div></div></div></div>';
     }).join('')||'<div class="empty">No hay TAGs para este filtro.</div>';
     document.querySelectorAll('[data-open]').forEach(x=>x.onclick=()=>document.getElementById(x.dataset.open).classList.toggle('open'));
-    document.querySelectorAll('[data-record]').forEach(x=>x.onclick=ev=>{if(ev.target.closest('[data-remove-record]'))return;ev.preventDefault();ev.stopPropagation();var a=x.dataset.record.split('|||');var fn=window.pecomOpenRecord||window.openRecord;if(typeof fn==='function'){Promise.resolve(fn(a[0],a[1])).catch(function(err){console.error(err);alert('No se pudo abrir el registro: '+(err&&err.message?err.message:err))})}else{alert('No se encontró la función para abrir el registro.')}});
+    document.querySelectorAll('[data-record]').forEach(function(x){x.style.cursor='pointer';x.setAttribute('tabindex','0');var go=function(ev){if(ev.target&&ev.target.closest&&ev.target.closest('[data-remove-record]'))return;if(ev.type==='keydown'&&ev.key!=='Enter'&&ev.key!==' ')return;ev.preventDefault();ev.stopPropagation();var a=x.dataset.record.split('|||');Promise.resolve(openRecord(a[0],a[1])).catch(function(err){console.error(err);alert('No se pudo abrir el registro: '+(err&&err.message?err.message:err))});};x.onclick=go;x.onkeydown=go;});
     document.querySelectorAll('[data-add-record]').forEach(function(b){b.style.display=canAdjustTagRecords()?'inline-flex':'none';b.onclick=function(ev){ev.preventDefault();ev.stopPropagation();(window.pecomOpenMasterPicker||openAddRecordToTag)(b.dataset.addRecord)}});
     document.querySelectorAll('[data-remove-record]').forEach(function(b){b.style.display=canAdjustTagRecords()?'inline-flex':'none';b.onclick=function(ev){ev.preventDefault();ev.stopPropagation();var a=b.dataset.removeRecord.split('|||');removeRecordFromTag(a[0],a[1])}});
     renderKpis();
