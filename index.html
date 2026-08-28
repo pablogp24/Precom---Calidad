@@ -327,7 +327,24 @@ body.admin-edit .admin-only{display:initial}
 
 
 <script src="online-config.js"></script>
-<script src="supabase-stub.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+/* Fallback automático de Supabase si jsDelivr está bloqueado */
+(function(){
+  function loadFallback(){
+    if(window.supabase && typeof window.supabase.createClient==='function') return;
+    var s=document.createElement('script');
+    s.src='https://unpkg.com/@supabase/supabase-js@2';
+    s.async=false;
+    s.onload=function(){window.__PECOM_SUPABASE_CDN_OK=true;};
+    s.onerror=function(){window.__PECOM_SUPABASE_CDN_ERROR=true;};
+    document.head.appendChild(s);
+  }
+  window.addEventListener('load',function(){
+    if(!(window.supabase && typeof window.supabase.createClient==='function')) loadFallback();
+  });
+})();
+</script>
 
 
 <style id="pecomInspectorTagAndThemeFinalFix">
@@ -457,7 +474,14 @@ html:not(.pecom-light) #modernKpis .mini-donut strong{color:#e8eef3!important}
       throw new Error('Falta la configuración online. Verificá que online-config.js esté subido junto al index.html.');
     }
     if(!window.supabase || typeof window.supabase.createClient!=='function'){
-      throw new Error('No cargó la librería de Supabase. Revisá la conexión a internet o el acceso al CDN.');
+      // Espera breve por el CDN alternativo antes de informar error.
+      for(let i=0;i<20;i++){
+        await new Promise(r=>setTimeout(r,150));
+        if(window.supabase && typeof window.supabase.createClient==='function') break;
+      }
+    }
+    if(!window.supabase || typeof window.supabase.createClient!=='function'){
+      throw new Error('No cargó la librería de Supabase desde ninguno de los CDN. Revisá si la red de la empresa bloquea jsDelivr/unpkg.');
     }
     if(!window.__PECOM_LOGIN_SB){
       window.__PECOM_LOGIN_SB=window.supabase.createClient(c.supabaseUrl,c.supabaseAnonKey);
