@@ -1778,6 +1778,77 @@ async function printOriginalCurrentRecord(withAnswers=true){
 })();
 <\/script>
 
+
+<style id="pecom-v19-punch-toggle">
+/* V19: Total Punch abiertos despliega/oculta A/B/C */
+#punchKpis .kpi.punch-total-toggle{cursor:pointer;position:relative}
+#punchKpis .kpi.punch-total-toggle .punch-toggle-arrow{
+  position:absolute;right:7px;top:6px;font-size:13px;font-weight:900;line-height:1;
+  opacity:.9;pointer-events:none
+}
+#punchKpis .kpi.punch-category-detail{transition:opacity .18s ease,transform .18s ease}
+#punchKpis.punch-details-collapsed .kpi.punch-category-detail{display:none!important}
+</style>
+<script id="pecom-v19-punch-toggle-script">
+(function(){
+  var punchDetailsOpen=false;
+
+  function setupPunchToggle(){
+    var box=document.getElementById('punchKpis');
+    if(!box)return;
+    var cards=Array.prototype.slice.call(box.querySelectorAll('.kpi'));
+    if(!cards.length)return;
+
+    var total=cards.find(function(el){
+      var t=(el.querySelector('span')||{}).textContent||'';
+      return t.trim()==='Abiertos' || t.trim()==='Total Punch abiertos';
+    });
+    var a=cards.find(function(el){return ((el.querySelector('span')||{}).textContent||'').trim()==='A'});
+    var b=cards.find(function(el){return ((el.querySelector('span')||{}).textContent||'').trim()==='B'});
+    var c=cards.find(function(el){return ((el.querySelector('span')||{}).textContent||'').trim()==='C'});
+
+    if(total){
+      var label=total.querySelector('span');
+      if(label)label.textContent='Total Punch abiertos';
+      total.classList.add('punch-total-toggle');
+      total.setAttribute('role','button');
+      total.setAttribute('tabindex','0');
+      total.setAttribute('aria-expanded',punchDetailsOpen?'true':'false');
+      total.title=punchDetailsOpen?'Ocultar detalle Punch A/B/C':'Mostrar detalle Punch A/B/C';
+      var arrow=total.querySelector('.punch-toggle-arrow');
+      if(!arrow){arrow=document.createElement('span');arrow.className='punch-toggle-arrow';total.appendChild(arrow)}
+      arrow.textContent=punchDetailsOpen?'▲':'▼';
+      var toggle=function(ev){
+        if(ev&&ev.type==='keydown'&&ev.key!=='Enter'&&ev.key!==' ')return;
+        if(ev){ev.preventDefault();ev.stopPropagation()}
+        punchDetailsOpen=!punchDetailsOpen;
+        setupPunchToggle();
+      };
+      total.onclick=toggle;
+      total.onkeydown=toggle;
+    }
+    [a,b,c].forEach(function(el){if(el)el.classList.add('punch-category-detail')});
+    box.classList.toggle('punch-details-collapsed',!punchDetailsOpen);
+  }
+
+  function init(){
+    setupPunchToggle();
+    var box=document.getElementById('punchKpis');
+    if(box && !box.__pecomPunchToggleObserver){
+      var busy=false;
+      var mo=new MutationObserver(function(){
+        if(busy)return;busy=true;
+        setTimeout(function(){setupPunchToggle();busy=false},0);
+      });
+      mo.observe(box,{childList:true});
+      box.__pecomPunchToggleObserver=mo;
+    }
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true}); else init();
+  setTimeout(init,100);setTimeout(init,700);
+})();
+</script>
+
 </body></html>`);
  popup.document.close();
 }
@@ -1829,7 +1900,78 @@ function printPecomCurrentRecord(){
  <tr><td>Puesto:</td><td></td><td></td><td></td></tr>
  <tr><td>Fecha de firma:</td><td>${fecha}</td><td></td><td></td></tr>
  </table>
- </div><script>window.onload=()=>setTimeout(()=>window.print(),250)<\/script></body></html>`);
+ </div><script>window.onload=()=>setTimeout(()=>window.print(),250)<\/script>
+<style id="pecom-v19-punch-toggle">
+/* V19: Total Punch abiertos despliega/oculta A/B/C */
+#punchKpis .kpi.punch-total-toggle{cursor:pointer;position:relative}
+#punchKpis .kpi.punch-total-toggle .punch-toggle-arrow{
+  position:absolute;right:7px;top:6px;font-size:13px;font-weight:900;line-height:1;
+  opacity:.9;pointer-events:none
+}
+#punchKpis .kpi.punch-category-detail{transition:opacity .18s ease,transform .18s ease}
+#punchKpis.punch-details-collapsed .kpi.punch-category-detail{display:none!important}
+</style>
+<script id="pecom-v19-punch-toggle-script">
+(function(){
+  var punchDetailsOpen=false;
+
+  function setupPunchToggle(){
+    var box=document.getElementById('punchKpis');
+    if(!box)return;
+    var cards=Array.prototype.slice.call(box.querySelectorAll('.kpi'));
+    if(!cards.length)return;
+
+    var total=cards.find(function(el){
+      var t=(el.querySelector('span')||{}).textContent||'';
+      return t.trim()==='Abiertos' || t.trim()==='Total Punch abiertos';
+    });
+    var a=cards.find(function(el){return ((el.querySelector('span')||{}).textContent||'').trim()==='A'});
+    var b=cards.find(function(el){return ((el.querySelector('span')||{}).textContent||'').trim()==='B'});
+    var c=cards.find(function(el){return ((el.querySelector('span')||{}).textContent||'').trim()==='C'});
+
+    if(total){
+      var label=total.querySelector('span');
+      if(label)label.textContent='Total Punch abiertos';
+      total.classList.add('punch-total-toggle');
+      total.setAttribute('role','button');
+      total.setAttribute('tabindex','0');
+      total.setAttribute('aria-expanded',punchDetailsOpen?'true':'false');
+      total.title=punchDetailsOpen?'Ocultar detalle Punch A/B/C':'Mostrar detalle Punch A/B/C';
+      var arrow=total.querySelector('.punch-toggle-arrow');
+      if(!arrow){arrow=document.createElement('span');arrow.className='punch-toggle-arrow';total.appendChild(arrow)}
+      arrow.textContent=punchDetailsOpen?'▲':'▼';
+      var toggle=function(ev){
+        if(ev&&ev.type==='keydown'&&ev.key!=='Enter'&&ev.key!==' ')return;
+        if(ev){ev.preventDefault();ev.stopPropagation()}
+        punchDetailsOpen=!punchDetailsOpen;
+        setupPunchToggle();
+      };
+      total.onclick=toggle;
+      total.onkeydown=toggle;
+    }
+    [a,b,c].forEach(function(el){if(el)el.classList.add('punch-category-detail')});
+    box.classList.toggle('punch-details-collapsed',!punchDetailsOpen);
+  }
+
+  function init(){
+    setupPunchToggle();
+    var box=document.getElementById('punchKpis');
+    if(box && !box.__pecomPunchToggleObserver){
+      var busy=false;
+      var mo=new MutationObserver(function(){
+        if(busy)return;busy=true;
+        setTimeout(function(){setupPunchToggle();busy=false},0);
+      });
+      mo.observe(box,{childList:true});
+      box.__pecomPunchToggleObserver=mo;
+    }
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true}); else init();
+  setTimeout(init,100);setTimeout(init,700);
+})();
+</script>
+
+</body></html>`);
  popup.document.close();
 }
 printPecomRecord.onclick=()=>printOriginalCurrentRecord(true);
@@ -2576,7 +2718,78 @@ html.pecom-light #onlineUsersBtn{
    <tr><td>Puesto:</td><td></td><td></td><td></td></tr>
    <tr><td>Fecha de firma:</td><td></td><td></td><td></td></tr>
  </table>
- </div><script>window.onload=()=>setTimeout(()=>window.print(),250)<\/script></body></html>`);
+ </div><script>window.onload=()=>setTimeout(()=>window.print(),250)<\/script>
+<style id="pecom-v19-punch-toggle">
+/* V19: Total Punch abiertos despliega/oculta A/B/C */
+#punchKpis .kpi.punch-total-toggle{cursor:pointer;position:relative}
+#punchKpis .kpi.punch-total-toggle .punch-toggle-arrow{
+  position:absolute;right:7px;top:6px;font-size:13px;font-weight:900;line-height:1;
+  opacity:.9;pointer-events:none
+}
+#punchKpis .kpi.punch-category-detail{transition:opacity .18s ease,transform .18s ease}
+#punchKpis.punch-details-collapsed .kpi.punch-category-detail{display:none!important}
+</style>
+<script id="pecom-v19-punch-toggle-script">
+(function(){
+  var punchDetailsOpen=false;
+
+  function setupPunchToggle(){
+    var box=document.getElementById('punchKpis');
+    if(!box)return;
+    var cards=Array.prototype.slice.call(box.querySelectorAll('.kpi'));
+    if(!cards.length)return;
+
+    var total=cards.find(function(el){
+      var t=(el.querySelector('span')||{}).textContent||'';
+      return t.trim()==='Abiertos' || t.trim()==='Total Punch abiertos';
+    });
+    var a=cards.find(function(el){return ((el.querySelector('span')||{}).textContent||'').trim()==='A'});
+    var b=cards.find(function(el){return ((el.querySelector('span')||{}).textContent||'').trim()==='B'});
+    var c=cards.find(function(el){return ((el.querySelector('span')||{}).textContent||'').trim()==='C'});
+
+    if(total){
+      var label=total.querySelector('span');
+      if(label)label.textContent='Total Punch abiertos';
+      total.classList.add('punch-total-toggle');
+      total.setAttribute('role','button');
+      total.setAttribute('tabindex','0');
+      total.setAttribute('aria-expanded',punchDetailsOpen?'true':'false');
+      total.title=punchDetailsOpen?'Ocultar detalle Punch A/B/C':'Mostrar detalle Punch A/B/C';
+      var arrow=total.querySelector('.punch-toggle-arrow');
+      if(!arrow){arrow=document.createElement('span');arrow.className='punch-toggle-arrow';total.appendChild(arrow)}
+      arrow.textContent=punchDetailsOpen?'▲':'▼';
+      var toggle=function(ev){
+        if(ev&&ev.type==='keydown'&&ev.key!=='Enter'&&ev.key!==' ')return;
+        if(ev){ev.preventDefault();ev.stopPropagation()}
+        punchDetailsOpen=!punchDetailsOpen;
+        setupPunchToggle();
+      };
+      total.onclick=toggle;
+      total.onkeydown=toggle;
+    }
+    [a,b,c].forEach(function(el){if(el)el.classList.add('punch-category-detail')});
+    box.classList.toggle('punch-details-collapsed',!punchDetailsOpen);
+  }
+
+  function init(){
+    setupPunchToggle();
+    var box=document.getElementById('punchKpis');
+    if(box && !box.__pecomPunchToggleObserver){
+      var busy=false;
+      var mo=new MutationObserver(function(){
+        if(busy)return;busy=true;
+        setTimeout(function(){setupPunchToggle();busy=false},0);
+      });
+      mo.observe(box,{childList:true});
+      box.__pecomPunchToggleObserver=mo;
+    }
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true}); else init();
+  setTimeout(init,100);setTimeout(init,700);
+})();
+</script>
+
+</body></html>`);
  popup.document.close();
 }
 
@@ -4697,4 +4910,75 @@ function refreshOnlineAdminUi(){
   setTimeout(init,100);setTimeout(init,700);
 })();
 </script>
+
+<style id="pecom-v19-punch-toggle">
+/* V19: Total Punch abiertos despliega/oculta A/B/C */
+#punchKpis .kpi.punch-total-toggle{cursor:pointer;position:relative}
+#punchKpis .kpi.punch-total-toggle .punch-toggle-arrow{
+  position:absolute;right:7px;top:6px;font-size:13px;font-weight:900;line-height:1;
+  opacity:.9;pointer-events:none
+}
+#punchKpis .kpi.punch-category-detail{transition:opacity .18s ease,transform .18s ease}
+#punchKpis.punch-details-collapsed .kpi.punch-category-detail{display:none!important}
+</style>
+<script id="pecom-v19-punch-toggle-script">
+(function(){
+  var punchDetailsOpen=false;
+
+  function setupPunchToggle(){
+    var box=document.getElementById('punchKpis');
+    if(!box)return;
+    var cards=Array.prototype.slice.call(box.querySelectorAll('.kpi'));
+    if(!cards.length)return;
+
+    var total=cards.find(function(el){
+      var t=(el.querySelector('span')||{}).textContent||'';
+      return t.trim()==='Abiertos' || t.trim()==='Total Punch abiertos';
+    });
+    var a=cards.find(function(el){return ((el.querySelector('span')||{}).textContent||'').trim()==='A'});
+    var b=cards.find(function(el){return ((el.querySelector('span')||{}).textContent||'').trim()==='B'});
+    var c=cards.find(function(el){return ((el.querySelector('span')||{}).textContent||'').trim()==='C'});
+
+    if(total){
+      var label=total.querySelector('span');
+      if(label)label.textContent='Total Punch abiertos';
+      total.classList.add('punch-total-toggle');
+      total.setAttribute('role','button');
+      total.setAttribute('tabindex','0');
+      total.setAttribute('aria-expanded',punchDetailsOpen?'true':'false');
+      total.title=punchDetailsOpen?'Ocultar detalle Punch A/B/C':'Mostrar detalle Punch A/B/C';
+      var arrow=total.querySelector('.punch-toggle-arrow');
+      if(!arrow){arrow=document.createElement('span');arrow.className='punch-toggle-arrow';total.appendChild(arrow)}
+      arrow.textContent=punchDetailsOpen?'▲':'▼';
+      var toggle=function(ev){
+        if(ev&&ev.type==='keydown'&&ev.key!=='Enter'&&ev.key!==' ')return;
+        if(ev){ev.preventDefault();ev.stopPropagation()}
+        punchDetailsOpen=!punchDetailsOpen;
+        setupPunchToggle();
+      };
+      total.onclick=toggle;
+      total.onkeydown=toggle;
+    }
+    [a,b,c].forEach(function(el){if(el)el.classList.add('punch-category-detail')});
+    box.classList.toggle('punch-details-collapsed',!punchDetailsOpen);
+  }
+
+  function init(){
+    setupPunchToggle();
+    var box=document.getElementById('punchKpis');
+    if(box && !box.__pecomPunchToggleObserver){
+      var busy=false;
+      var mo=new MutationObserver(function(){
+        if(busy)return;busy=true;
+        setTimeout(function(){setupPunchToggle();busy=false},0);
+      });
+      mo.observe(box,{childList:true});
+      box.__pecomPunchToggleObserver=mo;
+    }
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true}); else init();
+  setTimeout(init,100);setTimeout(init,700);
+})();
+</script>
+
 </body></html>
