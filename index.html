@@ -3650,13 +3650,19 @@ function refreshOnlineAdminUi(){
    status("☁ Cargando datos...");
    const {data,error}=await sb.from("app_state").select("payload,updated_at").eq("id","main").maybeSingle();
    if(error)throw error;
-   if(data?.payload?.tags && data?.payload?.masters){
+   const remoteOk=Array.isArray(data?.payload?.tags) && data.payload.tags.length>0 && Array.isArray(data?.payload?.masters) && data.payload.masters.length>0;
+   if(remoteOk){
      state=data.payload;
      try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){}
      lastRemoteStamp=data.updated_at||"";
      renderAll();
    }else{
+     if(!Array.isArray(state?.tags) || state.tags.length===0){
+       state={tags:INITIAL_TAGS,masters:INITIAL_MASTERS,instances:{},punches:[],applicabilityOverrides:{}};
+       try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){}
+     }
      await saveRemote(state);
+     renderAll();
    }
    status("☁ Sincronizado");
  }
@@ -3742,7 +3748,7 @@ function refreshOnlineAdminUi(){
           const stamp=payload.new?.updated_at||"";
           if(stamp && stamp!==lastRemoteStamp){
             lastRemoteStamp=stamp;
-            if(payload.new?.payload?.tags){
+            if(Array.isArray(payload.new?.payload?.tags) && payload.new.payload.tags.length>0 && Array.isArray(payload.new?.payload?.masters) && payload.new.payload.masters.length>0){
               state=payload.new.payload;
               try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){}
               // Darle aire al navegador antes de reconstruir la vista.
@@ -4261,5 +4267,74 @@ function refreshOnlineAdminUi(){
  var oldRenderAll=window.renderAll;if(typeof oldRenderAll==="function"){window.renderAll=function(){var r=oldRenderAll.apply(this,arguments);setTimeout(bindTagNewButtons,0);return r;};}
  bindTagNewButtons();setTimeout(bindTagNewButtons,500);setTimeout(bindTagNewButtons,1500);
 })();
+</script>
+
+<script id="pecomModernDashboardRuntime">
+
+(function(){
+  function e(v){return typeof esc==='function'?esc(v??''):String(v??'').replace(/[&<>\"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+  function numPct(n,d){return d?Math.round(n*100/d):0}
+  function statusFor(items){
+    if(!items.length)return {text:'SIN REGISTROS',cl:'pending'};
+    var obs=items.some(x=>x.i.estado==='OBSERVADO');
+    var pending=items.some(x=>x.i.estado==='PENDIENTE');
+    var done=items.filter(x=>x.i.estado==='REALIZADO'||x.i.estado==='PRESENTADO').length;
+    if(obs)return {text:'OBSERVADO',cl:'obs'};
+    if(done===items.length)return {text:'COMPLETADO',cl:'done'};
+    if(done>0)return {text:'EN PROCESO',cl:'process'};
+    if(pending)return {text:'PENDIENTE',cl:'pending'};
+    return {text:'EN PROCESO',cl:'process'};
+  }
+  function latestDate(items){
+    var vals=items.map(x=>x.i&&x.i.fecha).filter(Boolean).sort();
+    if(!vals.length)return 'Sin fecha';
+    return vals[vals.length-1].split('-').reverse().join('/');
+  }
+  function ensureModernShell(){
+    var control=document.getElementById('control'); if(!control)return;
+    if(!document.getElementById('modernTitle')){
+      var box=document.createElement('div'); box.id='modernTitle'; box.innerHTML='<div class="modern-title-row"><h2>MATRIZ GENERAL</h2></div><div class="modern-kpis" id="modernKpis"></div>';
+      var first=control.querySelector('.classic-hero'); control.insertBefore(box,first||control.firstChild);
+    }
+    var card=control.querySelector('.card'); if(card){var h=card.querySelector('.card-head h2');if(h)h.textContent='Control de TAGs y registros';}
+  }
+  function renderKpis(){
+    var box=document.getElementById('modernKpis'); if(!box)return;
+    var tags=state.tags||[], stats=tags.map(function(t){var ms=applicableMasters(t),its=ms.map(m=>({m:m,i:inst(t,m)})),p=pct(its.map(x=>({instance:x.i})));return {its:its,p:p,st:statusFor(its)}});
+    var total=tags.length, withRegs=stats.filter(x=>x.its.length).length, completed=stats.filter(x=>x.its.length&&x.p===100).length, process=stats.filter(x=>x.its.length&&x.p>0&&x.p<100).length, pending=stats.filter(x=>x.its.some(y=>y.i.estado==='PENDIENTE')).length, obs=stats.filter(x=>x.its.some(y=>y.i.estado==='OBSERVADO')).length;
+    function k(cl,label,val){return '<div class="modern-kpi '+cl+'"><span>'+label+'</span><b>'+val.toLocaleString('es-AR')+'</b><small>'+numPct(val,total)+'%</small></div>'}
+    box.innerHTML=k('total','Total TAGs',total)+k('regs','Con registros',withRegs)+k('done','Completados',completed)+k('process','En proceso',process)+k('pending','Pendientes',pending)+k('obs','Observados',obs);
+  }
+  function modernRenderControl(){
+    ensureModernShell();
+    populateFilters();
+    var disc=(document.getElementById('filterDisc')?.value||'');
+    renderSystemProgress();
+    var q=norm(searchTag.value),sy=filterSys.value,su=filterSub.value;
+    var tags=state.tags.filter(t=>(!sy||t.sistema===sy)&&(!su||t.subsistema===su));
+    if(disc) tags=tags.filter(t=>applicableMasters(t).some(m=>(m.disciplina||m.aplica_especialidad||'Sin disciplina')===disc));
+    if(q)tags=tags.filter(t=>norm(t.tag+' '+t.descripcion).includes(q)||applicableMasters(t).some(m=>norm(m.nombre+' '+m.id).includes(q)));
+    tags=tags.filter(t=>{var arr=applicableMasters(t).map(m=>inst(t,m));if(quick==='PENDING')return arr.some(x=>x.estado==='PENDIENTE');if(quick==='DONE')return arr.some(x=>x.estado==='REALIZADO'||x.estado==='PRESENTADO');if(quick==='OBS')return arr.some(x=>x.estado==='OBSERVADO');return true;});
+    var sortMode=document.getElementById('sortControlRecords')?.value||'ORIGINAL';
+    if(sortMode!=='ORIGINAL'){var advanceOf=t=>{var ms=applicableMasters(t);if(!ms.length)return 0;return ms.filter(m=>['REALIZADO','PRESENTADO'].includes(inst(t,m).estado)).length/ms.length};tags=tags.slice().sort((a,b)=>{var av=advanceOf(a),bv=advanceOf(b);if(av===bv)return String(a.tag||'').localeCompare(String(b.tag||''));return sortMode==='DESC'?bv-av:av-bv})}
+    tagBoard.innerHTML=tags.slice(0,500).map(function(t,idx){
+      var ms=applicableMasters(t),items=ms.map(m=>({m:m,i:inst(t,m)})),p=pct(items.map(x=>({instance:x.i}))), pending=items.filter(x=>x.i.estado==='PENDIENTE').length, done=items.filter(x=>x.i.estado==='REALIZADO').length, presented=items.filter(x=>x.i.estado==='PRESENTADO').length, obs=items.filter(x=>x.i.estado==='OBSERVADO').length, st=statusFor(items), total=items.length||1;
+      var de=numPct(done,total), pe=de+numPct(presented,total), pne=pe+numPct(pending,total), oe=Math.min(100,pne+numPct(obs,total));
+      var regs=items.map(function(x){var ss=x.i.estado,cl=ss==='REALIZADO'?'done':ss==='PRESENTADO'?'present':ss==='OBSERVADO'?'obs':'pending';return '<div class="reg '+cl+'" data-record="'+e(t.tag)+'|||'+e(x.m.id)+'"><button type="button" class="tag-reg-remove" data-remove-record="'+e(t.tag)+'|||'+e(x.m.id)+'" title="Marcar este registro como No aplica para este TAG">−</button><b>'+e(x.m.nombre)+'</b><small>'+e(x.m.tipo)+' · '+e(x.m.origen_columna||'Nuevo')+(applicabilityOverride(t,x.m)==='IN'?' · AGREGADO POR INSPECCIÓN':'')+'</small><div class="state">'+ss+(x.i.tiene_adjunto?' · 📎':'')+'</div><div class="reg-date">📅 '+(x.i.fecha?x.i.fecha.split('-').reverse().join('/'):'Sin fecha')+'</div></div>'}).join('')||'<div class="empty">No hay registros aplicables.</div>';
+      return '<div class="tag-card" id="tc'+idx+'"><div class="tag-head" data-open="tc'+idx+'"><div class="tag-description"><b class="tag-code">'+e(t.tag)+'</b><div style="color:var(--muted);font-size:10px">'+e(t.descripcion||'Sin descripción')+'</div></div><div><small>Sistema</small><br><b>'+e(t.sistema||'-')+'</b></div><div><small>Subsistema</small><br><b>'+e(t.subsistema||'-')+'</b></div><div><b>'+p+'%</b><div class="modern-bar"><i style="width:'+p+'%"></i></div></div><div><span class="tag-overall-status '+st.cl+'">'+st.text+'</span></div></div><div class="tag-body"><div class="tag-modern-body"><div class="tag-panel"><h3>Progreso por registros</h3><div class="donut-wrap"><div class="donut" style="--doneEnd:'+de+'%;--presentEnd:'+pe+'%;--pendingEnd:'+pne+'%;--obsEnd:'+oe+'%"><div class="donut-center"><b>'+p+'%</b><span>Avance</span></div></div><div class="donut-legend"><div><span class="legend-label"><i class="legend-dot dot-done"></i>Realizados</span><b>'+done+'</b></div><div><span class="legend-label"><i class="legend-dot dot-present"></i>Presentados</span><b>'+presented+'</b></div><div><span class="legend-label"><i class="legend-dot dot-pending"></i>Pendientes</span><b>'+pending+'</b></div><div><span class="legend-label"><i class="legend-dot dot-obs"></i>Observados</span><b>'+obs+'</b></div><div><span class="legend-label"><i class="legend-dot dot-na"></i>Total</span><b>'+items.length+'</b></div></div></div></div><div class="tag-panel"><div class="tag-record-head"><h3>Registros del TAG ('+items.length+')</h3><div class="tag-record-tools"><button type="button" class="btn tag-new-record" data-new-record="'+e(t.tag)+'">＋ Nuevo</button><button type="button" class="btn tag-add-record" data-add-record="'+e(t.tag)+'">＋ Desde Maestro</button></div></div><div class="regs modern-regs">'+regs+'</div></div><div class="tag-panel tag-info-panel"><h3>Información del TAG</h3><dl class="tag-info-list"><dt>Descripción</dt><dd>'+e(t.descripcion||'-')+'</dd><dt>Sistema</dt><dd>'+e(t.sistema||'-')+(t.desc_sistema?' · '+e(t.desc_sistema):'')+'</dd><dt>Subsistema</dt><dd>'+e(t.subsistema||'-')+(t.desc_subsistema?' · '+e(t.desc_subsistema):'')+'</dd><dt>Total registros aplicables</dt><dd>'+items.length+'</dd><dt>Última actualización</dt><dd class="last-update">'+latestDate(items)+'</dd></dl></div></div></div></div>';
+    }).join('')||'<div class="empty">No hay TAGs para este filtro.</div>';
+    document.querySelectorAll('[data-open]').forEach(x=>x.onclick=()=>document.getElementById(x.dataset.open).classList.toggle('open'));
+    document.querySelectorAll('[data-record]').forEach(x=>x.onclick=ev=>{if(ev.target.closest('[data-remove-record]'))return;var a=x.dataset.record.split('|||');openRecord(a[0],a[1])});
+    document.querySelectorAll('[data-add-record]').forEach(function(b){b.style.display=canAdjustTagRecords()?'inline-flex':'none';b.onclick=function(ev){ev.preventDefault();ev.stopPropagation();(window.pecomOpenMasterPicker||openAddRecordToTag)(b.dataset.addRecord)}});
+    document.querySelectorAll('[data-remove-record]').forEach(function(b){b.style.display=canAdjustTagRecords()?'inline-flex':'none';b.onclick=function(ev){ev.preventDefault();ev.stopPropagation();var a=b.dataset.removeRecord.split('|||');removeRecordFromTag(a[0],a[1])}});
+    renderKpis();
+  }
+  window.pecomModernRenderControl=modernRenderControl;
+  try{renderControl=modernRenderControl}catch(err){window.renderControl=modernRenderControl}
+  setTimeout(function(){try{modernRenderControl()}catch(e){console.warn('Modern dashboard:',e)}},120);
+  // Prefer day mode on first visit; user choice remains persisted by existing theme controller.
+  try{if(!localStorage.getItem('pecom_theme'))document.documentElement.classList.add('pecom-light')}catch(e){}
+})();
+
 </script>
 </body></html>
