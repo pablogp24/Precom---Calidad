@@ -419,6 +419,19 @@ html:not(.pecom-light) #modernKpis .mini-donut strong{color:#e8eef3!important}
 @media(max-width:700px){#modernKpis{grid-template-columns:repeat(2,minmax(150px,1fr))!important}}
 @media(max-width:450px){#modernKpis{grid-template-columns:1fr!important}}
 </style>
+
+<style id="cfgFunctionalV21">
+#configModal .modalbox{max-width:940px!important}
+#configModal .modalbody{padding:12px!important}
+.cfg-v21-section{border:1px solid var(--line);border-radius:12px;margin:10px 0;background:rgba(255,255,255,.02);overflow:hidden}
+.cfg-v21-section>summary{cursor:pointer;list-style:none;padding:14px 16px;font-weight:800;font-size:14px;display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.035)}
+.cfg-v21-section>summary::-webkit-details-marker{display:none}.cfg-v21-section>summary:after{content:'▾';margin-left:auto;transition:.2s}.cfg-v21-section:not([open])>summary:after{transform:rotate(-90deg)}
+.cfg-v21-body{padding:12px 14px}.cfg-v21-section .rule-box{margin:0!important;border:0!important;background:transparent!important;padding:0!important}
+.cfg-v21-danger>summary{background:rgba(190,50,50,.10)}
+#cfgStableIndex,.cfg-v21-hide{display:none!important}
+@media(max-width:650px){#configModal .grid2,#configModal .grid3{grid-template-columns:1fr!important}#configModal .toolbar{gap:6px}#configModal .toolbar .btn{width:100%}.cfg-v21-section>summary{padding:13px 12px}}
+html.pecom-light .cfg-v21-section{background:#fff;border-color:#d6e0e8}html.pecom-light .cfg-v21-section>summary{background:#f3f7fa;color:#111827}html.pecom-light .cfg-v21-danger>summary{background:#fff1f1}
+</style>
 </head>
 
 <body>
@@ -516,7 +529,7 @@ html:not(.pecom-light) #modernKpis .mini-donut strong{color:#e8eef3!important}
       }
 
       window.PECOM_ROLE=role;
-      window.PECOM_CAN_EDIT=(role==='admin'||role==='editor');
+      window.PECOM_CAN_EDIT=(role==='admin'||role==='editor'||role==='matrix_importer');
       window.cloudReady=true;
       window.__PECOM_LOGIN_SESSION=session;
       login.style.setProperty('display','none','important');
@@ -526,6 +539,7 @@ html:not(.pecom-light) #modernKpis .mini-donut strong{color:#e8eef3!important}
       setTimeout(()=>{
         try{ if(typeof window.renderAll==='function') window.renderAll(); }catch(e){ console.error('renderAll post-login',e); }
         try{ if(typeof window.refreshOnlineAdminUi==='function') window.refreshOnlineAdminUi(); }catch(e){}
+        try{ if(typeof window.refreshMatrixImportPermission==='function') window.refreshMatrixImportPermission(); }catch(e){}
       },50);
     }catch(err){
       console.error('PECOM login V4',err);
@@ -556,6 +570,7 @@ html:not(.pecom-light) #modernKpis .mini-donut strong{color:#e8eef3!important}
    <input id="onlineUserEmail" type="email" placeholder="usuario@empresa.com" style="flex:1;min-width:230px">
    <select id="onlineUserRole">
     <option value="editor">Editor</option>
+    <option value="matrix_importer">Editor + importar matriz</option>
     <option value="viewer">Solo lectura</option>
    </select>
    <button class="btn primary" id="onlineAddUser">Autorizar usuario</button>
@@ -677,8 +692,8 @@ html:not(.pecom-light) #modernKpis .mini-donut strong{color:#e8eef3!important}
   <div class="toolbar">
    <button class="btn primary" id="exportExcel" type="button">📥 Exportar XLSM original</button>
    <span id="excelExportStatus" style="font-size:10px;color:var(--muted);align-self:center"></span>
-   <button class="btn" id="importExcelBtn">📤 Importar Excel</button>
-   <input type="file" id="importExcelFile" accept=".xlsx,.xls,.xlsm" hidden>
+   <button class="btn matrix-import-only" id="importExcelBtn" style="display:none">📤 Importar Excel</button>
+   <input type="file" id="importExcelFile" class="matrix-import-only" accept=".xlsx,.xls,.xlsm" hidden>
    <button class="btn" id="exportBackup">Exportar respaldo JSON</button>
    <button class="btn" id="importBackupBtn">Importar respaldo JSON</button>
    <input type="file" id="importBackupFile" accept=".json" hidden>
@@ -851,11 +866,11 @@ html:not(.pecom-light) #modernKpis .mini-donut strong{color:#e8eef3!important}
 <!-- Configuración protegida -->
 <div class="modal" id="configModal"><div class="modalbox">
  <div class="modalhead">
-  <div><b>Configuración protegida</b><div style="font-size:11px;color:var(--muted)">Acceso de administrador</div></div>
+  <div><b>Configuración protegida</b><div style="font-size:11px;color:var(--muted)">Secciones ordenadas · abrí solo lo que necesites</div></div>
   <button class="btn" data-close="configModal">✕</button>
  </div>
  <div class="modalbody">
-<div class="notice" id="excelAlignmentNotice" style="margin-bottom:10px">
+<div class="cfg-v21-hide"><div class="notice" id="excelAlignmentNotice" style="margin-bottom:10px">
  <b>Alineación de formularios:</b> los encabezados se posicionan usando las celdas combinadas, anchos de columnas,
  alturas de filas, escala y área de impresión de los Excel originales; no se usan coordenadas estimadas a ojo.
 </div>
@@ -863,7 +878,8 @@ html:not(.pecom-light) #modernKpis .mini-donut strong{color:#e8eef3!important}
  <b>Encabezados:</b> la estructura de campos se toma de los Excel originales de Instrumentación y Electricidad.
  Los PDF siguen siendo la referencia visual para impresión.
 </div>
- <div id="cfgPdfManager" class="rule-box" style="margin:0 0 14px 0;border:2px solid #2f87d8">
+ </div>
+<details class="cfg-v21-section" open><summary>📄 Registros y PDFs</summary><div class="cfg-v21-body"><div id="cfgPdfManager" class="rule-box" style="margin:0 0 14px 0;border:2px solid #2f87d8">
   <b style="font-size:14px">📄 Cargar / actualizar registros PDF</b>
   <div style="font-size:10px;color:var(--muted);margin-top:5px">
    Desde acá podés reemplazar un registro existente por un PDF actualizado o crear un registro nuevo cargando su PDF oficial.
@@ -912,7 +928,7 @@ html:not(.pecom-light) #modernKpis .mini-donut strong{color:#e8eef3!important}
     <button type="button" class="btn primary" id="cfgPdfCreateNew">Crear registro y cargar PDF</button>
    </div>
   </details>
- </div>
+ </div></div></details>
 
  <div id="cfgStableIndex">
   <div style="font-weight:800;font-size:15px">⚙ ÍNDICE DE CONFIGURACIÓN</div>
@@ -940,7 +956,7 @@ html:not(.pecom-light) #modernKpis .mini-donut strong{color:#e8eef3!important}
  Estos PDFs son la fuente visual de los registros de la aplicación.
 </div>
 
-  <div class="grid2" style="margin-top:10px">
+  <details class="cfg-v21-section"><summary>👁 Presentación y botones</summary><div class="cfg-v21-body"><div class="grid2" style="margin-top:10px">
    <label>Modo edición
     <select id="cfgEditMode"><option value="0">Desactivado</option><option value="1">Activado</option></select>
    </label>
@@ -953,8 +969,8 @@ html:not(.pecom-light) #modernKpis .mini-donut strong{color:#e8eef3!important}
    <label>Mostrar botón Nuevo Punch
     <select id="cfgShowPunchAdmin"><option value="1">Sí</option><option value="0">No</option></select>
    </label>
-  </div>
-  <div class="rule-box" style="margin-top:12px">
+  </div></div></details>
+  <details class="cfg-v21-section"><summary>🗂 Plantillas avanzadas</summary><div class="cfg-v21-body"><div class="rule-box" style="margin-top:12px">
    <b>Gestión de registros y plantillas</b>
    <div style="font-size:10px;color:var(--muted);margin-top:4px">
     <b>Registro existente:</b> seleccionás el registro, subís el PDF actualizado y se reemplaza automáticamente en todos los TAG donde se repite.<br>
@@ -1006,9 +1022,9 @@ html:not(.pecom-light) #modernKpis .mini-donut strong{color:#e8eef3!important}
      <button type="button" class="btn primary" id="cfgCreateNewRecord">Crear y distribuir registro</button>
     </div>
    </details>
-  </div>
+  </div></div></details>
 
-  <div class="rule-box" style="margin-top:12px">
+  <details class="cfg-v21-section"><summary>🎯 Editor de formularios</summary><div class="cfg-v21-body"><div class="rule-box" style="margin-top:12px">
    <b>Editor de formularios</b>
    <div class="grid2" style="margin-top:8px">
     <label>Registro
@@ -1028,9 +1044,9 @@ html:not(.pecom-light) #modernKpis .mini-donut strong{color:#e8eef3!important}
    <div style="font-size:10px;color:var(--muted);margin-top:6px">
     Permite mover las tildes y campos sobre el PDF original y guardar la posición sin modificar el código.
    </div>
-  </div>
+  </div></div></details>
 
-  <div class="rule-box" style="margin-top:12px">
+  <details class="cfg-v21-section cfg-v21-danger"><summary>🔐 Seguridad</summary><div class="cfg-v21-body"><div class="rule-box" style="margin-top:12px">
    <b>Seguridad</b>
    <div class="grid2" style="margin-top:8px">
     <label>Nuevo PIN<input id="cfgNewPin" type="password" inputmode="numeric" maxlength="12" placeholder="Dejar vacío para no cambiar"></label>
@@ -1039,7 +1055,7 @@ html:not(.pecom-light) #modernKpis .mini-donut strong{color:#e8eef3!important}
    <div style="font-size:10px;color:var(--muted);margin-top:6px">
     El PIN protege el acceso dentro de este archivo/navegador. No reemplaza seguridad de servidor o usuarios.
    </div>
-  </div>
+  </div></div></details>
   <div class="toolbar" style="justify-content:flex-end;margin-top:12px">
    <button class="btn" type="button" id="cfgLockNow">Bloquear ahora</button>
    <button class="btn primary" type="button" id="cfgSave">Guardar configuración</button>
@@ -1778,77 +1794,6 @@ async function printOriginalCurrentRecord(withAnswers=true){
 })();
 <\/script>
 
-
-<style id="pecom-v19-punch-toggle">
-/* V19: Total Punch abiertos despliega/oculta A/B/C */
-#punchKpis .kpi.punch-total-toggle{cursor:pointer;position:relative}
-#punchKpis .kpi.punch-total-toggle .punch-toggle-arrow{
-  position:absolute;right:7px;top:6px;font-size:13px;font-weight:900;line-height:1;
-  opacity:.9;pointer-events:none
-}
-#punchKpis .kpi.punch-category-detail{transition:opacity .18s ease,transform .18s ease}
-#punchKpis.punch-details-collapsed .kpi.punch-category-detail{display:none!important}
-</style>
-<script id="pecom-v19-punch-toggle-script">
-(function(){
-  var punchDetailsOpen=false;
-
-  function setupPunchToggle(){
-    var box=document.getElementById('punchKpis');
-    if(!box)return;
-    var cards=Array.prototype.slice.call(box.querySelectorAll('.kpi'));
-    if(!cards.length)return;
-
-    var total=cards.find(function(el){
-      var t=(el.querySelector('span')||{}).textContent||'';
-      return t.trim()==='Abiertos' || t.trim()==='Total Punch abiertos';
-    });
-    var a=cards.find(function(el){return ((el.querySelector('span')||{}).textContent||'').trim()==='A'});
-    var b=cards.find(function(el){return ((el.querySelector('span')||{}).textContent||'').trim()==='B'});
-    var c=cards.find(function(el){return ((el.querySelector('span')||{}).textContent||'').trim()==='C'});
-
-    if(total){
-      var label=total.querySelector('span');
-      if(label)label.textContent='Total Punch abiertos';
-      total.classList.add('punch-total-toggle');
-      total.setAttribute('role','button');
-      total.setAttribute('tabindex','0');
-      total.setAttribute('aria-expanded',punchDetailsOpen?'true':'false');
-      total.title=punchDetailsOpen?'Ocultar detalle Punch A/B/C':'Mostrar detalle Punch A/B/C';
-      var arrow=total.querySelector('.punch-toggle-arrow');
-      if(!arrow){arrow=document.createElement('span');arrow.className='punch-toggle-arrow';total.appendChild(arrow)}
-      arrow.textContent=punchDetailsOpen?'▲':'▼';
-      var toggle=function(ev){
-        if(ev&&ev.type==='keydown'&&ev.key!=='Enter'&&ev.key!==' ')return;
-        if(ev){ev.preventDefault();ev.stopPropagation()}
-        punchDetailsOpen=!punchDetailsOpen;
-        setupPunchToggle();
-      };
-      total.onclick=toggle;
-      total.onkeydown=toggle;
-    }
-    [a,b,c].forEach(function(el){if(el)el.classList.add('punch-category-detail')});
-    box.classList.toggle('punch-details-collapsed',!punchDetailsOpen);
-  }
-
-  function init(){
-    setupPunchToggle();
-    var box=document.getElementById('punchKpis');
-    if(box && !box.__pecomPunchToggleObserver){
-      var busy=false;
-      var mo=new MutationObserver(function(){
-        if(busy)return;busy=true;
-        setTimeout(function(){setupPunchToggle();busy=false},0);
-      });
-      mo.observe(box,{childList:true});
-      box.__pecomPunchToggleObserver=mo;
-    }
-  }
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true}); else init();
-  setTimeout(init,100);setTimeout(init,700);
-})();
-</script>
-
 </body></html>`);
  popup.document.close();
 }
@@ -1900,78 +1845,7 @@ function printPecomCurrentRecord(){
  <tr><td>Puesto:</td><td></td><td></td><td></td></tr>
  <tr><td>Fecha de firma:</td><td>${fecha}</td><td></td><td></td></tr>
  </table>
- </div><script>window.onload=()=>setTimeout(()=>window.print(),250)<\/script>
-<style id="pecom-v19-punch-toggle">
-/* V19: Total Punch abiertos despliega/oculta A/B/C */
-#punchKpis .kpi.punch-total-toggle{cursor:pointer;position:relative}
-#punchKpis .kpi.punch-total-toggle .punch-toggle-arrow{
-  position:absolute;right:7px;top:6px;font-size:13px;font-weight:900;line-height:1;
-  opacity:.9;pointer-events:none
-}
-#punchKpis .kpi.punch-category-detail{transition:opacity .18s ease,transform .18s ease}
-#punchKpis.punch-details-collapsed .kpi.punch-category-detail{display:none!important}
-</style>
-<script id="pecom-v19-punch-toggle-script">
-(function(){
-  var punchDetailsOpen=false;
-
-  function setupPunchToggle(){
-    var box=document.getElementById('punchKpis');
-    if(!box)return;
-    var cards=Array.prototype.slice.call(box.querySelectorAll('.kpi'));
-    if(!cards.length)return;
-
-    var total=cards.find(function(el){
-      var t=(el.querySelector('span')||{}).textContent||'';
-      return t.trim()==='Abiertos' || t.trim()==='Total Punch abiertos';
-    });
-    var a=cards.find(function(el){return ((el.querySelector('span')||{}).textContent||'').trim()==='A'});
-    var b=cards.find(function(el){return ((el.querySelector('span')||{}).textContent||'').trim()==='B'});
-    var c=cards.find(function(el){return ((el.querySelector('span')||{}).textContent||'').trim()==='C'});
-
-    if(total){
-      var label=total.querySelector('span');
-      if(label)label.textContent='Total Punch abiertos';
-      total.classList.add('punch-total-toggle');
-      total.setAttribute('role','button');
-      total.setAttribute('tabindex','0');
-      total.setAttribute('aria-expanded',punchDetailsOpen?'true':'false');
-      total.title=punchDetailsOpen?'Ocultar detalle Punch A/B/C':'Mostrar detalle Punch A/B/C';
-      var arrow=total.querySelector('.punch-toggle-arrow');
-      if(!arrow){arrow=document.createElement('span');arrow.className='punch-toggle-arrow';total.appendChild(arrow)}
-      arrow.textContent=punchDetailsOpen?'▲':'▼';
-      var toggle=function(ev){
-        if(ev&&ev.type==='keydown'&&ev.key!=='Enter'&&ev.key!==' ')return;
-        if(ev){ev.preventDefault();ev.stopPropagation()}
-        punchDetailsOpen=!punchDetailsOpen;
-        setupPunchToggle();
-      };
-      total.onclick=toggle;
-      total.onkeydown=toggle;
-    }
-    [a,b,c].forEach(function(el){if(el)el.classList.add('punch-category-detail')});
-    box.classList.toggle('punch-details-collapsed',!punchDetailsOpen);
-  }
-
-  function init(){
-    setupPunchToggle();
-    var box=document.getElementById('punchKpis');
-    if(box && !box.__pecomPunchToggleObserver){
-      var busy=false;
-      var mo=new MutationObserver(function(){
-        if(busy)return;busy=true;
-        setTimeout(function(){setupPunchToggle();busy=false},0);
-      });
-      mo.observe(box,{childList:true});
-      box.__pecomPunchToggleObserver=mo;
-    }
-  }
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true}); else init();
-  setTimeout(init,100);setTimeout(init,700);
-})();
-</script>
-
-</body></html>`);
+ </div><script>window.onload=()=>setTimeout(()=>window.print(),250)<\/script></body></html>`);
  popup.document.close();
 }
 printPecomRecord.onclick=()=>printOriginalCurrentRecord(true);
@@ -2718,78 +2592,7 @@ html.pecom-light #onlineUsersBtn{
    <tr><td>Puesto:</td><td></td><td></td><td></td></tr>
    <tr><td>Fecha de firma:</td><td></td><td></td><td></td></tr>
  </table>
- </div><script>window.onload=()=>setTimeout(()=>window.print(),250)<\/script>
-<style id="pecom-v19-punch-toggle">
-/* V19: Total Punch abiertos despliega/oculta A/B/C */
-#punchKpis .kpi.punch-total-toggle{cursor:pointer;position:relative}
-#punchKpis .kpi.punch-total-toggle .punch-toggle-arrow{
-  position:absolute;right:7px;top:6px;font-size:13px;font-weight:900;line-height:1;
-  opacity:.9;pointer-events:none
-}
-#punchKpis .kpi.punch-category-detail{transition:opacity .18s ease,transform .18s ease}
-#punchKpis.punch-details-collapsed .kpi.punch-category-detail{display:none!important}
-</style>
-<script id="pecom-v19-punch-toggle-script">
-(function(){
-  var punchDetailsOpen=false;
-
-  function setupPunchToggle(){
-    var box=document.getElementById('punchKpis');
-    if(!box)return;
-    var cards=Array.prototype.slice.call(box.querySelectorAll('.kpi'));
-    if(!cards.length)return;
-
-    var total=cards.find(function(el){
-      var t=(el.querySelector('span')||{}).textContent||'';
-      return t.trim()==='Abiertos' || t.trim()==='Total Punch abiertos';
-    });
-    var a=cards.find(function(el){return ((el.querySelector('span')||{}).textContent||'').trim()==='A'});
-    var b=cards.find(function(el){return ((el.querySelector('span')||{}).textContent||'').trim()==='B'});
-    var c=cards.find(function(el){return ((el.querySelector('span')||{}).textContent||'').trim()==='C'});
-
-    if(total){
-      var label=total.querySelector('span');
-      if(label)label.textContent='Total Punch abiertos';
-      total.classList.add('punch-total-toggle');
-      total.setAttribute('role','button');
-      total.setAttribute('tabindex','0');
-      total.setAttribute('aria-expanded',punchDetailsOpen?'true':'false');
-      total.title=punchDetailsOpen?'Ocultar detalle Punch A/B/C':'Mostrar detalle Punch A/B/C';
-      var arrow=total.querySelector('.punch-toggle-arrow');
-      if(!arrow){arrow=document.createElement('span');arrow.className='punch-toggle-arrow';total.appendChild(arrow)}
-      arrow.textContent=punchDetailsOpen?'▲':'▼';
-      var toggle=function(ev){
-        if(ev&&ev.type==='keydown'&&ev.key!=='Enter'&&ev.key!==' ')return;
-        if(ev){ev.preventDefault();ev.stopPropagation()}
-        punchDetailsOpen=!punchDetailsOpen;
-        setupPunchToggle();
-      };
-      total.onclick=toggle;
-      total.onkeydown=toggle;
-    }
-    [a,b,c].forEach(function(el){if(el)el.classList.add('punch-category-detail')});
-    box.classList.toggle('punch-details-collapsed',!punchDetailsOpen);
-  }
-
-  function init(){
-    setupPunchToggle();
-    var box=document.getElementById('punchKpis');
-    if(box && !box.__pecomPunchToggleObserver){
-      var busy=false;
-      var mo=new MutationObserver(function(){
-        if(busy)return;busy=true;
-        setTimeout(function(){setupPunchToggle();busy=false},0);
-      });
-      mo.observe(box,{childList:true});
-      box.__pecomPunchToggleObserver=mo;
-    }
-  }
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true}); else init();
-  setTimeout(init,100);setTimeout(init,700);
-})();
-</script>
-
-</body></html>`);
+ </div><script>window.onload=()=>setTimeout(()=>window.print(),250)<\/script></body></html>`);
  popup.document.close();
 }
 
@@ -2874,10 +2677,21 @@ saveMaster.onclick=()=>{
 };
 
 function punchBase(p){const t=state.tags.find(x=>x.tag===p.tag)||{};return {...p,sistema:t.sistema||"",subsistema:t.subsistema||""}}
+let punchDetailsOpen=false;
 function renderPunch(){
  const q=norm(punchSearch.value),cat=punchCat.value,st=punchState.value,arr=state.punches.map(punchBase).filter(p=>(!q||norm(p.tag+" "+p.registro+" "+p.descripcion).includes(q))&&(!cat||p.categoria===cat)&&(!st||p.estado===st));
  const open=state.punches.filter(p=>p.estado==="ABIERTO"),a=open.filter(p=>p.categoria==="A").length,b=open.filter(p=>p.categoria==="B").length,c=open.filter(p=>p.categoria==="C").length;
- punchKpis.innerHTML=[["Abiertos",open.length],["A",a],["B",b],["C",c],["Cerrados",state.punches.filter(p=>p.estado==="CERRADO").length]].map(x=>`<div class="kpi"><span>${x[0]}</span><b>${x[1]}</b></div>`).join("");
+ punchKpis.innerHTML=`<div class="kpi punch-total-toggle" id="punchTotalToggle" role="button" tabindex="0" aria-expanded="${punchDetailsOpen?"true":"false"}" title="${punchDetailsOpen?"Ocultar detalle Punch A/B/C":"Mostrar detalle Punch A/B/C"}"><span>Total Punch abiertos</span><b>${open.length}</b><i class="punch-toggle-arrow">${punchDetailsOpen?"▲":"▼"}</i></div>`+
+   `<div class="kpi punch-category-detail${punchDetailsOpen?"":" punch-hidden"}"><span>A</span><b>${a}</b></div>`+
+   `<div class="kpi punch-category-detail${punchDetailsOpen?"":" punch-hidden"}"><span>B</span><b>${b}</b></div>`+
+   `<div class="kpi punch-category-detail${punchDetailsOpen?"":" punch-hidden"}"><span>C</span><b>${c}</b></div>`+
+   `<div class="kpi"><span>Cerrados</span><b>${state.punches.filter(p=>p.estado==="CERRADO").length}</b></div>`;
+ const punchTotalToggle=document.getElementById("punchTotalToggle");
+ if(punchTotalToggle){
+   const togglePunchDetails=()=>{punchDetailsOpen=!punchDetailsOpen;renderPunch()};
+   punchTotalToggle.onclick=togglePunchDetails;
+   punchTotalToggle.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();togglePunchDetails()}};
+ }
  punchTable.innerHTML=`<table><thead><tr><th>Cat.</th><th>TAG</th><th>Sistema</th><th>Subsistema</th><th>Registro</th><th>Pendiente</th><th>Responsable</th><th>Estado</th><th></th></tr></thead><tbody>`+arr.map(p=>`<tr><td><span class="badge b-${p.categoria.toLowerCase()}">${p.categoria}</span></td><td>${esc(p.tag)}</td><td>${esc(p.sistema)}</td><td>${esc(p.subsistema)}</td><td>${esc(p.registro||"GENERAL / VARIOS")}</td><td>${esc(p.descripcion)}</td><td>${esc(p.responsable)}</td><td>${esc(p.estado)}</td><td style="white-space:nowrap"><button class="btn" data-editp="${p.id}">Editar</button> <button class="btn" data-delp="${p.id}" title="Eliminar pendiente">Eliminar</button></td></tr>`).join("")+"</tbody></table>";
  document.querySelectorAll("[data-editp]").forEach(b=>b.onclick=()=>openPunch(+b.dataset.editp));
  document.querySelectorAll("[data-delp]").forEach(b=>b.onclick=()=>{const id=+b.dataset.delp;const p=state.punches.find(x=>x.id===id);if(!p)return;if(confirm(`¿Eliminar este pendiente\n\n${p.tag} - ${p.descripcion||p.registro||"Punch"}?`)){state.punches=state.punches.filter(x=>x.id!==id);if(persist())renderAll();}})
@@ -3037,8 +2851,24 @@ if(exportExcelButton){
    e.stopPropagation();
    exportExcel();
  });
-}importExcelBtn.onclick=()=>importExcelFile.click();
+}
+function canImportMatrix(){
+ if(window.cloudReady)return window.PECOM_ROLE==="admin"||window.PECOM_ROLE==="matrix_importer";
+ return typeof isAdminUnlocked==="function"&&isAdminUnlocked();
+}
+function refreshMatrixImportPermission(){
+ const allowed=canImportMatrix();
+ const btn=document.getElementById("importExcelBtn");
+ const input=document.getElementById("importExcelFile");
+ if(btn){btn.style.setProperty("display",allowed?"inline-block":"none","important");btn.disabled=!allowed;}
+ if(input)input.disabled=!allowed;
+}
+importExcelBtn.onclick=()=>{
+ if(!canImportMatrix()){alert("Tu usuario no tiene permiso para importar matrices.");return}
+ importExcelFile.click();
+};
 importExcelFile.onchange=async()=>{
+ if(!canImportMatrix()){importExcelFile.value="";alert("Tu usuario no tiene permiso para importar matrices.");return}
  if(typeof XLSX==="undefined"){alert("Necesitás conexión a Internet para importar Excel.");return}
  const f=importExcelFile.files[0];if(!f)return;
  try{
@@ -3059,12 +2889,126 @@ importExcelFile.onchange=async()=>{
          });
       }
       if(!newTags.length)throw new Error("La hoja Matriz no contiene TAG entre filas 8 y 400.");
-      state.tags=newTags;
-      state.masters=JSON.parse(JSON.stringify(INITIAL_MASTERS));
-      state.instances={}; // 0/1 vuelven a gobernar el estado inicial.
+      // Importación segura:
+      // - TAG existentes: actualiza datos de matriz, pero conserva estados/registros cargados.
+      // - TAG nuevos: se agregan.
+      // - TAG que ya no vienen en el Excel: pregunta antes de quitarlos.
+      // - No se reinicia Maestro, instances, Punch ni overrides.
+      const oldTags=Array.isArray(state.tags)?state.tags:[];
+      const oldByTag=new Map(oldTags.map(t=>[String(t.tag||"").trim(),t]));
+      const oldNames=new Set(oldTags.map(t=>String(t.tag||"").trim()));
+      const newTagNames=new Set(newTags.map(t=>String(t.tag||"").trim()));
+
+      // Si el Excel conserva la misma fila pero cambia el texto del TAG,
+      // lo interpretamos como un RENOMBRE y migramos todo el trabajo asociado.
+      // Solo se hace cuando el TAG viejo desaparece y el nuevo no existía antes,
+      // para evitar mezclar dos equipos diferentes por accidente.
+      const oldByRow=new Map(oldTags.filter(t=>t&&t.row!=null).map(t=>[Number(t.row),t]));
+      const renamePairs=[];
+      newTags.forEach(nt=>{
+        const ot=oldByRow.get(Number(nt.row));
+        const oldName=String(ot?.tag||"").trim();
+        const newName=String(nt?.tag||"").trim();
+        if(!oldName||!newName||oldName===newName)return;
+        if(newTagNames.has(oldName))return; // el TAG viejo sigue existiendo en otra fila
+        if(oldNames.has(newName))return;    // el TAG nuevo ya pertenecía a otro registro
+        renamePairs.push({oldTag:oldName,newTag:newName,row:Number(nt.row)});
+      });
+
+      const renameMap=new Map(renamePairs.map(x=>[x.oldTag,x.newTag]));
+      if(renamePairs.length){
+        const migratedInstances={};
+        Object.entries(state.instances||{}).forEach(([k,v])=>{
+          const sep=k.indexOf("|||");
+          const keyTag=sep>=0?k.slice(0,sep):"";
+          const suffix=sep>=0?k.slice(sep):"";
+          const renamed=renameMap.get(keyTag);
+          if(renamed){
+            const nk=renamed+suffix;
+            migratedInstances[nk]=Object.assign({},v,{tag:renamed});
+          }else migratedInstances[k]=v;
+        });
+        state.instances=migratedInstances;
+
+        const migratedOverrides={};
+        Object.entries(state.applicabilityOverrides||{}).forEach(([k,v])=>{
+          const sep=k.indexOf("|||");
+          const keyTag=sep>=0?k.slice(0,sep):"";
+          const suffix=sep>=0?k.slice(sep):"";
+          const renamed=renameMap.get(keyTag);
+          migratedOverrides[(renamed||keyTag)+suffix]=v;
+        });
+        state.applicabilityOverrides=migratedOverrides;
+
+        (state.punches||[]).forEach(p=>{
+          const renamed=renameMap.get(String(p.tag||"").trim());
+          if(renamed)p.tag=renamed;
+        });
+      }
+
+      const missingOld=oldTags.filter(t=>{
+        const name=String(t.tag||"").trim();
+        return !newTagNames.has(name) && !renameMap.has(name);
+      });
+
+      let finalTags=newTags;
+      let removedCount=0;
+      let keptMissingCount=0;
+
+      if(missingOld.length){
+         const preview=missingOld.slice(0,15).map(t=>"• "+t.tag).join("\n");
+         const more=missingOld.length>15?`\n… y ${missingOld.length-15} más.`:"";
+         const removeMissing=confirm(
+           `La nueva matriz no contiene ${missingOld.length} TAG que hoy existen en la app:\n\n`+
+           preview+more+
+           `\n\nAceptar = quitar esos TAG de la matriz.\nCancelar = conservarlos también.\n\n`+
+           `Los estados, registros y Punch cargados NO se borrarán.`
+         );
+         if(removeMissing){
+            removedCount=missingOld.length;
+         }else{
+            finalTags=[...newTags,...missingOld];
+            keptMissingCount=missingOld.length;
+         }
+      }
+
+      state.tags=finalTags;
+
+      // La matriz importada vuelve a ser la fuente de estado para J:AB:
+      // 0 = PENDIENTE y 1 = REALIZADO. Se conservan responsable, fecha,
+      // documento, observaciones, checklist y adjuntos del registro existente.
+      let importedPending=0,importedRealized=0;
+      newTags.forEach(t=>{
+        (state.masters||[]).filter(m=>m.origen_columna).forEach(m=>{
+          const st=matrixStatus(t,m.origen_columna);
+          if(st===null)return;
+          const k=recKey(t.tag,m.id);
+          const current=state.instances[k]||inst(t,m);
+          state.instances[k]=Object.assign({},current,{tag:t.tag,master_id:m.id,estado:st===1?"REALIZADO":"PENDIENTE"});
+          if(st===1)importedRealized++;else importedPending++;
+        });
+      });
+
+      // Maestro, Punch y reglas manuales de aplicabilidad se conservan.
       persist();renderAll();
-   if(window.PECOM_ROLE) setTimeout(()=>applyPecomRole(window.PECOM_ROLE),0);
-      alert(`Matriz analizada: ${newTags.length} TAG. 0=PENDIENTE, 1=REALIZADO, resto=NO APLICA.`);
+      if(window.PECOM_ROLE) setTimeout(()=>applyPecomRole(window.PECOM_ROLE),0);
+
+      const renamedNewNames=new Set(renamePairs.map(x=>x.newTag));
+      const addedCount=newTags.filter(t=>{const n=String(t.tag||"").trim();return !oldNames.has(n)&&!renamedNewNames.has(n)}).length;
+      const renamedCount=renamePairs.length;
+      const retainedCount=newTags.length-addedCount-renamedCount;
+      alert(
+        `Matriz importada correctamente.\n\n`+
+        `TAG en Excel: ${newTags.length}\n`+
+        `TAG existentes actualizados: ${retainedCount}\n`+
+        (renamedCount?`TAG renombrados conservando sus datos: ${renamedCount}\n`:"")+
+        `TAG nuevos agregados: ${addedCount}`+
+        (removedCount?`\nTAG quitados de la matriz: ${removedCount}`:"")+
+        (keptMissingCount?`\nTAG anteriores conservados: ${keptMissingCount}`:"")+
+        `\nRegistros computados como Pendientes (0): ${importedPending}`+
+        `\nRegistros computados como Realizados (1): ${importedRealized}`+
+        `\n\nSe conservaron los datos complementarios de los registros, el Maestro y los Punch.`
+      );
    }else{
       alert('El archivo no contiene una hoja llamada "Matriz".');
    }
@@ -3160,6 +3104,7 @@ function applyAdminConfig(){
    const canPunch = !window.cloudReady || window.PECOM_ROLE==="admin" || window.PECOM_ROLE==="editor" || window.PECOM_CAN_EDIT===true;
    newPunch.style.display=(canPunch && c.showPunchAdmin==="1")?"":"none";
  }
+ if(typeof refreshMatrixImportPermission==="function")refreshMatrixImportPermission();
 }
 
 async function ensureAdminAccess(){
@@ -3202,11 +3147,11 @@ async function openConfigProtected(){
 
 const configButtonEl=document.getElementById("configBtn");
 if(configButtonEl){
- configButtonEl.addEventListener("click",async function(e){
+ configButtonEl.onclick=async function(e){
   e.preventDefault();
   e.stopPropagation();
   await openConfigProtected();
- });
+ };
 }
 
 if(window.cfgSave) cfgSave.addEventListener("click",async()=>{
@@ -3882,7 +3827,7 @@ function applyPecomRole(role){
     onlineUsersButton.hidden=!showUsers;
     onlineUsersButton.style.setProperty("display",showUsers?"inline-block":"none","important");
   }
-  window.PECOM_CAN_EDIT = (role==="admin" || role==="editor");
+  window.PECOM_CAN_EDIT = (role==="admin" || role==="editor" || role==="matrix_importer");
 
   document.documentElement.dataset.pecomRole = window.PECOM_ROLE;
   document.body.dataset.pecomRole = window.PECOM_ROLE;
@@ -3901,7 +3846,9 @@ function applyPecomRole(role){
       id==="exportexcel" || id==="exportbackup" ||
       text.includes("imprimir") || text.includes("ver") ||
       text.includes("abrir") || text.includes("export") ||
-      id.includes("search") || id.includes("filter");
+      id.includes("search") || id.includes("filter") ||
+      id==="pecomthemetoggle" || id==="sortcontrolarrow" || id==="toggleadvancesbtn" ||
+      el.classList.contains("qf") || el.hasAttribute("data-syscard") || el.hasAttribute("data-subcard");
 
     if(window.PECOM_ROLE==="viewer" && !safeViewer){
       if(["INPUT","TEXTAREA","SELECT"].includes(el.tagName)){
@@ -3911,18 +3858,27 @@ function applyPecomRole(role){
         if(!el.dataset.page && !el.closest("nav")) el.disabled=true;
       }
     }
-    if(window.PECOM_ROLE!=="admin" && adminOnly){
-      el.style.display="none";
+    if(window.PECOM_ROLE==="viewer" && safeViewer)el.disabled=false;
+    if(adminOnly){
+      el.style.setProperty("display",window.PECOM_ROLE==="admin"?"flex":"none","important");
     }
+  });
+
+  const canCreate=window.PECOM_ROLE==="admin"||window.PECOM_ROLE==="editor"||window.PECOM_ROLE==="matrix_importer";
+  [document.getElementById("newPdfRecordBtn"),document.getElementById("quickNewRecordBtn")].forEach(el=>{
+    if(!el)return;
+    el.style.setProperty("display",canCreate?"inline-flex":"none","important");
+    el.disabled=!canCreate;
   });
 
   forceExcelExportEnabled();
   if(typeof window.pecomRefreshNewRecordButtons==="function")window.pecomRefreshNewRecordButtons();
   const badge=document.getElementById("cloudStatus");
   if(badge){
-    const label=window.PECOM_ROLE==="admin"?"Administrador":window.PECOM_ROLE==="editor"?"Editor":"Solo lectura";
+    const label=window.PECOM_ROLE==="admin"?"Administrador":window.PECOM_ROLE==="matrix_importer"?"Editor + importar matriz":window.PECOM_ROLE==="editor"?"Editor":"Solo lectura";
     badge.textContent="☁ "+label;
   }
+  if(typeof refreshMatrixImportPermission==="function")refreshMatrixImportPermission();
 }
 
 function canEditOrWarn(){
@@ -3935,7 +3891,7 @@ function canEditOrWarn(){
 function refreshOnlineAdminUi(){
   try{
     const btn=document.getElementById("onlineUsersBtn");
-    const email=String(currentEmail||"").trim().toLowerCase();
+    const email=String(window.PECOM_CURRENT_EMAIL||"").trim().toLowerCase();
     const configured=String((window.PECOM_ONLINE||{}).adminEmail||"").trim().toLowerCase();
     const isAdm=email==="pablo.perez@pecomenergia.com.ar" || (!!configured && email===configured);
     if(btn){
@@ -3957,6 +3913,7 @@ function refreshOnlineAdminUi(){
  const loginEl=()=>document.getElementById("cloudLogin");
  const msgEl=()=>document.getElementById("cloudLoginMsg");
  let sb=null,currentEmail="",saveTimer=null,lastRemoteStamp="";
+ window.PECOM_CURRENT_EMAIL="";
  let bootPromise=null, bootEmail="", realtimeStarted=false;
 
  function status(txt){const e=statusEl();if(e)e.textContent=txt}
@@ -4018,7 +3975,7 @@ function refreshOnlineAdminUi(){
    const box=document.getElementById("onlineUsersList");if(!box)return;
    const {data,error}=await sb.from("allowed_users").select("email,role,created_at").order("email");
    if(error){box.textContent="No se pudo cargar la lista.";return}
-   box.innerHTML=(data||[]).map(u=>`<div class="online-user-row"><span>${esc(u.email)} <b>· ${u.role==="editor"?"Editor":"Solo lectura"}</b></span><button class="btn onlineRemoveUser" data-email="${esc(u.email)}">Quitar</button></div>`).join("") || '<div class="notice">No hay usuarios adicionales autorizados.</div>';
+   box.innerHTML=(data||[]).map(u=>`<div class="online-user-row"><span>${esc(u.email)} <b>· ${u.role==="matrix_importer"?"Editor + importar matriz":u.role==="editor"?"Editor":"Solo lectura"}</b></span><button class="btn onlineRemoveUser" data-email="${esc(u.email)}">Quitar</button></div>`).join("") || '<div class="notice">No hay usuarios adicionales autorizados.</div>';
    box.querySelectorAll(".onlineRemoveUser").forEach(b=>b.onclick=async()=>{
      if(!confirm("¿Quitar acceso a "+b.dataset.email+"?"))return;
      await sb.from("allowed_users").delete().eq("email",b.dataset.email);
@@ -4158,6 +4115,7 @@ function refreshOnlineAdminUi(){
 
      // Abrir la pantalla inmediatamente. La carga remota continúa dentro de bootSession.
      currentEmail=String(session.user?.email||email).toLowerCase();
+     window.PECOM_CURRENT_EMAIL=currentEmail;
      loginEl().style.display="none";
      msgEl().textContent="";
      status("☁ Abriendo matriz...");
@@ -4593,7 +4551,7 @@ function refreshOnlineAdminUi(){
  var themeBtn=document.getElementById("pecomThemeToggle");
  function getMode(){try{return localStorage.getItem("pecom_theme_mode_final_unified")==="light"?"light":"dark"}catch(e){return "dark"}}
  function applyTheme(mode){var light=mode==="light";document.documentElement.classList.toggle("pecom-light",light);document.body.classList.toggle("pecom-light",light);document.documentElement.style.setProperty("background-color",light?"#ffffff":"#091018","important");document.body.style.setProperty("background-color",light?"#ffffff":"#091018","important");document.body.style.setProperty("color",light?"#111827":"#e8eef3","important");if(themeBtn){themeBtn.textContent=light?"🌙":"☀️";themeBtn.title=light?"Cambiar a modo noche":"Cambiar a modo día";}}
- if(themeBtn){themeBtn.onclick=function(e){e.preventDefault();e.stopPropagation();var mode=getMode()==="light"?"dark":"light";try{localStorage.setItem("pecom_theme_mode_final_unified",mode)}catch(err){}applyTheme(mode);};}
+ if(themeBtn){themeBtn.onclick=function(e){e.preventDefault();e.stopPropagation();var currentlyLight=document.documentElement.classList.contains("pecom-light");var mode=currentlyLight?"dark":"light";try{localStorage.setItem("pecom_theme_mode_final_unified",mode)}catch(err){}applyTheme(mode);};}
  applyTheme(getMode());
  document.querySelectorAll('[data-close="newPdfRecordModal"]').forEach(function(b){b.addEventListener("click",function(){window.pecomPendingNewRecordTag="";});});
  var oldRenderAll=window.renderAll;if(typeof oldRenderAll==="function"){window.renderAll=function(){var r=oldRenderAll.apply(this,arguments);setTimeout(bindTagNewButtons,0);return r;};}
@@ -4911,74 +4869,9 @@ function refreshOnlineAdminUi(){
 })();
 </script>
 
-<style id="pecom-v19-punch-toggle">
-/* V19: Total Punch abiertos despliega/oculta A/B/C */
-#punchKpis .kpi.punch-total-toggle{cursor:pointer;position:relative}
-#punchKpis .kpi.punch-total-toggle .punch-toggle-arrow{
-  position:absolute;right:7px;top:6px;font-size:13px;font-weight:900;line-height:1;
-  opacity:.9;pointer-events:none
-}
-#punchKpis .kpi.punch-category-detail{transition:opacity .18s ease,transform .18s ease}
-#punchKpis.punch-details-collapsed .kpi.punch-category-detail{display:none!important}
+<style id="pecom-v19-punch-toggle-fixed">
+#punchKpis .punch-total-toggle{cursor:pointer;position:relative;user-select:none}
+#punchKpis .punch-total-toggle .punch-toggle-arrow{position:absolute;right:8px;top:7px;font-style:normal;font-size:13px;font-weight:900;line-height:1;opacity:.9;pointer-events:none}
+#punchKpis .punch-category-detail.punch-hidden{display:none!important}
 </style>
-<script id="pecom-v19-punch-toggle-script">
-(function(){
-  var punchDetailsOpen=false;
-
-  function setupPunchToggle(){
-    var box=document.getElementById('punchKpis');
-    if(!box)return;
-    var cards=Array.prototype.slice.call(box.querySelectorAll('.kpi'));
-    if(!cards.length)return;
-
-    var total=cards.find(function(el){
-      var t=(el.querySelector('span')||{}).textContent||'';
-      return t.trim()==='Abiertos' || t.trim()==='Total Punch abiertos';
-    });
-    var a=cards.find(function(el){return ((el.querySelector('span')||{}).textContent||'').trim()==='A'});
-    var b=cards.find(function(el){return ((el.querySelector('span')||{}).textContent||'').trim()==='B'});
-    var c=cards.find(function(el){return ((el.querySelector('span')||{}).textContent||'').trim()==='C'});
-
-    if(total){
-      var label=total.querySelector('span');
-      if(label)label.textContent='Total Punch abiertos';
-      total.classList.add('punch-total-toggle');
-      total.setAttribute('role','button');
-      total.setAttribute('tabindex','0');
-      total.setAttribute('aria-expanded',punchDetailsOpen?'true':'false');
-      total.title=punchDetailsOpen?'Ocultar detalle Punch A/B/C':'Mostrar detalle Punch A/B/C';
-      var arrow=total.querySelector('.punch-toggle-arrow');
-      if(!arrow){arrow=document.createElement('span');arrow.className='punch-toggle-arrow';total.appendChild(arrow)}
-      arrow.textContent=punchDetailsOpen?'▲':'▼';
-      var toggle=function(ev){
-        if(ev&&ev.type==='keydown'&&ev.key!=='Enter'&&ev.key!==' ')return;
-        if(ev){ev.preventDefault();ev.stopPropagation()}
-        punchDetailsOpen=!punchDetailsOpen;
-        setupPunchToggle();
-      };
-      total.onclick=toggle;
-      total.onkeydown=toggle;
-    }
-    [a,b,c].forEach(function(el){if(el)el.classList.add('punch-category-detail')});
-    box.classList.toggle('punch-details-collapsed',!punchDetailsOpen);
-  }
-
-  function init(){
-    setupPunchToggle();
-    var box=document.getElementById('punchKpis');
-    if(box && !box.__pecomPunchToggleObserver){
-      var busy=false;
-      var mo=new MutationObserver(function(){
-        if(busy)return;busy=true;
-        setTimeout(function(){setupPunchToggle();busy=false},0);
-      });
-      mo.observe(box,{childList:true});
-      box.__pecomPunchToggleObserver=mo;
-    }
-  }
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true}); else init();
-  setTimeout(init,100);setTimeout(init,700);
-})();
-</script>
-
 </body></html>
