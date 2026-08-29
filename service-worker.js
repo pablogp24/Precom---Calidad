@@ -1,4 +1,4 @@
-const CACHE = 'flecap-v29-offline-multiuser-v1';
+const CACHE = 'flecap-v29-offline-multiuser-v2-admin-fix';
 
 const CORE = [
   './',
@@ -7,21 +7,23 @@ const CORE = [
   './online-config.js'
 ];
 
-self.addEventListener('install', event =>
+self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE)
       .then(async cache => {
         for (const url of CORE) {
           try {
             await cache.add(url);
-          } catch (e) {}
+          } catch (error) {
+            console.warn('No se pudo guardar:', url);
+          }
         }
       })
       .then(() => self.skipWaiting())
-  )
-);
+  );
+});
 
-self.addEventListener('activate', event =>
+self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys()
       .then(keys =>
@@ -32,8 +34,8 @@ self.addEventListener('activate', event =>
         )
       )
       .then(() => self.clients.claim())
-  )
-);
+  );
+});
 
 self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
@@ -43,8 +45,9 @@ self.addEventListener('fetch', event => {
       fetch(event.request)
         .then(response => {
           const copy = response.clone();
-          caches.open(CACHE)
-            .then(cache => cache.put('./index.html', copy));
+          caches.open(CACHE).then(cache => {
+            cache.put('./index.html', copy);
+          });
           return response;
         })
         .catch(() =>
@@ -61,8 +64,9 @@ self.addEventListener('fetch', event => {
         .then(response => {
           if (response && response.status < 400) {
             const copy = response.clone();
-            caches.open(CACHE)
-              .then(cache => cache.put(event.request, copy));
+            caches.open(CACHE).then(cache => {
+              cache.put(event.request, copy);
+            });
           }
           return response;
         })
