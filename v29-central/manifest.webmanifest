@@ -1,0 +1,28 @@
+{
+  "name": "FLECAP Central - Precomisionado",
+  "short_name": "FLECAP",
+  "description": "Control central de precomisionado, registros y Punch List",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#071019",
+  "theme_color": "#071019",
+  "lang": "es-AR",
+  "categories": ["business", "productivity"],
+  "icons": [
+    {
+      "src": "icons/flecap-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/flecap-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
