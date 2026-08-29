@@ -1,0 +1,12 @@
+{
+  "name": "FLECAP - Precomisionado",
+  "short_name": "FLECAP",
+  "description": "Gestión de precomisionado, registros y pendientes",
+  "lang": "es-AR",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0b1726",
+  "theme_color": "#1565c0"
+}
