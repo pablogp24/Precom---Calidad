@@ -2447,6 +2447,35 @@ function db(){return new Promise((res,rej)=>{const r=indexedDB.open(DB,1);r.onup
 async function dbGet(k){const d=await db();return new Promise((res,rej)=>{const r=d.transaction(STORE).objectStore(STORE).get(k);r.onsuccess=()=>res(r.result||null);r.onerror=()=>rej(r.error)})}
 async function dbPut(k,f){const d=await db();return new Promise((res,rej)=>{const tx=d.transaction(STORE,"readwrite");tx.objectStore(STORE).put(f,k);tx.oncomplete=res;tx.onerror=()=>rej(tx.error)})}
 rFile.onchange=()=>{pendingFile=rFile.files[0]||null;rFileName.textContent=pendingFile?pendingFile.name:""};
+async function flecapLoadMasterAssetTemplate(m){
+ try{
+   if(!m||!m.archivo_fuente)return null;
+   const raw=String(m.archivo_fuente||'').trim();
+   if(!raw)return null;
+   // En algunos maestros se usa "archivo.xlsx#F-01" para indicar la hoja/formulario.
+   // El nombre físico dentro de /assets es solamente la parte anterior al #.
+   const fileName=raw.split('#')[0].trim();
+   if(!fileName)return null;
+   const path='assets/'+fileName;
+   const r=await fetch(encodeURI(path),{cache:'no-store'});
+   if(!r.ok)return null;
+   const blob=await r.blob();
+   const low=fileName.toLowerCase();
+   let type=blob.type||'';
+   if(!type){
+     if(/\.pdf$/.test(low))type='application/pdf';
+     else if(/\.xlsx$/.test(low))type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+     else if(/\.xlsm$/.test(low))type='application/vnd.ms-excel.sheet.macroEnabled.12';
+     else if(/\.xls$/.test(low))type='application/vnd.ms-excel';
+   }
+   const f=new File([blob],fileName,{type:type||'application/octet-stream'});
+   return {source:'asset',files:[f],names:[fileName],types:[type],urls:[URL.createObjectURL(blob)],templateId:resolveOriginalTemplateId(m),assetPath:path};
+ }catch(e){
+   console.warn('FLECAP: no se pudo abrir el registro desde assets',m&&m.archivo_fuente,e);
+   return null;
+ }
+}
+
 async function openRecord(tagName,id){
  const t=state.tags.find(x=>x.tag===tagName),m=state.masters.find(x=>x.id===id);
  if(!t||!m){alert("No se encontró el TAG o el registro seleccionado.");return;}
@@ -2483,8 +2512,14 @@ async function openRecord(tagName,id){
    safeTimeout(dbGet(recKey(t.tag,m.id)),1800,null),
    safeTimeout(getEffectiveTemplate(m),3200,{source:"embedded",files:[],names:[],types:[],urls:(ORIGINAL_PDF_TEMPLATES[resolveOriginalTemplateId(m)]||[]).slice(),templateId:resolveOriginalTemplateId(m)})
  ]);
- const tpl=tplRaw||{urls:[],types:[],names:[],source:""};
+ let tpl=tplRaw||{urls:[],types:[],names:[],source:""};
  const resolvedTemplateId=resolveOriginalTemplateId(m);
+ // Si el formato no está embebido en el index, buscar el archivo original declarado
+ // por el Maestro directamente dentro de /assets.
+ if(!(tpl.urls||[]).length && m.archivo_fuente){
+   const assetTpl=await safeTimeout(flecapLoadMasterAssetTemplate(m),4500,null);
+   if(assetTpl)tpl=assetTpl;
+ }
  tpl.templateId=tpl.templateId||resolvedTemplateId;
  const hasTpl=(tpl.urls||[]).length>0;
  currentRecord.template=tpl;
