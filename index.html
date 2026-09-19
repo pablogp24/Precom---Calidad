@@ -2176,7 +2176,7 @@ function persist(){
      }
    }catch(_e){}
    if(window.cloudReady && window.PECOM_ROLE==="viewer"){
-     alert("Tu usuario tiene permiso de solo lectura.");
+     console.info('FLECAP: operación de escritura omitida — usuario solo lectura');
      return false;
    }
    const compactState=window.FLECAP_compactStateForLocalStorage?window.FLECAP_compactStateForLocalStorage(state):state;
@@ -2323,7 +2323,7 @@ function canAdjustTagRecords(){
 
 function setTagRecordOverride(tagName,masterId,mode,reason=""){
  if(!canAdjustTagRecords()){
-   alert("Tu usuario tiene permiso de solo lectura.");
+   console.info('FLECAP: operación de escritura omitida — usuario solo lectura');
    return false;
  }
  const t=state.tags.find(x=>x.tag===tagName);
@@ -2355,7 +2355,7 @@ function setTagRecordOverride(tagName,masterId,mode,reason=""){
 }
 
 function openAddRecordToTag(tagName){
- if(!canAdjustTagRecords()){alert("Tu usuario tiene permiso de solo lectura.");return}
+ if(!canAdjustTagRecords()){console.info('FLECAP: operación de escritura omitida — usuario solo lectura');return}
  const t=state.tags.find(x=>x.tag===tagName);if(!t)return;
  currentApplicabilityTag=t;
 
@@ -2401,7 +2401,7 @@ function openAddRecordToTag(tagName){
 }
 
 function removeRecordFromTag(tagName,masterId){
- if(!canAdjustTagRecords()){alert("Tu usuario tiene permiso de solo lectura.");return}
+ if(!canAdjustTagRecords()){console.info('FLECAP: operación de escritura omitida — usuario solo lectura');return}
  const t=state.tags.find(x=>x.tag===tagName),m=state.masters.find(x=>x.id===masterId);
  if(!t||!m)return;
  const reason=prompt(`Motivo por el cual "${m.nombre}" NO APLICA al TAG ${t.tag}:`,"No aplica según verificación de inspección");
@@ -4652,7 +4652,7 @@ function renderMasterChecklist(m){
 mType.onchange=()=>{const m=currentMaster||{checklist:[]};if(!m.checklist)m.checklist=[];renderMasterChecklist(m)};
 saveMaster.onclick=async()=>{
  if(window.cloudReady && !(window.PECOM_ROLE==="admin" || window.PECOM_ROLE==="editor" || window.PECOM_CAN_EDIT===true)){
-   alert("Tu usuario tiene permiso de solo lectura.");
+   console.info('FLECAP: operación de escritura omitida — usuario solo lectura');
    return;
  }
  const m=currentMaster||{checklist:[]};m.id=mCode.value.trim();m.nombre=mName.value.trim();m.tipo=mType.value;m.disciplina=mDisc.value;m.etapa=mStage.value;m.activo=mActive.value==="1";m.aplica_especialidad=mEspRule.value.trim();m.aplica_sistema=mSysRule.value.trim();m.aplica_subsistema=mSubRule.value.trim();m.aplica_texto_tag=mTextRule.value.trim();
@@ -4752,7 +4752,7 @@ function fillPunchRegs(){
 pTag.onchange=fillPunchRegs;
 function savePunchData(keepOpen=false){
  if(window.cloudReady && !(window.PECOM_ROLE==="admin" || window.PECOM_ROLE==="editor" || window.PECOM_CAN_EDIT===true)){
-   alert("Tu usuario tiene permiso de solo lectura.");
+   console.info('FLECAP: operación de escritura omitida — usuario solo lectura');
    return false;
  }
  const desc=(pDesc.value||"").trim();
@@ -6324,7 +6324,7 @@ function applyPecomRole(role){
 
 function canEditOrWarn(){
   if(window.PECOM_CAN_EDIT) return true;
-  alert("Tu usuario tiene permiso de solo lectura.");
+  console.info('FLECAP: operación de escritura omitida — usuario solo lectura');
   return false;
 }
 
@@ -6900,7 +6900,7 @@ function refreshOnlineAdminUi(){
 
   function openNewRecord(){
     if(!canCreate()){
-      alert("Tu usuario tiene permiso de solo lectura.");
+      console.info('FLECAP: operación de escritura omitida — usuario solo lectura');
       return;
     }
     const dlg=prepareMasterModal();
@@ -6969,7 +6969,7 @@ function refreshOnlineAdminUi(){
 
   window.pecomOpenMasterPicker=function(tagName){
     if(!canCreate()){
-      alert("Tu usuario tiene permiso de solo lectura.");
+      console.info('FLECAP: operación de escritura omitida — usuario solo lectura');
       return;
     }
 
@@ -7068,7 +7068,7 @@ function refreshOnlineAdminUi(){
     btn.onclick=()=>{
       if(btn.dataset.busy==="1")return;
       if(!(window.PECOM_ROLE==="admin" || window.PECOM_ROLE==="editor" || window.PECOM_CAN_EDIT===true || !window.cloudReady)){
-        alert("Tu usuario tiene permiso de solo lectura.");
+        console.info('FLECAP: operación de escritura omitida — usuario solo lectura');
         return;
       }
       const id=document.getElementById("tagRecordApplicabilitySelect")?.value||"";
@@ -7333,7 +7333,7 @@ function refreshOnlineAdminUi(){
 <script id="pecomInspectorTagAndThemeFinalFixJs">
 (function(){
  function canEdit(){if(!window.cloudReady)return true;return window.PECOM_ROLE==="admin"||window.PECOM_ROLE==="editor"||window.PECOM_CAN_EDIT===true;}
- function bindTagNewButtons(){document.querySelectorAll("[data-new-record]").forEach(function(b){b.disabled=!canEdit();b.style.display=canEdit()?"inline-flex":"none";b.onclick=function(e){e.preventDefault();e.stopPropagation();if(!canEdit()){alert("Tu usuario tiene permiso de solo lectura.");return;}var tagName=b.dataset.newRecord||"";var t=state.tags.find(function(x){return x.tag===tagName;});if(!t){alert("No se encontró el TAG.");return;}window.pecomPendingNewRecordTag=tagName;var disc=document.getElementById("npdfDisc");if(disc&&!disc.value)disc.value=t.especialidad||t.disciplina||"";var sys=document.getElementById("npdfSystem"),sub=document.getElementById("npdfSubsystem");if(sys)sys.value="";if(sub)sub.value="";var dlg=document.getElementById("newPdfRecordModal");if(dlg&&dlg.parentElement!==document.body)document.body.appendChild(dlg);if(typeof modal==="function")modal("newPdfRecordModal",true);else if(dlg){dlg.classList.add("show");dlg.style.display="flex";}};});}
+ function bindTagNewButtons(){document.querySelectorAll("[data-new-record]").forEach(function(b){b.disabled=!canEdit();b.style.display=canEdit()?"inline-flex":"none";b.onclick=function(e){e.preventDefault();e.stopPropagation();if(!canEdit()){console.info('FLECAP: operación de escritura omitida — usuario solo lectura');return;}var tagName=b.dataset.newRecord||"";var t=state.tags.find(function(x){return x.tag===tagName;});if(!t){alert("No se encontró el TAG.");return;}window.pecomPendingNewRecordTag=tagName;var disc=document.getElementById("npdfDisc");if(disc&&!disc.value)disc.value=t.especialidad||t.disciplina||"";var sys=document.getElementById("npdfSystem"),sub=document.getElementById("npdfSubsystem");if(sys)sys.value="";if(sub)sub.value="";var dlg=document.getElementById("newPdfRecordModal");if(dlg&&dlg.parentElement!==document.body)document.body.appendChild(dlg);if(typeof modal==="function")modal("newPdfRecordModal",true);else if(dlg){dlg.classList.add("show");dlg.style.display="flex";}};});}
  var themeBtn=document.getElementById("pecomThemeToggle");
  function getMode(){try{return localStorage.getItem("pecom_theme_mode_final_unified")==="light"?"light":"dark"}catch(e){return "dark"}}
  function applyTheme(mode){var light=mode==="light";document.documentElement.classList.toggle("pecom-light",light);document.body.classList.toggle("pecom-light",light);document.documentElement.style.setProperty("background-color",light?"#ffffff":"#091018","important");document.body.style.setProperty("background-color",light?"#ffffff":"#091018","important");document.body.style.setProperty("color",light?"#111827":"#e8eef3","important");if(themeBtn){themeBtn.textContent=light?"🌙":"☀️";themeBtn.title=light?"Cambiar a modo noche":"Cambiar a modo día";}}
@@ -10523,7 +10523,7 @@ body[data-flecap-module="quality"] #flecapPipingQualityBtn{display:flex!importan
    render();
  }
  function openEdit(id){
-   if(!canEdit())return alert('Tu usuario tiene permiso de solo lectura.');
+   if(!canEdit())return console.info('FLECAP: operación de escritura omitida — usuario solo lectura');
    editing=id||null;
    var r=id?rows.find(function(x){return x.id===id}):{};
    function set(id,k,def){q(id).value=r[k]!=null?r[k]:(def||'')}
@@ -10621,7 +10621,7 @@ body[data-flecap-module="quality"] #flecapPipingQualityBtn{display:flex!importan
    XLSX.writeFile(wb,'FLECAP_Calidad_Seguimiento_Piping.xlsx');
  }
  function importExcel(ev){
-   if(!canEdit()){ev.target.value='';return alert('Tu usuario tiene permiso de solo lectura.')}
+   if(!canEdit()){ev.target.value='';return console.info('FLECAP: operación de escritura omitida — usuario solo lectura')}
    var f=ev.target.files&&ev.target.files[0];ev.target.value='';if(!f)return;
    if(!window.XLSX)return alert('No está disponible el motor Excel XLSX.');
    var rd=new FileReader();rd.onload=function(e){
@@ -10645,7 +10645,7 @@ body[data-flecap-module="quality"] #flecapPipingQualityBtn{display:flex!importan
    };rd.readAsArrayBuffer(f);
  }
  function importTraceability(ev){
-   if(!canEdit()){ev.target.value='';return alert('Tu usuario tiene permiso de solo lectura.')}
+   if(!canEdit()){ev.target.value='';return console.info('FLECAP: operación de escritura omitida — usuario solo lectura')}
    var f=ev.target.files&&ev.target.files[0];ev.target.value='';if(!f)return;
    if(!window.XLSX)return alert('No está disponible el motor Excel XLSX.');
    function txt(v){return String(v==null?'':v).trim()}
