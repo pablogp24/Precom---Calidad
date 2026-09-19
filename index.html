@@ -13174,8 +13174,11 @@ function renderCharts(){
  '<div class="ftr-s-footnote">FW y FFW pueden incluirse o excluirse del cálculo. Por defecto quedan excluidas y el avance se calcula solo con SW.</div>';
  var inp=q('ftrConstructionEndDate');
  if(inp){
-   /* Solo usuarios con edición pueden cambiar una fecha compartida. */
-   if(window.cloudReady && window.PECOM_ROLE==='viewer')inp.disabled=true;
+   /* La fecha queda editable en la interfaz. El control de escritura real se
+      hace al persistir contra los permisos de la obra/Supabase. Esto evita que
+      un administrador/editor quede bloqueado por un PECOM_ROLE transitorio. */
+   inp.disabled=false;
+   inp.removeAttribute('disabled');
    inp.onchange=function(){
      if(!this.value)return;
      var v=this.value;
@@ -13189,8 +13192,16 @@ function renderCharts(){
        /* Esta preferencia de obra no forma parte de las secciones del motor
           granular. Se confirma también en app_state para que todos los usuarios
           reciban exactamente la misma fecha al iniciar sesión. */
-       if(window.PECOM_SUPABASE && window.PECOM_CURRENT_EMAIL &&
-          String(window.PECOM_ROLE||'viewer').toLowerCase()!=='viewer'){
+       var canWriteEndDate=(function(){
+         var role=String(window.PECOM_ROLE||'').toLowerCase();
+         if(role==='admin'||role==='editor'||role==='maintenance_editor'||role==='matrix_importer')return true;
+         try{
+           var em=String(window.PECOM_CURRENT_EMAIL||'').trim().toLowerCase();
+           var mp=(typeof state!=='undefined'&&state&&state.flecapModulePermissions&&state.flecapModulePermissions[em])||{};
+           return mp.quality==='edit'||mp.precom==='edit';
+         }catch(_e){return false}
+       })();
+       if(window.PECOM_SUPABASE && window.PECOM_CURRENT_EMAIL && canWriteEndDate){
          var projectId=localStorage.getItem('flecap_active_project_v1')||'legacy';
          var payload=window.FLECAP_compactStateForLocalStorage
            ? window.FLECAP_compactStateForLocalStorage(state) : state;
