@@ -10420,10 +10420,12 @@ body[data-flecap-module="quality"] #flecapPipingQualityBtn{display:flex!importan
  }
  async function openPage(){
    if(!quality())return;
-   await sharedPipingLoad();
+  var remoteLoaded=await sharedPipingLoad();
+  if(!remoteLoaded){
    var latest=cloudRows();
-   if(Array.isArray(latest)&&JSON.stringify(latest)!==JSON.stringify(rows)){rows=JSON.parse(JSON.stringify(latest));hydrateDispatch(rows);try{localStorage.setItem(key(),JSON.stringify(rows))}catch(e){}}
-   else hydrateDispatch(rows);
+   if(Array.isArray(latest)&&latest.length&&JSON.stringify(latest)!==JSON.stringify(rows)){rows=JSON.parse(JSON.stringify(latest));hydrateDispatch(rows);try{localStorage.setItem(key(),JSON.stringify(rows))}catch(e){}}
+  }
+  hydrateDispatch(rows);
    syncPipingWithActiveMatrix();
    var seededAtStart=applyTraceSpoolSeed();
    if(seededAtStart)save();
