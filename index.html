@@ -13185,13 +13185,22 @@ function renderCharts(){
          state.flecapConstructionEndDate=v;
          state._flecap_saved_at=new Date().toISOString();
        }
-       if(typeof window.persist==='function'){
-         var ok=window.persist();
-         if(ok===false){
-           /* Un viewer no debe dejar una fecha local distinta de la compartida. */
-           var shared=(typeof state!=='undefined'&&state&&state.flecapConstructionEndDate)||'';
-           if(shared)try{localStorage.setItem(key,shared)}catch(_e){}
-         }
+       if(typeof window.persist==='function')window.persist();
+       /* Esta preferencia de obra no forma parte de las secciones del motor
+          granular. Se confirma también en app_state para que todos los usuarios
+          reciban exactamente la misma fecha al iniciar sesión. */
+       if(window.PECOM_SUPABASE && window.PECOM_CURRENT_EMAIL &&
+          String(window.PECOM_ROLE||'viewer').toLowerCase()!=='viewer'){
+         var projectId=localStorage.getItem('flecap_active_project_v1')||'legacy';
+         var payload=window.FLECAP_compactStateForLocalStorage
+           ? window.FLECAP_compactStateForLocalStorage(state) : state;
+         window.PECOM_SUPABASE.from('app_state').upsert({
+           id:projectId,
+           payload:payload,
+           updated_by:String(window.PECOM_CURRENT_EMAIL).toLowerCase()
+         },{onConflict:'id'}).then(function(res){
+           if(res&&res.error)console.error('FLECAP: error guardando fecha fin',res.error);
+         });
        }
      }catch(err){console.error('FLECAP: no se pudo compartir fecha fin de construcción',err)}
      renderCharts();
@@ -13222,8 +13231,25 @@ function init(){menu();setInterval(menu,2500);document.addEventListener('flecap:
 window.FLECAP_OPEN_TRACEABILITY=open;
 document.addEventListener('flecap:remote-ready',function(){
  try{
+   var key='flecap_construction_end_date_v1';
    var shared=(typeof state!=='undefined'&&state&&state.flecapConstructionEndDate)||'';
-   if(shared)localStorage.setItem('flecap_construction_end_date_v1',shared);
+   var local=localStorage.getItem(key)||'';
+   if(shared){
+     localStorage.setItem(key,shared);
+   }else if(local && window.PECOM_SUPABASE && window.PECOM_CURRENT_EMAIL &&
+            String(window.PECOM_ROLE||'viewer').toLowerCase()!=='viewer'){
+     /* Migración única: si la obra todavía no tenía la fecha en Supabase,
+        publica la fecha que ya tenía configurada el usuario editor. */
+     state.flecapConstructionEndDate=local;
+     var projectId=localStorage.getItem('flecap_active_project_v1')||'legacy';
+     var payload=window.FLECAP_compactStateForLocalStorage
+       ? window.FLECAP_compactStateForLocalStorage(state) : state;
+     window.PECOM_SUPABASE.from('app_state').upsert({
+       id:projectId,
+       payload:payload,
+       updated_by:String(window.PECOM_CURRENT_EMAIL).toLowerCase()
+     },{onConflict:'id'});
+   }
    if(typeof renderCharts==='function')renderCharts();
  }catch(_e){}
 },true);
