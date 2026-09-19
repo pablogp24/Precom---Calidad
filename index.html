@@ -2702,6 +2702,72 @@ async function flecapLoadMasterAssetTemplate(m){
 
    const fileName=sourceName.split('#')[0].trim();
 
+   // FLECAP 2026-09-19 · Maestros oficiales en Supabase Storage.
+   // Fuente primaria: bucket privado flecap-maestros. Calidad vive en /calidad
+   // y Precom puede contener subcarpetas por disciplina. GitHub/assets permanece
+   // intacto como respaldo si Storage no está disponible o no encuentra coincidencia.
+   async function loadFromSupabaseMasters(){
+     try{
+       const sb=window.PECOM_SUPABASE;
+       if(!sb||!sb.storage)return null;
+       const moduleName=(document.body.getAttribute('data-flecap-module')==='precom')?'precom':'calidad';
+       const bucket=sb.storage.from('flecap-maestros');
+       const cacheKey='flecap_supabase_masters_v1::'+moduleName;
+       let paths=null;
+       try{
+         const c=JSON.parse(sessionStorage.getItem(cacheKey)||'null');
+         if(c&&Date.now()-Number(c.ts||0)<10*60*1000&&Array.isArray(c.paths))paths=c.paths;
+       }catch(_e){}
+       if(!paths){
+         paths=[];
+         async function walk(prefix,depth){
+           if(depth>4)return;
+           const lr=await bucket.list(prefix,{limit:1000,sortBy:{column:'name',order:'asc'}});
+           if(lr.error)throw lr.error;
+           for(const x of (lr.data||[])){
+             const path=prefix?prefix+'/'+x.name:x.name;
+             // En Storage las carpetas aparecen sin metadata/id de objeto.
+             if(x&&x.metadata){
+               if(/\.pdf$/i.test(x.name||''))paths.push(path);
+             }else{
+               await walk(path,depth+1);
+             }
+           }
+         }
+         await walk(moduleName,0);
+         try{sessionStorage.setItem(cacheKey,JSON.stringify({ts:Date.now(),paths}))}catch(_e){}
+       }
+       if(!paths||!paths.length)return null;
+       const norm=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase()
+         .replace(/f[-_. ]*0+(\d+)/g,'f$1').replace(/[^a-z0-9]+/g,'');
+       const id=norm(m.id||''), proc=norm(m.procedimiento||''), src=norm(fileName||''), name=norm(m.nombre||'');
+       const words=String(m.nombre||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase()
+         .split(/[^a-z0-9]+/).filter(w=>w.length>=4).map(norm);
+       const score=path=>{
+         const base=String(path||'').split('/').pop()||'', n=norm(base);let sc=0;
+         if(src&&n===src)sc+=40000;
+         if(id&&n.includes(id))sc+=25000;
+         if(proc&&n.includes(proc))sc+=5000;
+         if(name&&n.includes(name))sc+=4000;
+         words.forEach(w=>{if(w&&n.includes(w))sc+=120});
+         return sc;
+       };
+       const ranked=paths.slice().sort((a,b)=>score(b)-score(a));
+       const best=ranked[0],bestScore=best?score(best):-1;
+       if(!best||bestScore<1800)return null;
+       const dl=await bucket.download(best);
+       if(dl.error||!dl.data)return null;
+       const display=best.split('/').pop()||String(m.id||'registro')+'.pdf';
+       return await makeAssetTemplate(new Response(dl.data,{status:200,headers:{'content-type':'application/pdf'}}),'supabase://flecap-maestros/'+best,display,m);
+     }catch(e){
+       console.warn('FLECAP maestros Supabase Storage:',e);
+       return null;
+     }
+   }
+
+   const supabaseMasterTpl=await loadFromSupabaseMasters();
+   if(supabaseMasterTpl)return supabaseMasterTpl;
+
 
    // FLECAP FIX 2026-09-14: resolver PRIMERO contra el listado real de
    // assets/registros en GitHub. Una sola consulta evita agotar el timeout
