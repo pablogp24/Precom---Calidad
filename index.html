@@ -13158,7 +13158,7 @@ function renderCharts(){
  '<div class="ftr-s-dashboard-head">'+
    '<div class="ftr-s-maininfo"><div class="ftr-s-kpis"><div><span>Avance real</span><b>'+fmt(last.pct)+'%</b></div><div><span>Pulgadas soldadas</span><b>'+fmt(last.inch)+'"</b></div><div><span>Pulgadas previstas</span><b>'+fmt(totalIn)+'"</b></div></div>'+
    '<div class="ftr-weld-toggle-box"><span>Incluir en el cálculo:</span><label><input type="checkbox" checked disabled> <b>SW</b> <small>(siempre)</small></label><label><input id="ftrIncludeFW" type="checkbox" '+(fwOn?'checked':'')+'> <b>FW</b></label><label><input id="ftrIncludeFFW" type="checkbox" '+(ffwOn?'checked':'')+'> <b>FFW</b></label></div></div>'+
-   '<label class="ftr-end-date"><span>Fecha fin de construcción</span><input id="ftrConstructionEndDate" type="date" value="'+iso(finish)+'"></label>'+
+   '<label class="ftr-end-date"><span>Fecha fin de construcción</span><input id="ftrConstructionEndDate" type="text" inputmode="numeric" autocomplete="off" placeholder="DD/MM/AAAA" value="'+finish.toLocaleDateString('es-AR')+'"></label>'+
    '<div class="ftr-days-left"><span>Días restantes</span><b>'+remaining+'</b></div>'+
  '</div>'+
  '<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none">'+grid+bars+
@@ -13179,9 +13179,16 @@ function renderCharts(){
       un administrador/editor quede bloqueado por un PECOM_ROLE transitorio. */
    inp.disabled=false;
    inp.removeAttribute('disabled');
-   inp.onchange=function(){
-     if(!this.value)return;
-     var v=this.value;
+   function commitEndDate(){
+     var raw=String(inp.value||'').trim();
+     if(!raw)return;
+     var m=raw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/),v='';
+     if(m){
+       var dd=Number(m[1]),mm=Number(m[2]),yy=Number(m[3]),test=new Date(yy,mm-1,dd);
+       if(test.getFullYear()!==yy||test.getMonth()!==mm-1||test.getDate()!==dd){alert('Ingresá una fecha válida en formato DD/MM/AAAA.');return}
+       v=yy+'-'+String(mm).padStart(2,'0')+'-'+String(dd).padStart(2,'0');
+     }else if(/^\d{4}-\d{2}-\d{2}$/.test(raw)){v=raw}
+     else{alert('Ingresá la fecha como DD/MM/AAAA. Ejemplo: 05/10/2026.');return}
      try{localStorage.setItem(key,v)}catch(_e){}
      try{
        if(typeof state!=='undefined'&&state){
@@ -13215,7 +13222,10 @@ function renderCharts(){
        }
      }catch(err){console.error('FLECAP: no se pudo compartir fecha fin de construcción',err)}
      renderCharts();
-   };
+   }
+   inp.onchange=commitEndDate;
+   inp.onblur=commitEndDate;
+   inp.onkeydown=function(ev){if(ev.key==='Enter'){ev.preventDefault();commitEndDate()}};
  }
  var fw=q('ftrIncludeFW');if(fw)fw.onchange=function(){localStorage.setItem('flecap_scurve_include_fw_v1',this.checked?'1':'0');renderCharts()};
  var ffw=q('ftrIncludeFFW');if(ffw)ffw.onchange=function(){localStorage.setItem('flecap_scurve_include_ffw_v1',this.checked?'1':'0');renderCharts()};
