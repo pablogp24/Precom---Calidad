@@ -12798,7 +12798,7 @@ html.pecom-light .fsc-note,html.pecom-light .fsc-dates,html.pecom-light .fsc-leg
 </body></div></div></div></div></div><script id="flecap-trace-native-v24-js">
 (function(){
 'use strict';
-var rows=[],filtered=[],selectedTypes=new Set(),restored=false,columnFilters={system:'',line:'',iso:'',spool:'',joint:'',dia:'',type:'',date:'',status:''};
+var rows=[],filtered=[],selectedTypes=new Set(),restored=false,traceSyncInFlight=false,traceRemoteReadyHandled=false,columnFilters={system:'',line:'',iso:'',spool:'',joint:'',dia:'',type:'',date:'',status:''};
 function q(id){return document.getElementById(id)}
 function pid(){try{return localStorage.getItem('flecap_active_project_v1')||'legacy'}catch(e){return'legacy'}}
 function norm(s){try{return String(s==null?'':s).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim()}catch(e){return String(s||'').toLowerCase().trim()}}
@@ -12806,25 +12806,53 @@ function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){retur
 function db(){return new Promise(function(ok,no){var r=indexedDB.open('FLECAP_TRACE_NATIVE_V24',1);r.onupgradeneeded=function(){if(!r.result.objectStoreNames.contains('matrix'))r.result.createObjectStore('matrix',{keyPath:'projectId'})};r.onsuccess=function(){ok(r.result)};r.onerror=function(){no(r.error)}})}
 async function saveNative(name,data){var d=await db(),rec={projectId:pid(),name:name,updatedAt:new Date().toISOString(),rows:data};await new Promise(function(ok,no){var tx=d.transaction('matrix','readwrite');tx.objectStore('matrix').put(rec);tx.oncomplete=ok;tx.onerror=tx.onabort=function(){no(tx.error)}});d.close();var chk=await getNative();if(!chk||!chk.rows||chk.rows.length!==data.length)throw new Error('La verificación del guardado no coincide');return rec}
 async function getNative(){var d=await db(),v=await new Promise(function(ok,no){var r=d.transaction('matrix','readonly').objectStore('matrix').get(pid());r.onsuccess=function(){ok(r.result||null)};r.onerror=function(){no(r.error)}});d.close();return v}
-async function sharedTraceSave(rec){
- try{var sb=window.PECOM_SUPABASE;if(!sb||!rec||!Array.isArray(rec.rows)||!rec.rows.length)return false;var r=await sb.from('flecap_matrix_store').upsert({project_id:pid(),module:'traceability',payload:{name:rec.name||'Matriz de trazabilidad',updatedAt:rec.updatedAt||new Date().toISOString(),rows:rec.rows},updated_by:String(window.PECOM_CURRENT_EMAIL||'').trim().toLowerCase()},{onConflict:'project_id,module'});if(r.error)throw r.error;return true}catch(e){console.warn('FLECAP: no se pudo guardar trazabilidad compartida',e);return false}
+function traceMigrationError(error,context){
+ var e=error||{};
+ console.error('FLECAP TRACE MIGRATION ERROR',context||'traceability',{code:e.code||'',message:e.message||String(e),details:e.details||'',hint:e.hint||''});
 }
-async function sharedTraceLoad(){
+async function sharedTraceSave(rec){
+ try{
+  var sb=window.PECOM_SUPABASE;
+  if(!sb)throw new Error('Supabase no está disponible');
+  if(!rec||!Array.isArray(rec.rows)||!rec.rows.length)throw new Error('No hay filas locales de trazabilidad para migrar');
+  var expected=rec.rows.length, payload={name:rec.name||'Matriz de trazabilidad',updatedAt:rec.updatedAt||new Date().toISOString(),rows:rec.rows};
+  var write=await sb.from('flecap_matrix_store').upsert({project_id:pid(),module:'traceability',payload:payload,updated_by:String(window.PECOM_CURRENT_EMAIL||'').trim().toLowerCase()},{onConflict:'project_id,module'});
+  if(write.error){traceMigrationError(write.error,'upsert');return false}
+  var verify=await sb.from('flecap_matrix_store').select('project_id,module,payload,updated_at').eq('project_id',pid()).eq('module','traceability').maybeSingle();
+  if(verify.error){traceMigrationError(verify.error,'verify select');return false}
+  var remoteRows=verify.data&&verify.data.payload&&verify.data.payload.rows;
+  if(!verify.data||!Array.isArray(remoteRows)||remoteRows.length!==expected){
+   traceMigrationError({code:'TRACE_ROW_COUNT_MISMATCH',message:'La verificación remota no coincide',details:{expected:expected,actual:Array.isArray(remoteRows)?remoteRows.length:0},hint:'Revisar RLS y la tabla flecap_matrix_store'},'verify row count');
+   return false;
+  }
+  return true;
+ }catch(e){traceMigrationError(e,'save');return false}
+}
+async function sharedTraceLoad(allowMigration){
  try{
   var sb=window.PECOM_SUPABASE;if(!sb)return false;
-  var r=await sb.from('flecap_matrix_store').select('payload,updated_at').eq('project_id',pid()).eq('module','traceability').maybeSingle();if(r.error)throw r.error;
+  var r=await sb.from('flecap_matrix_store').select('payload,updated_at').eq('project_id',pid()).eq('module','traceability').maybeSingle();
+  if(r.error){traceMigrationError(r.error,'load select');return false}
   var p=r.data&&r.data.payload,local=await getNative();
-  /* Migración automática: si este equipo ya tenía la trazabilidad pero todavía no existe
-     la copia compartida, publicarla una sola vez desde un usuario con edición. */
-  if((!p||!Array.isArray(p.rows)||!p.rows.length)&&local&&Array.isArray(local.rows)&&local.rows.length&&document.body.getAttribute('data-flecap-module-access')!=='view'){
-    await sharedTraceSave(local);return false;
+  if(p&&Array.isArray(p.rows)&&p.rows.length){
+   var remoteStamp=String(p.updatedAt||r.data.updated_at||''),d=await db();
+   await new Promise(function(ok,no){var tx=d.transaction('matrix','readwrite');tx.objectStore('matrix').put({projectId:pid(),name:p.name||'Matriz compartida',updatedAt:remoteStamp||new Date().toISOString(),rows:p.rows});tx.oncomplete=ok;tx.onerror=tx.onabort=function(){no(tx.error)}});d.close();return true;
   }
-  if(!p||!Array.isArray(p.rows)||!p.rows.length)return false;
-  var rs=String(p.updatedAt||r.data.updated_at||'');
-  if(p.rows.length){
-   var d=await db();await new Promise(function(ok,no){var tx=d.transaction('matrix','readwrite');tx.objectStore('matrix').put({projectId:pid(),name:p.name||'Matriz compartida',updatedAt:rs||new Date().toISOString(),rows:p.rows});tx.oncomplete=ok;tx.onerror=tx.onabort=function(){no(tx.error)}});d.close();return true
+  if(allowMigration!==false&&local&&Array.isArray(local.rows)&&local.rows.length&&document.body.getAttribute('data-flecap-module-access')!=='view'){
+   if(await sharedTraceSave(local))return sharedTraceLoad(false);
   }
- }catch(e){console.warn('FLECAP: no se pudo cargar trazabilidad compartida',e)}return false
+  return false;
+ }catch(e){traceMigrationError(e,'load');return false}
+}
+async function resyncTraceability(reason){
+ if(traceSyncInFlight||traceRemoteReadyHandled)return false;
+ traceRemoteReadyHandled=true;traceSyncInFlight=true;
+ try{
+  if(!window.PECOM_SUPABASE||!window.cloudReady)return false;
+  var loaded=await sharedTraceLoad(true),rec=await getNative();
+  if(rec&&Array.isArray(rec.rows)&&rec.rows.length){rows=repairSavedMappings(rec.rows);q('ftrFileName').textContent=rec.name||'Matriz guardada';q('ftrStatus').textContent=(loaded?'Sincronizado desde Supabase':'Matriz local pendiente de sincronizar')+' · '+rows.length.toLocaleString('es-AR')+' registros';refresh();return loaded}
+  return false;
+ }finally{traceSyncInFlight=false}
 }
 function cell(ws,r,c){var x=ws[XLSX.utils.encode_cell({r:r,c:c})];return x?(x.w!=null?x.w:(x.v!=null?x.v:'')):''}
 function best(headers,names){var b='',score=0;headers.forEach(function(h){var n=norm(h);names.forEach(function(p){var x=norm(p),s=n===x?100:(n.includes(x)||x.includes(n)?70:0);if(s>score){score=s;b=h}})});return score>=70?b:''}
@@ -13061,7 +13089,7 @@ async function restore(forceCloud){
  if(restored&&!forceCloud)return;restored=true;
  try{
   if(forceCloud){for(var w=0;w<20&&!window.PECOM_SUPABASE;w++)await new Promise(function(z){setTimeout(z,150)})}
-  await sharedTraceLoad();var rec=await getNative();
+  await sharedTraceLoad(true);var rec=await getNative();
   if(rec&&Array.isArray(rec.rows)&&rec.rows.length){rows=repairSavedMappings(rec.rows);q('ftrFileName').textContent=rec.name||'Matriz guardada';q('ftrStatus').textContent='Restaurado automáticamente · '+rows.length.toLocaleString('es-AR')+' registros · '+new Date(rec.updatedAt).toLocaleString('es-AR');refresh()}
   else q('ftrStatus').textContent='No hay una matriz guardada para esta obra.'
  }catch(e){q('ftrStatus').textContent='No se pudo recuperar la matriz: '+(e.message||e)}
@@ -13069,7 +13097,7 @@ async function restore(forceCloud){
 function handle(f){if(!f)return;var rd=new FileReader();q('ftrStatus').textContent='Leyendo matriz…';rd.onload=function(e){parseWorkbook(e.target.result,f.name).catch(function(err){console.error(err);q('ftrStatus').textContent='Error: '+(err.message||err)})};rd.readAsArrayBuffer(f)}
 function open(){if((document.body.getAttribute('data-flecap-module')||'quality')!=='quality')return;document.querySelectorAll('main .page').forEach(function(p){p.classList.remove('active')});q('flecapTraceability').classList.add('active');document.querySelectorAll('#flecapModernSidebar .fm-side-btn').forEach(function(b){b.classList.remove('active')});var b=q('flecapTraceabilityBtn');if(b)b.classList.add('active');restore(true);window.scrollTo(0,0)}
 function menu(){var m=document.querySelector('#flecapModernSidebar .fm-menu');if(!m)return;var b=q('flecapTraceabilityBtn');if(!b){b=document.createElement('button');b.id='flecapTraceabilityBtn';b.type='button';b.className='fm-side-btn';b.innerHTML='<span>🧭</span><span>Seguimiento de Matriz</span>';var p=q('flecapPipingQualityBtn');if(p)p.insertAdjacentElement('afterend',b);else m.appendChild(b)}b.onclick=function(e){e.preventDefault();e.stopPropagation();open()};b.style.setProperty('display',(document.body.getAttribute('data-flecap-module')||'quality')==='quality'?'flex':'none','important')}
-function init(){menu();setInterval(menu,2500);q('ftrFile').onchange=function(e){handle(e.target.files[0])};['ftrSheet','ftrSystem','ftrLine','ftrStatusFilter'].forEach(function(id){q(id).onchange=apply});q('ftrSearch').oninput=function(){clearTimeout(window.__ftrT);window.__ftrT=setTimeout(apply,180)};q('ftrTypeAll').onclick=function(){q('ftrTypeChecks').querySelectorAll('.ftrTypeCheck').forEach(function(c){c.checked=true;selectedTypes.add(c.value)});typeLabel();apply()};q('ftrTypeNone').onclick=function(){selectedTypes.clear();q('ftrTypeChecks').querySelectorAll('.ftrTypeCheck').forEach(function(c){c.checked=false});typeLabel();apply()};q('ftrClear').onclick=function(){['ftrSheet','ftrSystem','ftrLine','ftrStatusFilter','ftrSearch'].forEach(function(id){q(id).value=''});Object.keys(columnFilters).forEach(function(k){columnFilters[k]=''});q('ftrHead').querySelectorAll('.ftr-col-filter').forEach(function(x){x.value=''});selectedTypes.clear();buildTypes();apply()};var dz=q('ftrDrop');['dragenter','dragover'].forEach(function(ev){dz.addEventListener(ev,function(e){e.preventDefault()})});dz.addEventListener('drop',function(e){e.preventDefault();handle(e.dataTransfer.files[0])});document.addEventListener('click',function(e){var b=e.target.closest&&e.target.closest('#flecapModernSidebar .fm-side-btn');if(b&&b.id!=='flecapTraceabilityBtn')q('flecapTraceability').classList.remove('active')},true);restore()}
+function init(){menu();setInterval(menu,2500);document.addEventListener('flecap:remote-ready',function(){resyncTraceability('flecap:remote-ready')},true);q('ftrFile').onchange=function(e){handle(e.target.files[0])};['ftrSheet','ftrSystem','ftrLine','ftrStatusFilter'].forEach(function(id){q(id).onchange=apply});q('ftrSearch').oninput=function(){clearTimeout(window.__ftrT);window.__ftrT=setTimeout(apply,180)};q('ftrTypeAll').onclick=function(){q('ftrTypeChecks').querySelectorAll('.ftrTypeCheck').forEach(function(c){c.checked=true;selectedTypes.add(c.value)});typeLabel();apply()};q('ftrTypeNone').onclick=function(){selectedTypes.clear();q('ftrTypeChecks').querySelectorAll('.ftrTypeCheck').forEach(function(c){c.checked=false});typeLabel();apply()};q('ftrClear').onclick=function(){['ftrSheet','ftrSystem','ftrLine','ftrStatusFilter','ftrSearch'].forEach(function(id){q(id).value=''});Object.keys(columnFilters).forEach(function(k){columnFilters[k]=''});q('ftrHead').querySelectorAll('.ftr-col-filter').forEach(function(x){x.value=''});selectedTypes.clear();buildTypes();apply()};var dz=q('ftrDrop');['dragenter','dragover'].forEach(function(ev){dz.addEventListener(ev,function(e){e.preventDefault()})});dz.addEventListener('drop',function(e){e.preventDefault();handle(e.dataTransfer.files[0])});document.addEventListener('click',function(e){var b=e.target.closest&&e.target.closest('#flecapModernSidebar .fm-side-btn');if(b&&b.id!=='flecapTraceabilityBtn')q('flecapTraceability').classList.remove('active')},true);restore()}
 window.FLECAP_OPEN_TRACEABILITY=open;if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();
 </script>
