@@ -13071,10 +13071,15 @@ function renderKpis(){
 function renderCharts(){
  function pd(v){
   var z=String(v||'').trim(),m;if(!z)return null;
-  if((m=z.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/))){
-   var y=+m[3];if(y<100)y+=2000;return new Date(y,+m[2]-1,+m[1])
+  /* Fechas de obra: construir siempre en hora local. new Date('YYYY-MM-DD') se
+     interpreta como UTC y en Argentina retrocede al día anterior. */
+  if((m=z.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/))){
+   return new Date(+m[1],+m[2]-1,+m[3]);
   }
-  var d=new Date(z);return isNaN(d)?null:d
+  if((m=z.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/))){
+   var y=+m[3];if(y<100)y+=2000;return new Date(y,+m[2]-1,+m[1]);
+  }
+  var d=new Date(z);return isNaN(d)?null:new Date(d.getFullYear(),d.getMonth(),d.getDate())
  }
  function fmt(v){return (Math.round(Number(v||0)*10)/10).toLocaleString('es-AR',{maximumFractionDigits:1})}
  function iso(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
