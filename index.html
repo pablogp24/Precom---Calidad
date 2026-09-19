@@ -10056,7 +10056,7 @@ body[data-flecap-module="quality"] #flecapPipingQualityBtn{display:flex!importan
 </script>
 <script id="flecap-piping-quality-stable-js">
 (function(){
- var rows=[],editing=null,columnFilters={};
+ var rows=[],editing=null,columnFilters={},remotePipingLoaded=false;
  function q(id){return document.getElementById(id)}
  function n(v){return Math.max(0,Number(v)||0)}
  function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
@@ -10104,6 +10104,7 @@ body[data-flecap-module="quality"] #flecapPipingQualityBtn{display:flex!importan
    }catch(e){console.warn('FLECAP: no se pudo guardar Piping compartido',e);return false}
  }
  async function sharedPipingLoad(){
+   remotePipingLoaded=false;
    try{
      var sb=window.PECOM_SUPABASE;if(!sb)return false;
      var r=await sb.from('flecap_matrix_store').select('payload,updated_at').eq('project_id',pid()).eq('module','piping_quality').maybeSingle();
@@ -10115,6 +10116,7 @@ body[data-flecap-module="quality"] #flecapPipingQualityBtn{display:flex!importan
     if(p.rows.length){
        rows=JSON.parse(JSON.stringify(p.rows));
        hydrateDispatch(rows);try{localStorage.setItem(key(),JSON.stringify(rows));localStorage.setItem(stampKey(),remoteStamp||new Date().toISOString())}catch(_e){}
+       remotePipingLoaded=true;
        return true;
      }
      /* Aun conservando filas locales, aplicar el despacho central recuperado. */
@@ -10732,6 +10734,7 @@ body[data-flecap-module="quality"] #flecapPipingQualityBtn{display:flex!importan
       muestren el mismo seguimiento guardado en la obra central. */
    var migratedToCloud=false;
    function reconcilePipingFromCloud(ev){
+     if(remotePipingLoaded)return;
      var forceRemote=!!(ev&&ev.type==='flecap:remote-ready');
      var latest=cloudRows();
     if(!forceRemote&&!migratedToCloud&&window.cloudReady&&!Array.isArray(latest)&&rows.length&&window.PECOM_CAN_EDIT){migratedToCloud=true;save();return}
@@ -10744,6 +10747,8 @@ body[data-flecap-module="quality"] #flecapPipingQualityBtn{display:flex!importan
    window.addEventListener('beforeunload',function(){clearInterval(syncTimer);document.removeEventListener('flecap:remote-ready',reconcilePipingFromCloud)},{once:true});
    new MutationObserver(syncVisibility).observe(document.body,{attributes:true,attributeFilter:['data-flecap-module']});
  }
+ window.FLECAP_PIPING=window.FLECAP_PIPING||{};
+ window.FLECAP_PIPING.openPage=openPage;
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();
 </script>
@@ -10767,21 +10772,7 @@ body[data-flecap-module="precom"] #flecapPipingQualityBtn{
   }
   function openPiping(){
     if(!isQuality()) return;
-    var page=document.getElementById('pipingQuality');
-    if(!page){ alert('No se encontró la pantalla Seguimiento Piping.'); return; }
-    document.querySelectorAll('main .page').forEach(function(p){p.classList.remove('active')});
-    page.classList.add('active');
-    document.querySelectorAll('#flecapModernSidebar .fm-side-btn').forEach(function(b){b.classList.remove('active')});
-    var me=document.getElementById('flecapPipingQualityBtn');
-    if(me) me.classList.add('active');
-    try{
-      if(window.FLECAP_PIPING && typeof window.FLECAP_PIPING.render==='function') window.FLECAP_PIPING.render();
-    }catch(e){}
-    try{
-      var s=document.getElementById('fpqSearch');
-      if(s) s.dispatchEvent(new Event('input'));
-    }catch(e){}
-    window.scrollTo({top:0,behavior:'instant'});
+    if(window.FLECAP_PIPING&&typeof window.FLECAP_PIPING.openPage==='function')return window.FLECAP_PIPING.openPage();
   }
   function ensureButton(){
     var sidebar=document.getElementById('flecapModernSidebar');
