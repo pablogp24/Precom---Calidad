@@ -13108,7 +13108,19 @@ function renderCharts(){
   if(note)note.textContent='Barras: pulgadas soldadas por día · Líneas: avance acumulado (Plan vs Real) · FW y FFW configurables'
  }
  var key='flecap_construction_end_date_v1';
- var saved=localStorage.getItem(key)||'2026-12-15';
+ /* La fecha de fin de construcción pertenece a la obra, no al navegador.
+    Se prioriza el estado compartido recibido desde Supabase y localStorage
+    queda solamente como respaldo/offline. */
+ var sharedEnd='';
+ try{
+   if(typeof state!=='undefined'&&state){
+     sharedEnd=String(state.flecapConstructionEndDate||'').trim();
+   }
+ }catch(_e){}
+ var saved=sharedEnd||localStorage.getItem(key)||'2026-12-15';
+ if(sharedEnd){
+   try{localStorage.setItem(key,sharedEnd)}catch(_e){}
+ }
  var endDate=pd(saved)||new Date(2026,11,15);
  var first=ar.length?pd(ar[0][0]):new Date();
  var today=new Date();today=new Date(today.getFullYear(),today.getMonth(),today.getDate());
@@ -13160,7 +13172,31 @@ function renderCharts(){
  '</svg>'+
  '<div class="ftr-s-legend2"><span><i class="bar"></i>Pulgadas soldadas por día</span><span><i class="plan"></i>Plan acumulado (%)</span><span><i class="real"></i>Real acumulado (%)</span><span><i class="current"></i>Fecha actual</span><span><i class="end"></i>Fin de construcción</span></div>'+
  '<div class="ftr-s-footnote">FW y FFW pueden incluirse o excluirse del cálculo. Por defecto quedan excluidas y el avance se calcula solo con SW.</div>';
- var inp=q('ftrConstructionEndDate');if(inp)inp.onchange=function(){if(this.value){localStorage.setItem(key,this.value);renderCharts()}};
+ var inp=q('ftrConstructionEndDate');
+ if(inp){
+   /* Solo usuarios con edición pueden cambiar una fecha compartida. */
+   if(window.cloudReady && window.PECOM_ROLE==='viewer')inp.disabled=true;
+   inp.onchange=function(){
+     if(!this.value)return;
+     var v=this.value;
+     try{localStorage.setItem(key,v)}catch(_e){}
+     try{
+       if(typeof state!=='undefined'&&state){
+         state.flecapConstructionEndDate=v;
+         state._flecap_saved_at=new Date().toISOString();
+       }
+       if(typeof window.persist==='function'){
+         var ok=window.persist();
+         if(ok===false){
+           /* Un viewer no debe dejar una fecha local distinta de la compartida. */
+           var shared=(typeof state!=='undefined'&&state&&state.flecapConstructionEndDate)||'';
+           if(shared)try{localStorage.setItem(key,shared)}catch(_e){}
+         }
+       }
+     }catch(err){console.error('FLECAP: no se pudo compartir fecha fin de construcción',err)}
+     renderCharts();
+   };
+ }
  var fw=q('ftrIncludeFW');if(fw)fw.onchange=function(){localStorage.setItem('flecap_scurve_include_fw_v1',this.checked?'1':'0');renderCharts()};
  var ffw=q('ftrIncludeFFW');if(ffw)ffw.onchange=function(){localStorage.setItem('flecap_scurve_include_ffw_v1',this.checked?'1':'0');renderCharts()};
  var typeBox=q('ftrTypesChart'),typeCard=typeBox&&typeBox.closest('.ftr-card');
@@ -13183,7 +13219,15 @@ function handle(f){if(!f)return;var rd=new FileReader();q('ftrStatus').textConte
 function open(){if((document.body.getAttribute('data-flecap-module')||'quality')!=='quality')return;document.querySelectorAll('main .page').forEach(function(p){p.classList.remove('active')});q('flecapTraceability').classList.add('active');document.querySelectorAll('#flecapModernSidebar .fm-side-btn').forEach(function(b){b.classList.remove('active')});var b=q('flecapTraceabilityBtn');if(b)b.classList.add('active');restore(true);window.scrollTo(0,0)}
 function menu(){var m=document.querySelector('#flecapModernSidebar .fm-menu');if(!m)return;var b=q('flecapTraceabilityBtn');if(!b){b=document.createElement('button');b.id='flecapTraceabilityBtn';b.type='button';b.className='fm-side-btn';b.innerHTML='<span>🧭</span><span>Seguimiento de Matriz</span>';var p=q('flecapPipingQualityBtn');if(p)p.insertAdjacentElement('afterend',b);else m.appendChild(b)}b.onclick=function(e){e.preventDefault();e.stopPropagation();open()};b.style.setProperty('display',(document.body.getAttribute('data-flecap-module')||'quality')==='quality'?'flex':'none','important')}
 function init(){menu();setInterval(menu,2500);document.addEventListener('flecap:remote-ready',function(){resyncTraceability('flecap:remote-ready')},true);q('ftrFile').onchange=function(e){handle(e.target.files[0])};['ftrSheet','ftrSystem','ftrLine','ftrStatusFilter'].forEach(function(id){q(id).onchange=apply});q('ftrSearch').oninput=function(){clearTimeout(window.__ftrT);window.__ftrT=setTimeout(apply,180)};q('ftrTypeAll').onclick=function(){q('ftrTypeChecks').querySelectorAll('.ftrTypeCheck').forEach(function(c){c.checked=true;selectedTypes.add(c.value)});typeLabel();apply()};q('ftrTypeNone').onclick=function(){selectedTypes.clear();q('ftrTypeChecks').querySelectorAll('.ftrTypeCheck').forEach(function(c){c.checked=false});typeLabel();apply()};q('ftrClear').onclick=function(){['ftrSheet','ftrSystem','ftrLine','ftrStatusFilter','ftrSearch'].forEach(function(id){q(id).value=''});Object.keys(columnFilters).forEach(function(k){columnFilters[k]=''});q('ftrHead').querySelectorAll('.ftr-col-filter').forEach(function(x){x.value=''});selectedTypes.clear();buildTypes();apply()};var dz=q('ftrDrop');['dragenter','dragover'].forEach(function(ev){dz.addEventListener(ev,function(e){e.preventDefault()})});dz.addEventListener('drop',function(e){e.preventDefault();handle(e.dataTransfer.files[0])});document.addEventListener('click',function(e){var b=e.target.closest&&e.target.closest('#flecapModernSidebar .fm-side-btn');if(b&&b.id!=='flecapTraceabilityBtn')q('flecapTraceability').classList.remove('active')},true);restore()}
-window.FLECAP_OPEN_TRACEABILITY=open;if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
+window.FLECAP_OPEN_TRACEABILITY=open;
+document.addEventListener('flecap:remote-ready',function(){
+ try{
+   var shared=(typeof state!=='undefined'&&state&&state.flecapConstructionEndDate)||'';
+   if(shared)localStorage.setItem('flecap_construction_end_date_v1',shared);
+   if(typeof renderCharts==='function')renderCharts();
+ }catch(_e){}
+},true);
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();
 </script>
 <style id="flecap-scurve-daily-and-progress-v1">
