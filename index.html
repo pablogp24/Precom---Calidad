@@ -2702,71 +2702,90 @@ async function flecapLoadMasterAssetTemplate(m){
 
    const fileName=sourceName.split('#')[0].trim();
 
-   // FLECAP 2026-09-19 · Maestros oficiales en Supabase Storage.
-   // Fuente primaria: bucket privado flecap-maestros. Calidad vive en /calidad
-   // y Precom puede contener subcarpetas por disciplina. GitHub/assets permanece
-   // intacto como respaldo si Storage no está disponible o no encuentra coincidencia.
+
+   // FLECAP 2026-09-19 · MAESTROS SUPABASE PRIORIDAD 1
+   // Los formatos oficiales se almacenan en el bucket privado flecap-maestros.
+   // Se busca primero aquí; assets/registros queda únicamente como respaldo.
    async function loadFromSupabaseMasters(){
-     try{
-       const sb=window.PECOM_SUPABASE;
-       if(!sb||!sb.storage)return null;
-       const moduleName=(document.body.getAttribute('data-flecap-module')==='precom')?'precom':'calidad';
-       const bucket=sb.storage.from('flecap-maestros');
-       const cacheKey='flecap_supabase_masters_v1::'+moduleName;
-       let paths=null;
+     const cloud=window.PECOM_SUPABASE;
+     if(!cloud||!cloud.storage||typeof cloud.storage.from!=='function')return null;
+     const bucket=cloud.storage.from('flecap-maestros');
+     const norm=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'');
+     const codeNorm=v=>norm(v).replace(/^([eimp])0+(\d+)$/,'$1$2');
+     const id=codeNorm(m.id||'');
+     const proc=norm(m.procedimiento||'');
+     const name=norm(m.nombre||'');
+     const src=norm(fileName||'');
+     const words=String(m.nombre||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().split(/[^a-z0-9]+/).filter(w=>w.length>=4).map(norm);
+
+     async function listAll(){
        try{
-         const c=JSON.parse(sessionStorage.getItem(cacheKey)||'null');
-         if(c&&Date.now()-Number(c.ts||0)<10*60*1000&&Array.isArray(c.paths))paths=c.paths;
+         const cached=JSON.parse(sessionStorage.getItem('flecap_supabase_masters_paths_v2')||'null');
+         if(cached&&Date.now()-Number(cached.ts||0)<10*60*1000&&Array.isArray(cached.paths)&&cached.paths.length)return cached.paths;
        }catch(_e){}
-       if(!paths){
-         paths=[];
-         async function walk(prefix,depth){
-           if(depth>4)return;
-           const lr=await bucket.list(prefix,{limit:1000,sortBy:{column:'name',order:'asc'}});
-           if(lr.error)throw lr.error;
-           for(const x of (lr.data||[])){
-             const path=prefix?prefix+'/'+x.name:x.name;
-             // En Storage las carpetas aparecen sin metadata/id de objeto.
-             if(x&&x.metadata){
-               if(/\.pdf$/i.test(x.name||''))paths.push(path);
-             }else{
-               await walk(path,depth+1);
-             }
-           }
+       const paths=[];
+       async function walk(prefix,depth){
+         if(depth>4)return;
+         const r=await bucket.list(prefix,{limit:1000,sortBy:{column:'name',order:'asc'}});
+         if(r.error)throw r.error;
+         for(const it of (r.data||[])){
+           if(!it||!it.name||it.name==='.emptyFolderPlaceholder')continue;
+           const p=prefix?prefix+'/'+it.name:it.name;
+           if(/\.(pdf|xlsx|xlsm|xls)$/i.test(it.name))paths.push(p);
+           else if(depth<4)await walk(p,depth+1);
          }
-         await walk(moduleName,0);
-         try{sessionStorage.setItem(cacheKey,JSON.stringify({ts:Date.now(),paths}))}catch(_e){}
        }
-       if(!paths||!paths.length)return null;
-       const norm=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase()
-         .replace(/f[-_. ]*0+(\d+)/g,'f$1').replace(/[^a-z0-9]+/g,'');
-       const id=norm(m.id||''), proc=norm(m.procedimiento||''), src=norm(fileName||''), name=norm(m.nombre||'');
-       const words=String(m.nombre||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase()
-         .split(/[^a-z0-9]+/).filter(w=>w.length>=4).map(norm);
-       const score=path=>{
-         const base=String(path||'').split('/').pop()||'', n=norm(base);let sc=0;
-         if(src&&n===src)sc+=40000;
-         if(id&&n.includes(id))sc+=25000;
-         if(proc&&n.includes(proc))sc+=5000;
-         if(name&&n.includes(name))sc+=4000;
-         words.forEach(w=>{if(w&&n.includes(w))sc+=120});
-         return sc;
-       };
-       const ranked=paths.slice().sort((a,b)=>score(b)-score(a));
-       const best=ranked[0],bestScore=best?score(best):-1;
-       if(!best||bestScore<1800)return null;
-       const dl=await bucket.download(best);
-       if(dl.error||!dl.data)return null;
-       const display=best.split('/').pop()||String(m.id||'registro')+'.pdf';
-       return await makeAssetTemplate(new Response(dl.data,{status:200,headers:{'content-type':'application/pdf'}}),'supabase://flecap-maestros/'+best,display,m);
+       // Las dos ramas son conocidas y evita depender del listado de raíz.
+       await walk('calidad',0);
+       await walk('precom',0);
+       try{sessionStorage.setItem('flecap_supabase_masters_paths_v2',JSON.stringify({ts:Date.now(),paths}))}catch(_e){}
+       return paths;
+     }
+
+     function score(path){
+       const base=String(path||'').split('/').pop()||'';
+       const n=norm(base), stem=norm(base.replace(/\.(pdf|xlsx|xlsm|xls)$/i,''));
+       let sc=0;
+       if(src&&n===src)sc+=50000;
+       if(id){
+         // E005 == E-005 == E 005; igual para I/M/P.
+         const first=String(m.id||'').trim().toLowerCase().match(/^([eimp])[-_. ]*0*(\d+)$/i);
+         if(first){
+           const token=first[1].toLowerCase()+String(Number(first[2]));
+           const btoken=stem.replace(/^([eimp])0+(\d+)/,'$1$2');
+           if(btoken.startsWith(token))sc+=40000;
+         }
+         if(stem.includes(id))sc+=25000;
+       }
+       if(proc&&stem.includes(proc))sc+=7000;
+       if(name&&stem.includes(name))sc+=5000;
+       words.forEach(w=>{if(w&&stem.includes(w))sc+=180});
+       // Preferir PDF oficial cuando hay más de un candidato equivalente.
+       if(/\.pdf$/i.test(base))sc+=800;
+       return sc;
+     }
+
+     try{
+       const paths=await listAll();
+       if(!paths.length)return null;
+       const ranked=paths.map(p=>({p,sc:score(p)})).sort((a,b)=>b.sc-a.sc);
+       const best=ranked[0];
+       if(!best||best.sc<1500)return null;
+       const dl=await bucket.download(best.p);
+       if(dl.error||!dl.data){console.warn('FLECAP Maestros Supabase download:',dl.error);return null;}
+       const display=best.p.split('/').pop();
+       const mime=/\.pdf$/i.test(display)?'application/pdf':/\.xlsx$/i.test(display)?'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':/\.xlsm$/i.test(display)?'application/vnd.ms-excel.sheet.macroEnabled.12':/\.xls$/i.test(display)?'application/vnd.ms-excel':(dl.data.type||'application/octet-stream');
+       const blob=dl.data.type===mime?dl.data:new Blob([dl.data],{type:mime});
+       console.info('FLECAP Maestro: Supabase',m.id,'=>',best.p);
+       return await makeAssetTemplate(new Response(blob,{status:200,headers:{'content-type':mime}}),'supabase://flecap-maestros/'+best.p,display,m);
      }catch(e){
-       console.warn('FLECAP maestros Supabase Storage:',e);
+       console.warn('FLECAP Maestros Supabase:',e);
        return null;
      }
    }
 
-   const supabaseMasterTpl=await loadFromSupabaseMasters();
-   if(supabaseMasterTpl)return supabaseMasterTpl;
+   const supabaseMaster=await loadFromSupabaseMasters();
+   if(supabaseMaster)return supabaseMaster;
 
 
    // FLECAP FIX 2026-09-14: resolver PRIMERO contra el listado real de
