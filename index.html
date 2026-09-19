@@ -12808,7 +12808,9 @@ async function saveNative(name,data){var d=await db(),rec={projectId:pid(),name:
 async function getNative(){var d=await db(),v=await new Promise(function(ok,no){var r=d.transaction('matrix','readonly').objectStore('matrix').get(pid());r.onsuccess=function(){ok(r.result||null)};r.onerror=function(){no(r.error)}});d.close();return v}
 function traceMigrationError(error,context){
  var e=error||{};
- console.error('FLECAP TRACE MIGRATION ERROR',context||'traceability',{code:e.code||'',message:e.message||String(e),details:e.details||'',hint:e.hint||''});
+ var traceError={stage:context||'traceability',code:e.code||'',message:e.message||String(e),details:e.details||'',hint:e.hint||'',timestamp:new Date().toISOString()};
+ window.__FLECAP_TRACE_LAST_ERROR=traceError;
+ console.error('FLECAP TRACE MIGRATION ERROR',traceError.stage,traceError);
 }
 async function sharedTraceSave(rec){
  try{
