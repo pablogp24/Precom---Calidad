@@ -738,7 +738,7 @@ body.admin-edit .admin-only{display:initial}
 }
 
 </style>
-<script id="flecap-online-config-urgent">window.PECOM_ONLINE={supabaseUrl:"https://vbdfspjibkyjyailhraa.supabase.co",supabaseAnonKey:"sb_publishable_6uBEk-7IhpJ1g2Vt_GKSeg_HmawNkP3",adminEmail:"pablo.perez@pecomenergia.com.ar"};window.SUPABASE_CONFIG={supabaseUrl:window.PECOM_ONLINE.supabaseUrl,supabaseKey:window.PECOM_ONLINE.supabaseAnonKey};</script>
+<script id="flecap-online-config-urgent">window.PECOM_ONLINE={supabaseUrl:"https://vbdfspjibkyjyailhraa.supabase.co",supabaseAnonKey:"sb_publishable_6uBEk-7IhpJ1g2Vt_GKSeg_HmawNkP3"};window.SUPABASE_CONFIG={supabaseUrl:window.PECOM_ONLINE.supabaseUrl,supabaseKey:window.PECOM_ONLINE.supabaseAnonKey};</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 /* Fallback automático de Supabase si jsDelivr está bloqueado */
@@ -4956,10 +4956,7 @@ if(exportExcelButton){
  });
 }
 function canImportMatrix(){
- const currentEmail=String(window.PECOM_CURRENT_EMAIL||"").trim().toLowerCase();
- const configuredAdmin=String((window.PECOM_ONLINE||{}).adminEmail||"").trim().toLowerCase();
- const isMainAdmin=currentEmail==="pablo.perez@pecomenergia.com.ar"||(currentEmail&&currentEmail===configuredAdmin);
- if(window.cloudReady)return isMainAdmin||window.PECOM_ROLE==="admin"||window.PECOM_ROLE==="matrix_importer"||window.PECOM_ROLE==="maintenance_editor";
+ if(window.cloudReady)return window.PECOM_ROLE==="admin"||window.PECOM_ROLE==="matrix_importer"||window.PECOM_ROLE==="maintenance_editor";
  return typeof isAdminUnlocked==="function"&&isAdminUnlocked();
 }
 function refreshMatrixImportPermission(){
@@ -6175,9 +6172,6 @@ window.PECOM_ROLE = "viewer";
 window.PECOM_CAN_EDIT = false;
 
 function applyPecomRole(role){
-  const currentEmail=String(window.PECOM_CURRENT_EMAIL||"").trim().toLowerCase();
-  const configuredAdmin=String((window.PECOM_ONLINE||{}).adminEmail||"").trim().toLowerCase();
-  if(currentEmail && (currentEmail==="pablo.perez@pecomenergia.com.ar" || currentEmail===configuredAdmin)) role="admin";
   window.PECOM_ROLE = role || "viewer";
   const onlineUsersButton=document.getElementById("onlineUsersBtn");
   if(onlineUsersButton){
@@ -6253,9 +6247,7 @@ function canEditOrWarn(){
 function refreshOnlineAdminUi(){
   try{
     const btn=document.getElementById("onlineUsersBtn");
-    const email=String(window.PECOM_CURRENT_EMAIL||"").trim().toLowerCase();
-    const configured=String((window.PECOM_ONLINE||{}).adminEmail||"").trim().toLowerCase();
-    const isAdm=email==="pablo.perez@pecomenergia.com.ar" || (!!configured && email===configured);
+    const isAdm=window.PECOM_ROLE==="admin";
     if(btn){
       btn.hidden=true;
       btn.style.setProperty("display","none","important");
@@ -6284,17 +6276,11 @@ function refreshOnlineAdminUi(){
  function status(txt){const e=statusEl();if(e)e.textContent=txt}
  function configured(){return cfg.supabaseUrl && cfg.supabaseAnonKey && !String(cfg.supabaseUrl).includes("PEGAR_") && !String(cfg.supabaseAnonKey).includes("PEGAR_")}
  function isAdmin(){
-   const email=String(currentEmail||"").trim().toLowerCase();
-   const configuredAdmin=String(cfg.adminEmail||"").trim().toLowerCase();
-   const fallbackAdmin="pablo.perez@pecomenergia.com.ar";
-   return !!email && (email===configuredAdmin || email===fallbackAdmin);
+   return window.PECOM_ROLE==="admin";
  }
 
  async function allowed(email){
    const normalized=String(email).toLowerCase();
-   const admin=String(cfg.adminEmail||"").trim().toLowerCase();
-   const fallbackAdmin="pablo.perez@pecomenergia.com.ar";
-   if(normalized===admin || normalized===fallbackAdmin) return {allowed:true,role:"admin"};
    const {data,error}=await sb.from("allowed_users").select("email,role").eq("email",normalized).maybeSingle();
    if(error)throw error;
    return data?{allowed:true,role:data.role||"viewer"}:{allowed:false,role:null};
@@ -6332,24 +6318,25 @@ function refreshOnlineAdminUi(){
    const remoteStamp=Date.parse((remotePayload&&remotePayload._flecap_saved_at)||data?.updated_at||0)||0;
    const localStamp=Date.parse((localProject&&localProject._flecap_saved_at)||0)||0;
 
-   // Regla: gana siempre la versión más nueva. El servidor ya no pisa una carga local más reciente.
+  // Con sesión online, Supabase es la fuente canónica. El caché sólo se usa
+  // para migrar una obra que todavía no tiene fila remota.
    const localEpoch=String((localProject&&localProject.sync_epoch)||'');
    const remoteEpoch=String((remotePayload&&remotePayload.sync_epoch)||'');
    const generationDiff=!!localEpoch&&localEpoch!==remoteEpoch;
-   if(localOk && (!remoteOk || localStamp>=remoteStamp || generationDiff)){
-     state=localProject;
-     if(typeof mergeFlecapAdditionalMasters==='function')mergeFlecapAdditionalMasters(state);
-     storeProjectLocal(projectId,state);
-     await saveRemote(state,projectId);
-     lastRemoteStamp=data?.updated_at||"";
-     renderAll();
-   }else if(remoteOk){
+   if(remoteOk){
      state=window.FLECAP_expandStateFromLocalStorage?window.FLECAP_expandStateFromLocalStorage(remotePayload,projectId):remotePayload;
      const addedMasters=typeof mergeFlecapAdditionalMasters==='function'?mergeFlecapAdditionalMasters(state):0;
      storeProjectLocal(projectId,state);
      try{if(window.FLECAP_LARGE_STATE)await window.FLECAP_LARGE_STATE.save(projectId,window.FLECAP_compactStateForLocalStorage?window.FLECAP_compactStateForLocalStorage(state):state)}catch(_saveIdb){}
      lastRemoteStamp=data.updated_at||"";
      if(addedMasters)await saveRemote(state,projectId);
+     renderAll();
+   }else if(localOk && window.PECOM_CAN_EDIT){
+     state=localProject;
+     if(typeof mergeFlecapAdditionalMasters==='function')mergeFlecapAdditionalMasters(state);
+     storeProjectLocal(projectId,state);
+     await saveRemote(state,projectId);
+     lastRemoteStamp=data?.updated_at||"";
      renderAll();
    }else{
      state=window.FLECAP_PROJECT_GOVERNANCE.blank();
@@ -7157,13 +7144,9 @@ function refreshOnlineAdminUi(){
 (function(){
  const LIST_KEY='flecap_projects_v1', ACTIVE_KEY='flecap_active_project_v1',
        STATE_PREFIX='flecap_project_state::', ID_PREFIX='flecap_project_identity::';
- const ADMIN_FALLBACK='pablo.perez@pecomenergia.com.ar';
-
  function norm(v){return String(v||'').trim().toLowerCase()}
  function isAdmin(email,role){
-   const configured=norm((window.PECOM_ONLINE||{}).adminEmail);
-   email=norm(email||window.PECOM_CURRENT_EMAIL);
-   return role==='admin' || (!!email && (email===ADMIN_FALLBACK || (!!configured && email===configured)));
+   return role==='admin';
  }
  function blank(){
    return {tags:[],masters:JSON.parse(JSON.stringify(typeof INITIAL_MASTERS!=='undefined'?INITIAL_MASTERS:[])),instances:{},punches:[],applicabilityOverrides:{}};
@@ -7743,9 +7726,7 @@ html.pecom-light .reg.present{background:#f3f8fd!important}
 <script id="flecap-v29-admin-permissions-only">
 (function(){
  function isAdministrator(){
-  var email=String(window.PECOM_CURRENT_EMAIL||"").trim().toLowerCase();
-  var configured=String((window.PECOM_ONLINE||{}).adminEmail||"").trim().toLowerCase();
-  return email==="pablo.perez@pecomenergia.com.ar" || (!!configured && email===configured);
+  return window.PECOM_ROLE==='admin';
  }
  function enforceUserPermissions(){
   var usersButton=document.getElementById("onlineUsersBtn");
@@ -7859,9 +7840,7 @@ html.pecom-light .reg.present{background:#f3f8fd!important}
 <script id="flecap-v29-users-config-position-fix-js">
 (function(){
  function isAdministrator(){
-  var email=String(window.PECOM_CURRENT_EMAIL||'').trim().toLowerCase();
-  var configured=String((window.PECOM_ONLINE||{}).adminEmail||'').trim().toLowerCase();
-  return email==='pablo.perez@pecomenergia.com.ar' || (!!configured && email===configured) || window.PECOM_ROLE==='admin';
+  return window.PECOM_ROLE==='admin';
  }
  function ensureUsersEntry(){
   var body=document.querySelector('#configModal .modalbody');
@@ -7908,9 +7887,7 @@ html.pecom-light .reg.present{background:#f3f8fd!important}
  var dirty=false,busy=false,lastBackupAt=0;
 
  function admin(){
-  var email=String(window.PECOM_CURRENT_EMAIL||'').trim().toLowerCase();
-  var configured=String((window.PECOM_ONLINE||{}).adminEmail||'').trim().toLowerCase();
-  return email==='pablo.perez@pecomenergia.com.ar'||(configured&&email===configured)||window.PECOM_ROLE==='admin';
+  return window.PECOM_ROLE==='admin';
  }
  function snapshot(){
   try{return JSON.parse(JSON.stringify(window.FLECAP_compactStateForLocalStorage?window.FLECAP_compactStateForLocalStorage(state):state))}catch(e){throw new Error('No se pudo preparar la copia: '+e.message)}
@@ -8190,11 +8167,9 @@ html.pecom-light .reg.present{background:#f3f8fd!important}
 </style>
 <script id="flecap-v29-admin-identity-final">
 (function(){
- var ADMIN_EMAIL='pablo.perez@pecomenergia.com.ar';
  function email(){return String(window.PECOM_CURRENT_EMAIL||'').trim().toLowerCase()}
  function isAdmin(){
-  var configured=String((window.PECOM_ONLINE||{}).adminEmail||'').trim().toLowerCase();
-  return !!email()&&(email()===ADMIN_EMAIL||email()===configured);
+  return window.PECOM_ROLE==='admin';
  }
  function refresh(){
   var original=document.getElementById('onlineUsersBtn');
@@ -9526,7 +9501,7 @@ html:not(.pecom-light) #flecapMaintenanceBanner{background:#3f2b0b;color:#fff3c4
 (function(){
  if(window.__FLECAP_MAINTENANCE_V1__)return;window.__FLECAP_MAINTENANCE_V1__=true;
  var writeSelector=['#importExcelBtn','#importPunchPecomBtn','#newPunch','#newMaster','#newPdfRecordBtn','#quickNewRecordBtn','#saveRecord','#savePunch','#savePunchAndAnother','#saveMaster','#cfgPdfUpdateExisting','#cfgPdfCreateNew','#tagRecordApplicabilitySave','[data-editp]','[data-delp]','[data-remove-record]','[data-new-record]','.matrix-import-only'].join(',');
- function allowed(){var email=String(window.PECOM_CURRENT_EMAIL||'').trim().toLowerCase(),configured=String((window.PECOM_ONLINE||{}).adminEmail||'').trim().toLowerCase();return window.PECOM_ROLE==='admin'||window.PECOM_ROLE==='maintenance_editor'||email==='pablo.perez@pecomenergia.com.ar'||(!!configured&&email===configured)}
+ function allowed(){return window.PECOM_ROLE==='admin'||window.PECOM_ROLE==='maintenance_editor'}
  function info(){return (typeof state!=='undefined'&&state&&state.maintenance)||{active:false}}
  function stamp(v){try{return new Date(v).toLocaleString('es-AR')}catch(e){return String(v||'')}}
  function markControls(){
@@ -9824,7 +9799,7 @@ html.pecom-light .fpc-title h2{color:#102a43}html.pecom-light .fpc-title p{color
   return true;
  }
  function currentUserEmail(){return String(window.PECOM_CURRENT_EMAIL||((document.getElementById('cloudEmail')||{}).value)||'').trim().toLowerCase()}
- function isModuleAdmin(){return window.PECOM_ROLE==='admin'||currentUserEmail()==='pablo.perez@pecomenergia.com.ar'}
+ function isModuleAdmin(){return window.PECOM_ROLE==='admin'}
  function modulePermission(m,email){
   if(isModuleAdmin())return 'edit';email=String(email||currentUserEmail()).trim().toLowerCase();if(!email)return 'edit';
   var p=(state&&state.flecapModulePermissions&&state.flecapModulePermissions[email])||null;if(p&&p[m])return p[m];
@@ -9995,7 +9970,7 @@ html.pecom-light .fpc-title h2{color:#102a43}html.pecom-light .fpc-title p{color
 (function(){
  function pid(){try{return localStorage.getItem('flecap_active_project_v1')||'legacy'}catch(e){return 'legacy'}}
  async function restore(){
-  if(!window.FLECAP_LARGE_STATE||typeof state==='undefined')return;
+  if(window.cloudReady||!window.FLECAP_LARGE_STATE||typeof state==='undefined')return;
   var projectId=pid(),raw=null;
   try{raw=JSON.parse(localStorage.getItem('flecap_project_state::'+projectId)||'null')}catch(e){}
   try{
@@ -10133,11 +10108,11 @@ body[data-flecap-module="quality"] #flecapPipingQualityBtn{display:flex!importan
      var sb=window.PECOM_SUPABASE;if(!sb)return false;
      var r=await sb.from('flecap_matrix_store').select('payload,updated_at').eq('project_id',pid()).eq('module','piping_quality').maybeSingle();
      if(r.error)throw r.error;var p=r.data&&r.data.payload;if(!p||!Array.isArray(p.rows))return false;
-     var remoteStamp=String(p.updatedAt||r.data.updated_at||''),localStamp='';try{localStamp=String(localStorage.getItem(stampKey())||'')}catch(_e){}
+    var remoteStamp=String(p.updatedAt||r.data.updated_at||'');
      /* El despacho es un estado compartido independiente: siempre hidratarlo desde Supabase,
         aunque este navegador tenga una copia local de Piping con fecha más nueva. */
      if(p.dispatch&&typeof p.dispatch==='object')try{localStorage.setItem(dispatchKey(),JSON.stringify(p.dispatch))}catch(_e){}
-     if(p.rows.length && (!rows.length||!localStamp||remoteStamp>=localStamp)){
+    if(p.rows.length){
        rows=JSON.parse(JSON.stringify(p.rows));
        hydrateDispatch(rows);try{localStorage.setItem(key(),JSON.stringify(rows));localStorage.setItem(stampKey(),remoteStamp||new Date().toISOString())}catch(_e){}
        return true;
@@ -10394,10 +10369,12 @@ body[data-flecap-module="quality"] #flecapPipingQualityBtn{display:flex!importan
      var yes=String(value).toUpperCase()==='SI'; sp.sentToSite=yes;
      var rid=rowDispatchId(r),d=readDispatch(),rd=d[rid]||{}; rd[String(sid)]=yes; d[rid]=rd;
      rows.forEach(function(rr){if(rowDispatchId(rr)!==rid||!Array.isArray(rr.spools))return;rr.spools.forEach(function(ss){if(String(ss.id)===String(sid))ss.sentToSite=yes})});
-     localStorage.setItem(dispatchKey(),JSON.stringify(d)); localStorage.setItem(key(),JSON.stringify(rows));
+    localStorage.setItem(dispatchKey(),JSON.stringify(d)); localStorage.setItem(key(),JSON.stringify(rows));
      var changedAt=new Date().toISOString(); localStorage.setItem(stampKey(),changedAt);
      try{if(typeof state!=='undefined'&&state){state.flecapPipingQuality=JSON.parse(JSON.stringify(rows));state.flecapPipingQualityUpdatedAt=changedAt;state.flecapModuleData=state.flecapModuleData||{};state.flecapModuleData.quality=state.flecapModuleData.quality||{};state.flecapModuleData.quality.flecapPipingQuality=JSON.parse(JSON.stringify(rows));state.flecapModuleData.quality.flecapPipingQualityUpdatedAt=changedAt}}catch(_e){}
      try{if(window.FLECAP_PIPING_IDB_SAVE)window.FLECAP_PIPING_IDB_SAVE(rows,changedAt)}catch(_e){}
+    sharedPipingSave(changedAt).catch(function(error){console.warn('FLECAP: despacho pendiente de sincronizar',error)});
+    if(typeof window.cloudSaveState==='function')window.cloudSaveState(state);
      hydrateDispatch(rows); render();
      var badge=document.getElementById('flecapBuildDispatch');if(badge){badge.textContent='DESPACHO GUARDADO: '+rid+' / '+sid+' = '+(yes?'SÍ':'NO');badge.style.background=yes?'#047857':'#b45309'}
      return true;
@@ -10755,10 +10732,8 @@ body[data-flecap-module="quality"] #flecapPipingQualityBtn{display:flex!importan
    function reconcilePipingFromCloud(ev){
      var forceRemote=!!(ev&&ev.type==='flecap:remote-ready');
      var latest=cloudRows();
-     if(!forceRemote&&!migratedToCloud&&window.cloudReady&&!Array.isArray(latest)&&rows.length){migratedToCloud=true;save();return}
+    if(!forceRemote&&!migratedToCloud&&window.cloudReady&&!Array.isArray(latest)&&rows.length&&window.PECOM_CAN_EDIT){migratedToCloud=true;save();return}
      if(Array.isArray(latest)&&JSON.stringify(latest)!==JSON.stringify(rows)){
-       var localScore=progressScore(rows),remoteScore=progressScore(latest),localStamp='';try{localStamp=localStorage.getItem(stampKey())||''}catch(e){}
-       if(!forceRemote&&(localScore>remoteScore || (localScore===remoteScore&&localStamp&&localStamp>cloudStamp()))){migratedToCloud=true;save();return}
        rows=JSON.parse(JSON.stringify(latest));hydrateDispatch(rows);var seedChanged=applyTraceSpoolSeed();try{localStorage.setItem(key(),JSON.stringify(rows));if(cloudStamp())localStorage.setItem(stampKey(),cloudStamp())}catch(e){}if(seedChanged)save();render();
      }
    }
@@ -12845,8 +12820,8 @@ async function sharedTraceLoad(){
     await sharedTraceSave(local);return false;
   }
   if(!p||!Array.isArray(p.rows)||!p.rows.length)return false;
-  var rs=String(p.updatedAt||r.data.updated_at||''),ls=String(local&&local.updatedAt||'');
-  if(!local||!local.rows||!local.rows.length||!ls||rs>=ls){
+  var rs=String(p.updatedAt||r.data.updated_at||'');
+  if(p.rows.length){
    var d=await db();await new Promise(function(ok,no){var tx=d.transaction('matrix','readwrite');tx.objectStore('matrix').put({projectId:pid(),name:p.name||'Matriz compartida',updatedAt:rs||new Date().toISOString(),rows:p.rows});tx.oncomplete=ok;tx.onerror=tx.onabort=function(){no(tx.error)}});d.close();return true
   }
  }catch(e){console.warn('FLECAP: no se pudo cargar trazabilidad compartida',e)}return false
