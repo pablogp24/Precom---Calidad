@@ -2189,7 +2189,10 @@ function persist(){
    }else{
      localStorage.setItem(KEY,serialized);
    }
-   if(window.cloudReady && typeof window.cloudSaveState==="function") window.cloudSaveState(state);
+   if(window.cloudReady && typeof window.cloudSaveState==="function"){
+     if(window.FLECAP_IMPORT_IN_PROGRESS){window.FLECAP_IMPORT_COALESCE.suppressed++;return true}
+     window.cloudSaveState(state);
+   }
    return true;
  }catch(e){
    console.error("No se pudo guardar",e);
@@ -2199,7 +2202,10 @@ function persist(){
      const compact=JSON.stringify(window.FLECAP_compactStateForLocalStorage?window.FLECAP_compactStateForLocalStorage(state):state);
      if(activeProject){localStorage.setItem("flecap_project_state::"+activeProject,compact);return true}
    }catch(_retry){}
-   if(window.cloudReady && typeof window.cloudSaveState==="function"){try{window.cloudSaveState(state);return true}catch(_e){}}
+   if(window.cloudReady && typeof window.cloudSaveState==="function"){
+     if(window.FLECAP_IMPORT_IN_PROGRESS){window.FLECAP_IMPORT_COALESCE.suppressed++;return true}
+     try{window.cloudSaveState(state);return true}catch(_e){}
+   }
    try{const p=localStorage.getItem('flecap_active_project_v1')||'legacy';if(window.FLECAP_LARGE_STATE){window.FLECAP_LARGE_STATE.save(p,window.FLECAP_compactStateForLocalStorage?window.FLECAP_compactStateForLocalStorage(state):state);return true}}catch(_idb){}
    alert("No se pudo guardar localmente. Esperá a que FLECAP indique Sincronizado y exportá un respaldo.");
    return false;
@@ -2266,7 +2272,11 @@ function flecapEnsureMatrixMasters(tag){
  });
 }
 function applicableMasters(tag){
- flecapEnsureMatrixMasters(tag);
+ /* FLECAP FIX 2026-09-20: los maestros MATRIX-RECOVERED sólo se generan durante
+    una importación de matriz del proyecto/módulo activo (ventana de importación),
+    no en cada render. Así los datos viejos de la partición no re-crean maestros
+    de columnas de otra obra ni inflan el universo contado. */
+ if(window.FLECAP_IMPORT_IN_PROGRESS===true) flecapEnsureMatrixMasters(tag);
  const seen=new Set();
  return state.masters.filter(m=>{
    if(!applicable(tag,m))return false;
@@ -4813,16 +4823,26 @@ function matrixRecordColumns(ws){
  const decoded=XLSX.utils.decode_range(ws["!ref"]||"A1:J8");
  const cols=[];
  let lastMeaningful=8, blanksAfterData=0;
+ /* FLECAP FIX 2026-09-20 (BDT Calidad): las columnas de RESUMEN posteriores al bloque
+    de registros (REGISTROS TOTALES / COMPLETADOS / PENDIENTES / PRESENTADOS / % AVANCE)
+    no deben detectarse como registros. "REGISTROS TOTALES" actúa como marcador explícito
+    de FIN del bloque: el barrido se detiene allí y ninguna columna posterior genera
+    maestros MATRIX-* ni entra en los conteos. Detección por encabezado (no por posición
+    fija tipo K:AW) para seguir funcionando con matrices de otras obras. */
+ const _normH=s=>String(s||"").trim().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/\s+/g," ").toUpperCase();
+ const SUMMARY_RE=/^%?\s*AVANCE$|^PORCENTAJE( DE)? AVANCE$|^(N[°º]?\s*)?REGISTROS?\s+(TOTALES|COMPLETAD[OA]S|PENDIENTES|PRESENTAD[OA]S)/;
+ const isSummaryHeader=h=>SUMMARY_RE.test(_normH(h));
  const scanLimit=Math.min(decoded.e.c,511);
  for(let ci=9;ci<=scanLimit;ci++){
    const hc=ws[XLSX.utils.encode_cell({r:6,c:ci})];
    const hv=hc&&hc.v!=null?String(hc.v).trim():"";
+   if(hv&&isSummaryHeader(hv))break; /* FLECAP FIX: fin del bloque de registros */
    if(hv){lastMeaningful=ci;blanksAfterData=0}else if(lastMeaningful>=9&&++blanksAfterData>=24)break;
  }
  for(let ci=9;ci<=lastMeaningful;ci++){
    const headCell=ws[XLSX.utils.encode_cell({r:6,c:ci})];
    const header=headCell&&headCell.v!=null?String(headCell.v).trim():"";
-   if(!header||/REGISTROS?\s+(TOTALES|COMPLETADOS)|PORCENTAJE|AVANCE/i.test(header))continue;
+   if(!header||isSummaryHeader(header))continue; /* FLECAP FIX: excluye resumen por encabezado */
    let hasStatus=false;
    for(let rr=7;rr<=decoded.e.r;rr++){
      const cell=ws[XLSX.utils.encode_cell({r:rr,c:ci})];
@@ -4851,7 +4871,13 @@ function syncMastersToMatrixColumns(columns){
  const matched=[];
  const staleWithData=[];
  previous.filter(m=>m.origen_columna||m.matrix_header).forEach(m=>{
-   const found=m.matrix_header&&byHeader.get(normalized(m.matrix_header));
+   /* FLECAP FIX 2026-09-20: matching estable por identidad de columna. La letra
+      (origen_columna) es la clave primaria; el texto del encabezado sólo se usa
+      como respaldo. Así un re-import reutiliza el mismo maestro/ID para el mismo
+      registro y no genera IDs MATRIX- nuevos que fragmenten los estados. */
+   const sameColumn=m.origen_columna&&columns.find(x=>String(x.column||"").trim().toUpperCase()===String(m.origen_columna||"").trim().toUpperCase());
+   const byHeaderText=m.matrix_header?byHeader.get(normalized(m.matrix_header)):null;
+   const found=sameColumn||byHeaderText;
    if(found){
      m.origen_columna=found.column;
      m.disciplina=m.disciplina&&m.disciplina!=="Matriz"?m.disciplina:inferDiscipline(found.header);
@@ -5060,10 +5086,16 @@ importExcelFile.onchange=async()=>{
  if(typeof XLSX==="undefined"){alert("Necesitás conexión a Internet para importar Excel.");return}
  const f=importExcelFile.files[0];if(!f)return;
  window.FLECAP_IMPORT_IN_PROGRESS=true;
+ window.FLECAP_IMPORT_REMOTE_OK=false;window.FLECAP_IMPORT_MATRIX_OK=false;
+ if(window.flecapCoalesceStartImport)window.flecapCoalesceStartImport();
  const flecapMaintenanceOwned=typeof window.FLECAP_beginAutoMaintenance==="function"?window.FLECAP_beginAutoMaintenance("Importación y actualización de matriz Excel"):false;
  try{
+   const _fpT0=performance.now();
    const importedBuffer=await f.arrayBuffer();
+   window.FLECAP_PERF={t0:_fpT0,remoteOps:{matrixStore:0,appStateUpsert:0,granularOps:null,granularBatches:null}};
    const wb=XLSX.read(importedBuffer,{type:"array",bookVBA:true});
+   window.FLECAP_PERF.excelReadMs=Math.round(performance.now()-_fpT0);
+   window.FLECAP_PERF.tLocal0=performance.now();
    const ws=wb.Sheets["Matriz"]||wb.Sheets["MATRIZ"];
    if(ws){
       const matrixInfo=matrixRecordColumns(ws);
@@ -5072,14 +5104,56 @@ importExcelFile.onchange=async()=>{
       const mastersBeforeImport=new Set((state.masters||[]).map(m=>String(m.id)));
       syncMastersToMatrixColumns(matrixInfo.columns);
       const addedMasterCount=(state.masters||[]).filter(m=>!mastersBeforeImport.has(String(m.id))).length;
+      /* FLECAP FIX 2026-09-20 (Calidad): colapso de maestros duplicados de una misma
+         columna. Importaciones históricas con matching por encabezado podían dejar
+         dos maestros MATRIX-* apuntando a la misma columna; ambos contaban cada TAG
+         dos veces. Se conserva el maestro con datos (instancias/overrides) o, en su
+         defecto, el primero; el resto se elimina remapeando sus registros al maestro
+         conservado (recKey tag|||master_id). Alcance: proyecto activo + módulo donde
+         se importa (precom o quality); los maestros manuales nunca se tocan. */
+      const _flecapByCol=new Map();
+      const _flecapKeep={};
+      (state.masters||[]).forEach(m=>{
+        const col=String((m&&m.origen_columna)||"").trim().toUpperCase();
+        if(!col)return;
+        if(!_flecapKeep[col]){_flecapKeep[col]=m;_flecapByCol.set(String(m.id),m);return;}
+        const keepM=_flecapKeep[col];
+        Object.keys(state.instances||{}).forEach(k=>{
+          const ins=state.instances[k]||{};
+          if(String(ins.master_id||k.split("|||")[1]||"")!==String(m.id))return;
+          const nk=String(k.split("|||")[0]||"")+"|||"+String(keepM.id);
+          if(!state.instances[nk])state.instances[nk]=Object.assign({},ins,{master_id:keepM.id});
+          delete state.instances[k];
+        });
+        Object.keys(state.applicabilityOverrides||{}).forEach(k=>{
+          const parts=String(k).split("|||");
+          if(String(parts[1]||"")!==String(m.id))return;
+          const nk=String(parts[0]||"")+"|||"+String(keepM.id);
+          if(!state.applicabilityOverrides[nk])state.applicabilityOverrides[nk]=state.applicabilityOverrides[k];
+          delete state.applicabilityOverrides[k];
+        });
+        _flecapByCol.delete(String(m.id));
+      });
+      state.masters=(state.masters||[]).filter(m=>!m.origen_columna||_flecapByCol.has(String(m.id)));
       const newTags=[];
+
+      /* FLECAP FIX 2026-09-20 (Calidad): reemplazo de universo + dedup de TAG.
+         El Excel importado define el universo TAG actual del proyecto/módulo:
+         los TAG anteriores ausentes del archivo no sobreviven y las filas
+         repetidas del mismo TAG se colapsan en una sola entidad contada
+         (gana la primera fila). Identidad normalizada = trim + minúsculas. */
+      const seenTagNorm=new Map();
+      function normTagKey(v){return String(v==null?"":v).trim().toLowerCase()}
       for(let i=1;i<a.length;i++){
          const r=a[i]||[], tag=r[1];
          if(tag===null||tag===undefined||String(tag).trim()==="")continue;
+         const normTag=normTagKey(tag);
+         if(seenTagNorm.has(normTag))continue; /* fila duplicada: no genera otra entidad contada */
+         seenTagNorm.set(normTag,String(tag).trim());
          const matriz={};
          for(const matrixCol of matrixInfo.columns)matriz[matrixCol.column]=r[matrixCol.index];
          newTags.push({
-           row:i+7,especialidad:r[0]||"",tag:String(tag).trim(),descripcion:r[2]||"",documento:r[3]||"",
+           row:i+7,especialidad:r[0]||"",tag:seenTagNorm.get(normTag),descripcion:r[2]||"",documento:r[3]||"",
            status_index:r[4]||"",sistema:String(r[5]??""),desc_sistema:r[6]||"",
            subsistema:String(r[7]??""),desc_subsistema:r[8]||"",matriz
          });
@@ -5162,16 +5236,12 @@ importExcelFile.onchange=async()=>{
             removedCount=missingOld.length;
             finalTags=newTags;
          }else{
-            const preview=missingOld.slice(0,15).map(t=>"• "+t.tag).join("\n");
-            const more=missingOld.length>15?`\n… y ${missingOld.length-15} más.`:"";
-            const removeMissing=confirm(
-              `La nueva matriz no contiene ${missingOld.length} TAG que hoy existen en la app:\n\n`+
-              preview+more+
-              `\n\nAceptar = quitar esos TAG de la matriz.\nCancelar = conservarlos también.\n\n`+
-              `Los estados, registros y Punch cargados NO se borrarán.`
-            );
-            if(removeMissing){removedCount=missingOld.length;}
-            else{finalTags=[...newTags,...missingOld];keptMissingCount=missingOld.length;}
+            /* FLECAP FIX 2026-09-20 (Calidad): la matriz importada define el universo
+               TAG del proyecto/módulo. Los TAG anteriores ausentes del Excel ya no se
+               acumulan (antes se conservaban con confirm()). Sus instancias y overrides
+               se purgan más abajo junto con los residuos de la importación. */
+            removedCount=missingOld.length;
+            finalTags=newTags;
          }
       }
 
@@ -5180,7 +5250,9 @@ importExcelFile.onchange=async()=>{
       // PRECOM: limpiar residuos de matrices anteriores. Conserva maestros manuales,
       // pero elimina TAG/instancias/overrides que ya no pertenecen al Excel actual y
       // maestros de columnas de matriz que ya no forman parte de la importación.
-      if((document.body.getAttribute("data-flecap-module")||"quality").toLowerCase()==="precom"){
+      if(["precom","quality"].includes((document.body.getAttribute("data-flecap-module")||"quality").toLowerCase())){
+         /* FLECAP FIX 2026-09-20 (Calidad): poda de residuos ahora también en Calidad,
+            con la misma semántica segura que ya usaba Precomisionado. */
          const validTags=new Set(newTags.map(t=>String(t.tag||"").trim()));
          const validCols=new Set(matrixInfo.columns.map(c=>String(c.column||"").trim().toUpperCase()));
          const removedMasterIds=new Set();
@@ -5246,6 +5318,13 @@ importExcelFile.onchange=async()=>{
       const importedProject=localStorage.getItem("flecap_active_project_v1")||"legacy";
       if(!state.flecapModuleData)state.flecapModuleData={quality:{},precom:{}};
       const importedBox={};
+      /* FLECAP FIX 2026-09-20: la caja consolidada del módulo conserva los contadores
+         y la generación de esta importación (también viaja a Supabase). */
+      importedBox.sync_epoch=state.sync_epoch||"";
+      importedBox.sync_epoch_created_at=state.sync_epoch_created_at||"";
+      importedBox.importedPending=importedPending;
+      importedBox.importedPresented=importedPresented;
+      importedBox.importedRealized=importedRealized;
       ['tags','masters','instances','punches','applicabilityOverrides','subsystemDeliveries'].forEach(k=>{
         const def=(k==='instances'||k==='applicabilityOverrides'||k==='subsystemDeliveries')?{}:[];
         importedBox[k]=JSON.parse(JSON.stringify(state[k]||def));
@@ -5253,15 +5332,29 @@ importExcelFile.onchange=async()=>{
       state.flecapModuleData[importedModule]=importedBox;state.flecapDataModule=importedModule;
       try{localStorage.setItem('flecap_active_module::'+importedProject,importedModule);localStorage.setItem('flecap_active_module',importedModule)}catch(_e){}
       // Maestro, Punch y reglas manuales de aplicabilidad se conservan.
+      window.FLECAP_PERF.localUpdateMs=Math.round(performance.now()-window.FLECAP_PERF.tLocal0);
+      const _fpP0=performance.now();
       persist();
+      window.FLECAP_PERF.persistLocalMs=Math.round(performance.now()-_fpP0);
+      const _fpL0=performance.now();
       if(window.FLECAP_LARGE_STATE){
-        const durable=window.FLECAP_compactStateForLocalStorage?window.FLECAP_compactStateForLocalStorage(state):state;
-        await window.FLECAP_LARGE_STATE.save(importedProject,durable);
+        if(window.FLECAP_IMPORT_IN_PROGRESS){
+          /* persist() ya guardó este mismo snapshot en IndexedDB (perf 2026-09-20):
+             se evita el segundo guardado idéntico del estado completo. */
+          window.FLECAP_PERF.secondIdbSaveSkipped=true;
+        }else{
+          const durable=window.FLECAP_compactStateForLocalStorage?window.FLECAP_compactStateForLocalStorage(state):state;
+          await window.FLECAP_LARGE_STATE.save(importedProject,durable);
+        }
       }
+      window.FLECAP_PERF.largeStateMs=Math.round(performance.now()-_fpL0);
+      const _fpM0=performance.now();
       if(window.PECOM_SUPABASE&&window.FLECAP_MATRIX_DB){
-        try{await window.FLECAP_MATRIX_DB.saveModule(importedModule)}
-        catch(matrixDbError){console.error('FLECAP: no se pudo guardar la matriz central',matrixDbError);alert('La matriz se cargó localmente, pero no pudo guardarse en la tabla central de Supabase.\n\n'+(matrixDbError.message||matrixDbError));}
+        try{await window.FLECAP_MATRIX_DB.saveModule(importedModule);window.FLECAP_IMPORT_MATRIX_OK=true}
+        catch(matrixDbError){window.FLECAP_IMPORT_MATRIX_OK=false;console.error('FLECAP: no se pudo guardar la matriz central',matrixDbError);alert('La matriz se cargó localmente, pero no pudo guardarse en la tabla central de Supabase.\n\n'+(matrixDbError.message||matrixDbError));}
       }
+      window.FLECAP_PERF.matrixStoreMs=Math.round(performance.now()-_fpM0);
+      window.FLECAP_PERF.remoteOps.matrixStore=1;
       // El estado grande queda en IndexedDB. En localStorage se conserva SOLAMENTE
       // el stub que escribe FLECAP_LARGE_STATE.save(). No volver a guardar aquí el
       // JSON completo: una matriz grande supera la cuota del navegador y hacía que
@@ -5270,6 +5363,7 @@ importExcelFile.onchange=async()=>{
       // Sincronización online: no invalida una importación local ya confirmada.
       // El guardado local/IndexedDB es la fuente inmediata para F5; Supabase se
       // actualiza en segundo plano y cualquier error queda visible en consola.
+      const _fpA0=performance.now();
       if(window.cloudReady&&window.PECOM_SUPABASE){
         const activeProject=localStorage.getItem("flecap_active_project_v1")||"legacy";
         try{
@@ -5278,12 +5372,20 @@ importExcelFile.onchange=async()=>{
             payload:state,
             updated_by:String(window.PECOM_CURRENT_EMAIL||"").toLowerCase()
           },{onConflict:"id"});
-          if(cloudResult&&cloudResult.error)console.error("FLECAP: la matriz quedó guardada localmente, pero falló la sincronización online",cloudResult.error);
+          if(cloudResult&&cloudResult.error)console.error("FLECAP: la matriz quedó guardada localmente, pero falló la sincronización online",cloudResult.error);else{window.FLECAP_IMPORT_REMOTE_OK=true}
         }catch(cloudError){console.error("FLECAP: error de sincronización online de matriz",cloudError)}
       }
+      window.FLECAP_PERF.appStateMs=Math.round(performance.now()-_fpA0);
+      window.FLECAP_PERF.remoteOps.appStateUpsert=1;
+      const _fpR0=performance.now();
       renderAll();
       if(typeof renderHero==="function")renderHero();
       if(window.PECOM_ROLE) setTimeout(()=>applyPecomRole(window.PECOM_ROLE),0);
+      window.FLECAP_PERF.renderMs=Math.round(performance.now()-_fpR0);
+      window.FLECAP_PERF.totalMs=Math.round(performance.now()-window.FLECAP_PERF.t0);
+      var _fpSample=function(_fpTag){try{var _fpReq=indexedDB.open("flecap_sync_db",1);_fpReq.onsuccess=function(){var _fpD=_fpReq.result;try{var _fpG=_fpD.transaction("queue").objectStore("queue").getAll();_fpG.onsuccess=function(){var _fpAct=localStorage.getItem("flecap_active_project_v1")||"legacy";var _fpN=(_fpG.result||[]).filter(function(x){return !x.project_id||x.project_id===_fpAct}).length;_fpD.close();window.FLECAP_PERF.remoteOps.granularOps=_fpN;window.FLECAP_PERF.remoteOps.granularBatches=Math.ceil(_fpN/50);console.info("FLECAP PERF ["+_fpTag+"] opers granulares en cola: "+_fpN+" · lotes de 50: "+Math.ceil(_fpN/50));if(_fpTag==="t+4s"){try{window.FLECAP_PERF.stateJsonKB=Math.round((JSON.stringify(window.FLECAP_compactStateForLocalStorage?window.FLECAP_compactStateForLocalStorage(state):state)||"").length/1024)}catch(_fpE){}console.info("%cFLECAP PERF · RESUMEN IMPORTACIÓN","background:#12364b;color:#fff;font-weight:bold");console.table({excelReadMs:window.FLECAP_PERF.excelReadMs,localUpdateMs:window.FLECAP_PERF.localUpdateMs,persistLocalMs:window.FLECAP_PERF.persistLocalMs,largeStateMs:window.FLECAP_PERF.largeStateMs,matrixStoreMs:window.FLECAP_PERF.matrixStoreMs,appStateMs:window.FLECAP_PERF.appStateMs,renderMs:window.FLECAP_PERF.renderMs,totalMs:window.FLECAP_PERF.totalMs,stateJsonKB:window.FLECAP_PERF.stateJsonKB});console.info("Operaciones remotas:",window.FLECAP_PERF.remoteOps);window.FLECAP_PERF_LAST=window.FLECAP_PERF}};}catch(e){_fpD.close()}}}catch(e){}};
+      setTimeout(function(){_fpSample("t+1.5s")},1500);
+      setTimeout(function(){_fpSample("t+4s")},4000);
 
       const renamedNewNames=new Set(renamePairs.map(x=>x.newTag));
       const addedCount=newTags.filter(t=>{const n=String(t.tag||"").trim();return !oldNames.has(n)&&!renamedNewNames.has(n)}).length;
@@ -5307,7 +5409,7 @@ importExcelFile.onchange=async()=>{
       alert('El archivo no contiene una hoja llamada "Matriz".');
    }
  }catch(e){console.error("FLECAP importación:",e);alert("No se pudo importar/analizar la matriz.\n\nDetalle: "+(e&&e.message?e.message:String(e)));}
- finally{window.FLECAP_IMPORT_IN_PROGRESS=false;if(typeof window.FLECAP_endAutoMaintenance==="function")window.FLECAP_endAutoMaintenance(flecapMaintenanceOwned);importExcelFile.value=""}
+ finally{window.FLECAP_IMPORT_IN_PROGRESS=false;try{await window.flecapCoalesceEndImport()}catch(_ce){console.warn("[FLECAP IMPORT PERF] coalesce end error",_ce)}if(typeof window.FLECAP_endAutoMaintenance==="function")window.FLECAP_endAutoMaintenance(flecapMaintenanceOwned);importExcelFile.value=""}
 };
 
 exportBackup.onclick=()=>{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(state,null,2)],{type:"application/json"}));a.download="ODV_ALVS_backup.json";a.click()};
@@ -8147,7 +8249,7 @@ html.pecom-light .reg.present{background:#f3f8fd!important}
  }
  var migrated=migrate();
  var originalPersist=window.persist||persist;
- window.persist=persist=function(){var ok=originalPersist.apply(this,arguments);if(ok!==false)storeCurrent();return ok};
+ window.persist=persist=function(){var ok=originalPersist.apply(this,arguments);if(ok!==false){if(window.FLECAP_IMPORT_IN_PROGRESS){if(!window.FLECAP_IMPORT_COALESCE._pjDone){window.FLECAP_IMPORT_COALESCE._pjDone=true;storeCurrent()}}else{storeCurrent()}}return ok};
  document.addEventListener('click',function(e){if(e.target&&e.target.closest&&e.target.closest('#cfgSave'))setTimeout(renameFromConfig,0)},true);
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){ensureUI();if(typeof renderAll==='function')renderAll()},{once:true});else{ensureUI();if(typeof renderAll==='function')renderAll()}
  window.FLECAP_PROJECTS={list:list,active:active,switchTo:switchTo,create:createProject,saveCurrent:storeCurrent,identity:idFor,renameFromConfig:renameFromConfig};
@@ -8241,6 +8343,29 @@ html.pecom-light .reg.present{background:#f3f8fd!important}
  async function saveNow(){saveTimer=null;var payload=pendingPayload;pendingPayload=null;if(!payload)return;if(!lastLocal)lastLocal=clone(payload);var ops=diff(lastLocal,payload);lastLocal=clone(payload);await queueAdd(ops);pendingBadge();flush()}
  function save(payload){if(String(window.PECOM_ROLE||'viewer').toLowerCase()==='viewer'){badge('Solo lectura','ok');return false;}if(window.FLECAP_BACKUPS)window.FLECAP_BACKUPS.markDirty();pendingPayload=clone(payload);clearTimeout(saveTimer);saveTimer=setTimeout(saveNow,300);return true}
  window.FLECAP_SYNC_ENGINE={adoptRemote:async function(remote){if(!(await queueAll()).length){state=clone(remote);if(typeof mergeFlecapAdditionalMasters==='function')mergeFlecapAdditionalMasters(state);lastLocal=clone(state)}await loadEvents();connect();flush()},flush:flush};
+ // IMPORT SYNC COALESCING (perf fix 2026-09-20): durante una importación masiva de Matriz,
+ // persist() sigue guardando localmente (IndexedDB + localStorage) pero el guardado remoto
+ // queda COALESCIDO en una única sincronización final confirmada al terminar la importación.
+ window.FLECAP_IMPORT_COALESCE={attempts:0,suppressed:0,idbSkipped:0,badgeSuppressed:0,startedAt:0};
+ window.flecapCoalesceStartImport=function(){var C=window.FLECAP_IMPORT_COALESCE;C.attempts=0;C.suppressed=0;C.idbSkipped=0;C.badgeSuppressed=0;C._v21Done=false;C._badgeDone=false;C._pjDone=false;C.startedAt=Date.now()};
+ window.flecapCoalesceCancelPending=function(){try{if(typeof saveTimer!=='undefined'&&saveTimer){clearTimeout(saveTimer);saveTimer=null;return true}}catch(e){}return false};
+ window.flecapCoalesceEndImport=async function(){var C=window.FLECAP_IMPORT_COALESCE;
+  var cancelled=window.flecapCoalesceCancelPending();
+  var t0=Date.now();
+  var okRemote=(window.FLECAP_IMPORT_REMOTE_OK!==false)&&(window.FLECAP_IMPORT_MATRIX_OK!==false);
+  if(okRemote){
+   /* Única sincronización remota final confirmada: matrix_store + app_state ya subidos.
+      Se avanza la línea base granular para que la próxima edición del usuario NO
+      regenere miles de operaciones por entidad con la matriz completa. */
+   pendingPayload=null;lastLocal=clone(state);C._pjDone=false;
+   console.log('[FLECAP IMPORT PERF] sync final remota confirmada · '+(Date.now()-t0)+' ms'+(cancelled?' · debounce previo cancelado':''));
+  }else{
+   console.warn('[FLECAP IMPORT PERF] guardado remoto incompleto · datos locales intactos · la cola granular reintentará al confirmar conexión');
+   try{save(state)}catch(_se){}
+  }
+  try{await flush()}catch(_fe){}
+  var _P=window.FLECAP_PERF||{};
+  console.log('[FLECAP IMPORT PERF] resumen · excel='+(_P.excelReadMs||0)+' ms · procesamiento local='+(_P.localUpdateMs||0)+' ms · IndexedDB='+(_P.largeStateMs||0)+' ms · supabase matrix_store='+(_P.matrixStoreMs||0)+' ms · supabase app_state='+(_P.appStateMs||0)+' ms · ops remotas='+(okRemote?'2 (matrix_store + app_state)':'2 + cola de reintento')+' · cloudSaveState suprimidos='+C.suppressed+' · guardados IndexedDB evitados='+(C.idbSkipped+(_P.secondIdbSaveSkipped?1:0))+' · badges evitados='+C.badgeSuppressed+' · total='+Math.round(performance.now()-(window.FLECAP_PERF&&window.FLECAP_PERF.t0||t0))+' ms');};
  window.cloudSaveState=function(payload){save(payload)};
  window.addEventListener('online',function(){badge('Conexión recuperada · sincronizando…','pending');flush();connect()});window.addEventListener('offline',pendingBadge);
  setInterval(flush,30000);setTimeout(function(){lastLocal=clone(state);pendingBadge();connect();flush()},1200);
@@ -11829,7 +11954,13 @@ html.pecom-light .fx-sync-state{color:#607b8b}
  function wrapPersist(){
    if(typeof window.persist!=='function'||window.persist.__flecapStable2)return;
    var original=window.persist;
-   function wrapped(){setSync('pending','Guardando…');var ok=original.apply(this,arguments);if(ok!==false)markSaved();else setSync('error','Error al guardar');return ok}
+   function wrapped(){
+     if(window.FLECAP_IMPORT_IN_PROGRESS){
+       if(!window.FLECAP_IMPORT_COALESCE._badgeDone){window.FLECAP_IMPORT_COALESCE._badgeDone=true;try{setSync('pending','Guardando…')}catch(e){}}
+       else{window.FLECAP_IMPORT_COALESCE.badgeSuppressed++}
+       var _ok2=original.apply(this,arguments);if(_ok2!==false)markSaved();else setSync('error','Error al guardar');return _ok2
+     }
+     setSync('pending','Guardando…');var ok=original.apply(this,arguments);if(ok!==false)markSaved();else setSync('error','Error al guardar');return ok}
    wrapped.__flecapStable2=true;window.persist=wrapped;
    try{persist=wrapped}catch(e){}
  }
@@ -12847,7 +12978,14 @@ html.pecom-light .fsc-note,html.pecom-light .fsc-dates,html.pecom-light .fsc-leg
  function syncEl(){var host=document.getElementById('flecapReferenceTopControls');if(!host)return null;var el=document.getElementById('flecapSyncHeader');if(!el){el=document.createElement('div');el.id='flecapSyncHeader';el.title='Estado de guardado y última modificación';var theme=document.getElementById('pecomThemeToggle');host.insertBefore(el,theme||host.firstChild)}return el}
  function setSync(kind,text){var el=syncEl();if(!el)return;var m=meta();el.className=kind||'';el.innerHTML='<i></i><span>'+text+'</span><small>'+fmt(m.updatedAt)+(m.updatedBy?' · '+m.updatedBy:'')+'</small>'}
  function refreshSync(){if(!navigator.onLine)return setSync('offline','Sin conexión');var pending=false;try{pending=localStorage.getItem('flecap_sync_pending_v21::'+pid())==='1'}catch(e){}setSync(pending?'pending':'',pending?'Cambios pendientes':'Sincronizado')}
- function markPending(){try{localStorage.setItem('flecap_sync_pending_v21::'+pid(),'1')}catch(e){};setSync('pending','Guardando…');setTimeout(function(){try{localStorage.removeItem('flecap_sync_pending_v21::'+pid())}catch(e){};refreshSync()},1400)}
+ function markPending(){
+   if(window.FLECAP_IMPORT_IN_PROGRESS){
+     if(!window.FLECAP_IMPORT_COALESCE._v21Done){window.FLECAP_IMPORT_COALESCE._v21Done=true;try{localStorage.setItem('flecap_sync_pending_v21::'+pid(),'1')}catch(e){};setSync('pending','Guardando…')}
+     else{window.FLECAP_IMPORT_COALESCE.idbSkipped++}
+     return
+   }
+   try{localStorage.setItem('flecap_sync_pending_v21::'+pid(),'1')}catch(e){}
+   setSync('pending','Guardando…');setTimeout(function(){try{localStorage.removeItem('flecap_sync_pending_v21::'+pid())}catch(e){};refreshSync()},1400)}
  function reasonFromEvent(){var a=document.activeElement;if(!a)return 'Cambio guardado';var id=a.id||'',txt=(a.textContent||a.getAttribute&&a.getAttribute('aria-label')||'').trim();if(/import/i.test(id+txt))return 'Importación de datos';if(/punch/i.test(id+txt))return 'Actualización Punch';if(/spool|fpq/i.test(id+txt))return 'Actualización Piping';if(/config/i.test(id+txt))return 'Configuración';return 'Cambio guardado'}
  function wrapPersist(){if(wrapping||typeof window.persist!=='function'||window.persist.__flecapV21)return;wrapping=true;var old=window.persist;function p(){setMeta(reasonFromEvent());markPending();var r=old.apply(this,arguments);setTimeout(updateLastModified,0);return r}p.__flecapV21=true;p.__previous=old;window.persist=p;try{persist=p}catch(e){}wrapping=false}
  function updateLastModified(){var m=meta();var top=document.querySelector('#flecapExecutiveState .fes-top');if(top&&top.children[2]){var b=top.children[2].querySelector('b');if(b)b.textContent=fmt(m.updatedAt)+(m.updatedBy?' · '+m.updatedBy:'')}document.querySelectorAll('.fx-meta-chip').forEach(function(x){var s=x.querySelector('span');if(s&&/última modificación|actualización/i.test(s.textContent||'')){var b=x.querySelector('b');if(b)b.textContent=fmt(m.updatedAt)}})}
