@@ -1510,11 +1510,14 @@ window.__PECOM_LOGIN_SHIELD_READY=true;
 <div class="flecap-report-brand"><div><b id="flecapLegacyReportTitle">FLECAP | INFORME DE AVANCE</b><small id="flecapLegacyReportModule">Informe independiente por módulo</small></div></div>
 <div class="flecap-report-meta"><strong id="reportProjectName"></strong><span id="reportCutoffDate">Informe de gestión</span></div>
 </div>
-<div class="flecap-report-kpis">
-<div class="flecap-report-kpi"><span>Avance general</span><b id="rptOverallPct">0%</b><small id="rptOverallDetail">0 / 0 registros</small></div>
-<div class="flecap-report-kpi"><span>TAG</span><b id="rptTags">0</b><small>Total cargados</small></div>
-<div class="flecap-report-kpi"><span>Pendientes</span><b id="rptPending">0</b><small>Registros pendientes</small></div>
-<div class="flecap-report-kpi"><span>Punch abiertos</span><b id="rptPunchOpen">0</b><small>A + B + C</small></div>
+<div class="flecap-report-kpis flecap-report-kpis-managerial">
+<div class="flecap-report-kpi"><span>Avance global</span><b id="rptOverallPct">0%</b><small id="rptOverallDetail">0 de 0 registros</small></div>
+<div class="flecap-report-kpi"><span>Registros totales</span><b id="rptTotalRecords">0</b><small>Total aplicable en matriz</small></div>
+<div class="flecap-report-kpi"><span>Registros cerrados</span><b id="rptClosedRecords">0</b><small id="rptClosedRecordsDetail">Estado realizado</small></div>
+<div class="flecap-report-kpi"><span>Registros presentados</span><b id="rptPresentedRecords">0</b><small id="rptPresentedRecordsDetail">Estado 1P</small></div>
+<div class="flecap-report-kpi"><span>Registros pendientes</span><b id="rptPending">0</b><small id="rptPendingDetail">Pendientes</small></div>
+<div class="flecap-report-kpi"><span>Punch abiertos</span><b id="rptPunchOpen">0</b><small id="rptPunchOpenDetail">A: 0 · B: 0 · C: 0</small></div>
+<div class="flecap-report-kpi"><span>Punch cerrados</span><b id="rptPunchClosed">0</b><small id="rptPunchClosedDetail">A: 0 · B: 0 · C: 0</small></div>
 </div>
 <div class="flecap-report-grid">
 <div class="flecap-report-panel"><h3>Avance general</h3><div class="flecap-donut-wrap"><div class="flecap-donut" id="rptDonut"><div><b id="rptDonutPct">0%</b><span>completado</span></div></div><div class="flecap-legend" id="rptStatusLegend"></div></div></div>
@@ -8609,7 +8612,20 @@ html.pecom-light .reg.present{background:#f3f8fd!important}
       if(el('reportPage2Project'))el('reportPage2Project').textContent='PECOM · Matriz ODV-ALVS '+reportModName+'\nPágina 2 de 2';
      }
     }
-   el('rptOverallPct').textContent=d.overall+'%';el('rptOverallDetail').textContent=d.completed+' / '+d.total+' registros completados';el('rptTags').textContent=d.tags;el('rptPending').textContent=d.counts.PENDIENTE;el('rptPunchOpen').textContent=d.punchOpen;el('rptDonutPct').textContent=d.overall+'%';
+   el('rptOverallPct').textContent=d.overall+'%';
+   el('rptOverallDetail').textContent=d.completed+' de '+d.total+' registros';
+   if(el('rptTotalRecords'))el('rptTotalRecords').textContent=d.total;
+   if(el('rptClosedRecords'))el('rptClosedRecords').textContent=d.counts.REALIZADO;
+   if(el('rptClosedRecordsDetail'))el('rptClosedRecordsDetail').textContent=pct(d.counts.REALIZADO,d.total)+'% del total aplicable · Estado realizado';
+   if(el('rptPresentedRecords'))el('rptPresentedRecords').textContent=d.counts.PRESENTADO;
+   if(el('rptPresentedRecordsDetail'))el('rptPresentedRecordsDetail').textContent=pct(d.counts.PRESENTADO,d.total)+'% del total aplicable · Estado 1P';
+   el('rptPending').textContent=d.counts.PENDIENTE;
+   if(el('rptPendingDetail'))el('rptPendingDetail').textContent=pct(d.counts.PENDIENTE,d.total)+'% del total aplicable';
+   el('rptPunchOpen').textContent=d.punchOpen;
+   if(el('rptPunchOpenDetail'))el('rptPunchOpenDetail').textContent='A: '+d.punch.A+' · B: '+d.punch.B+' · C: '+d.punch.C;
+   if(el('rptPunchClosed'))el('rptPunchClosed').textContent=d.punchClosed;
+   if(el('rptPunchClosedDetail'))el('rptPunchClosedDetail').textContent='A: '+d.closedPunch.A+' · B: '+d.closedPunch.B+' · C: '+d.closedPunch.C;
+   el('rptDonutPct').textContent=d.overall+'%';
    var donutGradient='conic-gradient(#23905f 0deg '+(d.overall*3.6)+'deg,#e5edf2 '+(d.overall*3.6)+'deg 360deg)';
    el('rptDonut').style.background=donutGradient;
    el('rptDonut').style.setProperty('--flecap-print-donut',donutGradient);
@@ -9679,7 +9695,7 @@ html:not(.pecom-light) #flecapMaintenanceBanner{background:#3f2b0b;color:#fff3c4
   var systems=Object.keys(d.systems||{}).map(function(k){var x=d.systems[k];return {n:k,total:x.total,done:x.done,p:pct(x.done,x.total)}}).sort(function(a,b){return b.p-a.p||a.n.localeCompare(b.n)});
   var best=systems.slice(0,6),attention=disc.filter(function(x){return x.p<10}).map(function(x){return x.n}).join(', ')||'Sin alertas críticas';
   var root=document.createElement('div');root.id='flecapExactPrintReport';
-  root.innerHTML='<section class="fx-page"><header class="fx-head"><div class="fx-brand"><div><h1>FLECAP | '+esc(mod.title)+'</h1><p>Informe independiente de '+esc(mod.name)+'</p><span class="fx-report-module-badge">Módulo '+esc(mod.name)+'</span></div></div><div class="fx-meta"><b>'+esc(id.company)+' · '+esc(id.project)+'</b>Fecha de corte: '+date+'\nEstado: Informe de gestión · '+esc(mod.name)+'</div></header><div class="fx-kpis"><div class="fx-kpi"><span>Avance global</span><b>'+d.overall+'%</b><small>'+d.completed+' de '+d.total+' registros</small></div><div class="fx-kpi"><span>TAG controlados</span><b>'+d.tags+'</b><small>Total en matriz</small></div><div class="fx-kpi"><span>Registros presentados</span><b>'+d.counts.PRESENTADO+'</b><small>'+pct(d.counts.PRESENTADO,d.total)+'% del total aplicable · Estado 1P</small></div><div class="fx-kpi"><span>Pendientes</span><b>'+d.counts.PENDIENTE+'</b><small>'+pct(d.counts.PENDIENTE,d.total)+'% del total aplicable</small></div><div class="fx-kpi"><span>Punch abiertos</span><b>'+d.punchOpen+'</b><small>A: '+d.punch.A+' · B: '+d.punch.B+' · C: '+d.punch.C+'</small></div></div><div class="fx-grid2"><section class="fx-panel"><h2>Avance por disciplina</h2>'+disc.map(function(x,i){return disciplineBar(x,i===0?'blue':'')}).join('')+'</section><section class="fx-panel"><h2>Resumen ejecutivo</h2><div class="fx-exec"><strong>Situación general:</strong> '+d.completed+' de '+d.total+' registros aplicables completados, incluyendo '+d.counts.PRESENTADO+' presentados (1P). El avance global acumulado es del '+d.overall+'%. La gestión debe concentrarse en reducir los '+d.counts.PENDIENTE+' pendientes.</div><div class="fx-priority">Prioridad: '+esc(attention)+'</div></section></div><section class="fx-panel"><h2>Avance por sistema</h2><div class="fx-systems">'+best.map(function(x){return bar(x.n,x.p,'',x.done+' / '+x.total)}).join('')+'</div></section><footer class="fx-foot"><span>FLECAP · Informe de '+esc(mod.name)+'</span><span>Página 1 de 2 · Documento de gestión</span></footer></section>'+
+  root.innerHTML='<section class="fx-page"><header class="fx-head"><div class="fx-brand"><div><h1>FLECAP | '+esc(mod.title)+'</h1><p>Informe independiente de '+esc(mod.name)+'</p><span class="fx-report-module-badge">Módulo '+esc(mod.name)+'</span></div></div><div class="fx-meta"><b>'+esc(id.company)+' · '+esc(id.project)+'</b>Fecha de corte: '+date+'\nEstado: Informe de gestión · '+esc(mod.name)+'</div></header><div class="fx-kpis"><div class="fx-kpi"><span>Avance global</span><b>'+d.overall+'%</b><small>'+d.completed+' de '+d.total+' registros</small></div><div class="fx-kpi"><span>Registros totales</span><b>'+d.total+'</b><small>Total aplicable en matriz</small></div><div class="fx-kpi"><span>Registros cerrados</span><b>'+d.completed+'</b><small>'+pct(d.completed,d.total)+'% del total aplicable · Realizados + presentados</small></div><div class="fx-kpi"><span>Registros presentados</span><b>'+d.counts.PRESENTADO+'</b><small>'+pct(d.counts.PRESENTADO,d.total)+'% del total aplicable · Estado 1P</small></div><div class="fx-kpi"><span>Registros pendientes</span><b>'+d.counts.PENDIENTE+'</b><small>'+pct(d.counts.PENDIENTE,d.total)+'% del total aplicable</small></div><div class="fx-kpi"><span>Punch abiertos</span><b>'+d.punchOpen+'</b><small>A: '+d.punch.A+' · B: '+d.punch.B+' · C: '+d.punch.C+'</small></div><div class="fx-kpi"><span>Punch cerrados</span><b>'+d.punchClosed+'</b><small>A: '+d.closedPunch.A+' · B: '+d.closedPunch.B+' · C: '+d.closedPunch.C+'</small></div></div><div class="fx-grid2"><section class="fx-panel"><h2>Avance por disciplina</h2>'+disc.map(function(x,i){return disciplineBar(x,i===0?'blue':'')}).join('')+'</section><section class="fx-panel"><h2>Resumen ejecutivo</h2><div class="fx-exec"><strong>Situación general:</strong> '+d.completed+' de '+d.total+' registros aplicables completados, incluyendo '+d.counts.PRESENTADO+' presentados (1P). El avance global acumulado es del '+d.overall+'%. La gestión debe concentrarse en reducir los '+d.counts.PENDIENTE+' pendientes.</div><div class="fx-priority">Prioridad: '+esc(attention)+'</div></section></div><section class="fx-panel"><h2>Avance por sistema</h2><div class="fx-systems">'+best.map(function(x){return bar(x.n,x.p,'',x.done+' / '+x.total)}).join('')+'</div></section><footer class="fx-foot"><span>FLECAP · Informe de '+esc(mod.name)+'</span><span>Página 1 de 2 · Documento de gestión</span></footer></section>'+
   '<section class="fx-page"><header class="fx-page2-title"><h1>ESTADO DE REGISTROS Y PUNCH · '+esc(mod.name).toUpperCase()+'</h1><span>'+esc(id.company)+' · '+esc(id.project)+'\nInforme '+esc(mod.name)+' · Página 2 de 2</span></header><div class="fx-charts"><section class="fx-chart"><h2>Estado general</h2><div class="fx-donutrow">'+donut([{n:'Realizados',v:d.counts.REALIZADO,c:'#23905f'},{n:'Presentados',v:d.counts.PRESENTADO,c:'#12658f'},{n:'Pendientes',v:d.counts.PENDIENTE,c:'#d76a1f'}],d.total,'registros')+'</div></section><section class="fx-chart"><h2>Punch pendientes</h2><div class="fx-donutrow">'+donut([{n:'Categoría A',v:d.punch.A,c:'#b33a3a'},{n:'Categoría B',v:d.punch.B,c:'#d76a1f'},{n:'Categoría C',v:d.punch.C,c:'#d7a51f'}],d.punchOpen,'abiertos')+'</div></section><section class="fx-chart"><h2>Punch cerrados</h2><div class="fx-donutrow">'+donut([{n:'Categoría A',v:d.closedPunch.A,c:'#7d3848'},{n:'Categoría B',v:d.closedPunch.B,c:'#3c78a8'},{n:'Categoría C',v:d.closedPunch.C,c:'#23905f'}],d.punchClosed,'cerrados')+'</div></section></div><div class="fx-punch-grid"><section class="fx-panel"><h2>Punch pendientes por categoría</h2>'+punchBars(d.punch)+'</section><section class="fx-panel"><h2>Punch cerrados por categoría</h2>'+punchBars(d.closedPunch)+'</section><section class="fx-panel fx-summary"><h2>Resumen ejecutivo y prioridades de gestión</h2><div class="fx-summary-grid"><p><strong>Estado actual</strong>'+d.completed+' de '+d.total+' registros aplicables completados. Avance global del '+d.overall+'%.</p><p><strong>Foco inmediato</strong>Priorizar el cierre de '+d.counts.PENDIENTE+' pendientes, especialmente en '+esc(attention)+'.</p><p><strong>Control de Punch</strong>'+d.punchOpen+' abiertos y '+d.punchClosed+' cerrados. Seguimiento diferenciado por categorías A/B/C.</p></div></section></div><footer class="fx-foot"><span>FLECAP · Informe de '+esc(mod.name)+'</span><span>Página 2 de 2 · Documento de gestión · Uso interno</span></footer></section>';
   /* Informe compacto: sin hoja fija adicional. El detalle de pendientes se integra
      a la segunda hoja sólo cuando existen datos. */
@@ -12452,7 +12468,7 @@ html:not(.pecom-light) #flecapPrecomHome .fpc-progress{background:#29495f!import
 #flecapExactPrintReport .fx-head p{color:#d6e4ec!important;font-size:2.6mm!important;letter-spacing:.35mm!important}
 #flecapExactPrintReport .fx-meta,#flecapExactPrintReport .fx-meta b{color:#e6f0f5!important}
 #flecapExactPrintReport .fx-report-module-badge{background:transparent!important;color:#86c9e9!important;padding:0!important;border-radius:0!important;letter-spacing:.35mm!important}
-#flecapExactPrintReport .fx-kpis{grid-template-columns:repeat(6,minmax(0,1fr))!important;gap:0!important;border:.3mm solid #ccd7dd!important;margin:4mm 0!important}
+#flecapExactPrintReport .fx-kpis{grid-template-columns:repeat(7,minmax(0,1fr))!important;gap:0!important;border:.3mm solid #ccd7dd!important;margin:4mm 0!important}
 #flecapExactPrintReport .fx-kpi{min-height:24mm!important;padding:3mm!important;background:#fff!important;border:0!important;border-right:.3mm solid #dbe3e8!important;border-top:.9mm solid #217fab!important}
 #flecapExactPrintReport .fx-kpi:last-child{border-right:0!important}
 #flecapExactPrintReport .fx-kpi span{color:#627786!important;text-transform:uppercase!important;letter-spacing:.15mm!important;font-size:2.3mm!important;font-weight:700!important}
@@ -13845,6 +13861,92 @@ body.flecap-viewer #flecapTraceFile,body.flecap-viewer label[for="flecapTraceFil
  document.addEventListener('flecap:remote-ready',function(){setTimeout(apply,0)},true);
  document.addEventListener('DOMContentLoaded',function(){setTimeout(apply,150)},{once:true});
  setInterval(apply,2500);
+})();
+</script>
+
+<style id="flecap-managerial-kpis-v1">
+#progressReportArea .flecap-report-kpis-managerial{grid-template-columns:repeat(7,minmax(120px,1fr))!important;gap:8px!important}
+#progressReportArea .flecap-report-kpis-managerial .flecap-report-kpi{min-width:0;padding:11px 10px!important}
+#progressReportArea .flecap-report-kpis-managerial .flecap-report-kpi span{font-size:9px!important;line-height:1.25;min-height:23px}
+#progressReportArea .flecap-report-kpis-managerial .flecap-report-kpi b{font-size:23px!important}
+#progressReportArea .flecap-report-kpis-managerial .flecap-report-kpi small{font-size:8px!important;line-height:1.35}
+@media(max-width:1250px){#progressReportArea .flecap-report-kpis-managerial{grid-template-columns:repeat(4,minmax(140px,1fr))!important}}
+@media(max-width:760px){#progressReportArea .flecap-report-kpis-managerial{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
+@media(max-width:480px){#progressReportArea .flecap-report-kpis-managerial{grid-template-columns:1fr!important}}
+@media print{#progressReportArea .flecap-report-kpis-managerial{grid-template-columns:repeat(7,1fr)!important;gap:4px!important}#progressReportArea .flecap-report-kpis-managerial .flecap-report-kpi{padding:6px!important}#progressReportArea .flecap-report-kpis-managerial .flecap-report-kpi b{font-size:16px!important}#progressReportArea .flecap-report-kpis-managerial .flecap-report-kpi span,#progressReportArea .flecap-report-kpis-managerial .flecap-report-kpi small{font-size:6.8px!important}}
+</style>
+<!-- FLECAP · Informe gerencial ampliado v1 · solo presentación/lectura -->
+<style id="flecap-management-report-v1-css">
+#progressReportArea .fmg-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin:0 0 12px}
+#progressReportArea .fmg-card{border:1px solid #d6e0e7;border-radius:11px;padding:11px 12px;background:rgba(255,255,255,.04);min-width:0}
+#progressReportArea .fmg-card span{display:block;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.35px;color:var(--muted)}
+#progressReportArea .fmg-card b{display:block;margin:5px 0 2px;font-size:20px;line-height:1.1}
+#progressReportArea .fmg-card small{display:block;font-size:9px;color:var(--muted);line-height:1.35}
+#progressReportArea .fmg-card.good{border-top:4px solid #23905f}.fmg-card.warn{border-top:4px solid #d7a51f}.fmg-card.bad{border-top:4px solid #b33a3a}.fmg-card.info{border-top:4px solid #12658f}
+#progressReportArea .fmg-grid{display:grid;grid-template-columns:1.15fr .85fr;gap:12px;grid-column:1/-1}
+#progressReportArea .fmg-table{width:100%;border-collapse:collapse;font-size:10px}
+#progressReportArea .fmg-table th{background:#eef4f7;text-align:left;padding:7px 8px;color:#365469;text-transform:uppercase;font-size:8px;letter-spacing:.35px}
+#progressReportArea .fmg-table td{padding:7px 8px;border-bottom:1px solid #e2e9ee;vertical-align:top}
+#progressReportArea .fmg-status{display:inline-flex;align-items:center;gap:5px;font-weight:800}.fmg-status i{width:8px;height:8px;border-radius:50%;display:inline-block}.fmg-ok i{background:#23905f}.fmg-warn i{background:#d7a51f}.fmg-bad i{background:#b33a3a}
+#progressReportArea .fmg-alert{display:grid;grid-template-columns:11px 1fr auto;gap:8px;align-items:start;padding:8px 0;border-bottom:1px solid #e2e9ee;font-size:10px}.fmg-alert:last-child{border-bottom:0}.fmg-alert i{width:9px;height:9px;border-radius:50%;margin-top:3px}.fmg-alert b{font-size:10px}.fmg-alert small{display:block;color:var(--muted);margin-top:2px}.fmg-alert strong{font-size:10px;white-space:nowrap}
+html:not(.pecom-light) #progressReportArea .fmg-card,html:not(.pecom-light) #progressReportArea .fmg-grid>.flecap-report-panel{background:#0d293c!important;border-color:#31576d!important}
+html:not(.pecom-light) #progressReportArea .fmg-table th{background:#15384c;color:#bcd1dc}html:not(.pecom-light) #progressReportArea .fmg-table td,html:not(.pecom-light) #progressReportArea .fmg-alert{border-color:#294b5f}
+@media(max-width:850px){#progressReportArea .fmg-summary{grid-template-columns:1fr 1fr}#progressReportArea .fmg-grid{grid-template-columns:1fr}}
+@media(max-width:520px){#progressReportArea .fmg-summary{grid-template-columns:1fr}}
+@media print{
+ #progressReportArea .fmg-summary{grid-template-columns:repeat(4,1fr)!important;gap:6px!important;break-inside:avoid!important}
+ #progressReportArea .fmg-card{padding:7px!important;background:#fff!important;break-inside:avoid!important}.fmg-card b{font-size:16px!important}
+ #progressReportArea .fmg-grid{grid-template-columns:1.15fr .85fr!important;gap:7px!important;break-inside:avoid!important}
+ #progressReportArea .fmg-table th{background:#eef4f7!important;color:#333!important}
+}
+</style>
+<script id="flecap-management-report-v1-js">
+(function(){
+ function q(id){return document.getElementById(id)}
+ function n(v){v=Number(v);return isFinite(v)?v:0}
+ function esc(v){return String(v==null?'':v).replace(/[&<>\"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]})}
+ function project(){try{return JSON.parse(localStorage.getItem('flecap_project_identity_v1')||'{}').project||'obra'}catch(e){return'obra'}}
+ function fmtDate(v){if(!v)return '—';var d=new Date(v+'T00:00:00');return isNaN(d)?'—':d.toLocaleDateString('es-AR')}
+ function curve(){
+  var c={};try{c=JSON.parse(localStorage.getItem('flecap_scurve_plan_v2::'+project())||'null')||{}}catch(e){}
+  var real=n((q('fesSCurvePanel')&&q('fesSCurvePanel').querySelector('.fsc-current')||{}).textContent?.replace('%',''));
+  if(!real){var d=window.__FLECAP_EXECUTIVE_REPORT_DATA;real=d?n(d.overall):0}
+  var planned=null;
+  if(c.start&&c.end&&Array.isArray(c.points)&&c.points.length){var st=new Date(c.start+'T00:00:00'),en=new Date(c.end+'T00:00:00'),now=new Date(),x=Math.max(0,Math.min(1,(now-st)/(en-st||1))),pos=x*(c.points.length-1),i=Math.floor(pos),f=pos-i;planned=n(c.points[i])+(n(c.points[Math.min(i+1,c.points.length-1)])-n(c.points[i]))*f}
+  return {cfg:c,real:Math.round(real*10)/10,plan:planned==null?null:Math.round(planned*10)/10,varianza:planned==null?null:Math.round((real-planned)*10)/10}
+ }
+ function cls(v){return v>0?'good':v<0?'bad':'warn'}
+ function enhance(){
+  var area=q('progressReportArea'),d=window.__FLECAP_EXECUTIVE_REPORT_DATA;if(!area||!d)return;
+  var old=q('flecapManagementSummary');if(old)old.remove();var oldg=q('flecapManagementGrid');if(oldg)oldg.remove();
+  var c=curve(),summary=document.createElement('div');summary.id='flecapManagementSummary';summary.className='fmg-summary';
+  var varText=c.varianza==null?'Sin plan':((c.varianza>0?'+':'')+c.varianza.toFixed(1)+' pp');
+  var varClass=c.varianza==null?'info':cls(c.varianza);
+  summary.innerHTML='<div class="fmg-card info"><span>Fecha de corte</span><b>'+new Date().toLocaleDateString('es-AR')+'</b><small>Actualización del informe</small></div>'+
+   '<div class="fmg-card info"><span>Inicio / Fin de obra</span><b>'+fmtDate(c.cfg.start)+' → '+fmtDate(c.cfg.end)+'</b><small>Fin construcción: '+fmtDate(c.cfg.constructionEnd||c.cfg.end)+'</small></div>'+
+   '<div class="fmg-card '+varClass+'"><span>Plan vs Real</span><b>'+(c.plan==null?'—':c.plan.toFixed(1)+'%')+' / '+c.real.toFixed(1)+'%</b><small>Desvío: '+varText+'</small></div>'+
+   '<div class="fmg-card '+(d.counts.OBSERVADO||d.punchOpen?'warn':'good')+'"><span>Atención gerencial</span><b>'+((d.counts.OBSERVADO||0)+(d.punchOpen||0))+'</b><small>'+d.counts.OBSERVADO+' observados · '+d.punchOpen+' Punch abiertos</small></div>';
+  var kpis=area.querySelector('.flecap-report-kpis');if(kpis)kpis.insertAdjacentElement('beforebegin',summary);
+  var grid=document.createElement('div');grid.id='flecapManagementGrid';grid.className='fmg-grid';
+  var counts=d.counts||{},total=n(d.total),docRows=[['Realizados',n(counts.REALIZADO),'#23905f'],['Presentados',n(counts.PRESENTADO),'#12658f'],['Observados',n(counts.OBSERVADO),'#b33a3a'],['Pendientes',n(counts.PENDIENTE),'#d76a1f']];
+  var table='<div class="flecap-report-panel"><h3>Estado documental · Resumen gerencial</h3><table class="fmg-table"><thead><tr><th>Estado</th><th>Cantidad</th><th>% del total</th><th>Lectura</th></tr></thead><tbody>'+docRows.map(function(r){var pc=total?Math.round(r[1]*1000/total)/10:0,lab=r[0]==='Observados'&&r[1]?'Requiere cierre':r[0]==='Pendientes'&&r[1]?'Por ejecutar':r[0]==='Presentados'?'En circuito documental':'Avance consolidado';return '<tr><td><span class="fmg-status"><i style="background:'+r[2]+'"></i>'+r[0]+'</span></td><td><b>'+r[1]+'</b></td><td>'+pc+'%</td><td>'+lab+'</td></tr>'}).join('')+'</tbody></table></div>';
+  var alerts=[];
+  if(c.varianza!=null&&c.varianza<0)alerts.push(['#b33a3a','Desvío respecto del plan','El avance real está por debajo de la referencia',c.varianza.toFixed(1)+' pp']);
+  if(n(counts.OBSERVADO)>0)alerts.push(['#b33a3a','Registros observados','Requieren tratamiento y cierre',counts.OBSERVADO]);
+  if(n(d.punch&&d.punch.A)>0)alerts.push(['#b33a3a','Punch A abiertos','Condición crítica para liberación',d.punch.A]);
+  if(n(d.punchOpen)>0)alerts.push(['#d7a51f','Punch abiertos','A '+n(d.punch&&d.punch.A)+' · B '+n(d.punch&&d.punch.B)+' · C '+n(d.punch&&d.punch.C),d.punchOpen]);
+  var ds=Object.keys(d.disciplines||{}).map(function(k){var x=d.disciplines[k],p=x.total?Math.round(x.done*100/x.total):0;return {k:k,p:p,pending:x.pending||0}}).sort(function(a,b){return a.p-b.p});
+  if(ds.length&&ds[0].p<50)alerts.push(['#d7a51f','Disciplina con menor avance',ds[0].k+' · '+ds[0].pending+' pendientes',ds[0].p+'%']);
+  if(!alerts.length)alerts.push(['#23905f','Sin alertas críticas','No se detectan observados, Punch abiertos ni desvíos negativos con los datos disponibles','OK']);
+  var alertHtml='<div class="flecap-report-panel"><h3>Alertas y foco de gestión</h3>'+alerts.slice(0,5).map(function(a){return '<div class="fmg-alert"><i style="background:'+a[0]+'"></i><div><b>'+esc(a[1])+'</b><small>'+esc(a[2])+'</small></div><strong>'+esc(a[3])+'</strong></div>'}).join('')+'</div>';
+  grid.innerHTML=table+alertHtml;
+  var reportGrid=area.querySelector('.flecap-report-grid');if(reportGrid)reportGrid.insertAdjacentElement('afterbegin',grid);
+ }
+ function later(){setTimeout(enhance,40)}
+ document.addEventListener('click',function(e){if(e.target&&e.target.closest&&e.target.closest('#generateProgressReport,#progressReportNavBtn,.fm-report-quality,.fm-report-precom'))setTimeout(enhance,120)},true);
+ window.addEventListener('beforeprint',enhance);
+ var old=window.generateProgressReport;setTimeout(function(){if(typeof window.generateProgressReport==='function'&&!window.generateProgressReport.__fmg){var base=window.generateProgressReport;var w=function(){var r=base.apply(this,arguments);later();return r};w.__fmg=true;window.generateProgressReport=w}},300);
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(enhance,700)},{once:true});else setTimeout(enhance,700);
 })();
 </script>
 </body></html>
