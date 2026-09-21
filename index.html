@@ -8297,6 +8297,17 @@ html.pecom-light .reg.present{background:#f3f8fd!important}
  async function queueAdd(ops){if(!ops.length)return;if(String(window.PECOM_ROLE||'viewer').toLowerCase()==='viewer')return;var d=await db(),epoch=currentEpoch()||'legacy',projectId=activeProjectId();await new Promise(function(ok,no){var t=d.transaction('queue','readwrite'),s=t.objectStore('queue');ops.forEach(function(op){seq++;s.add(Object.assign(op,{client_id:clientId,client_seq:seq,user_email:window.PECOM_CURRENT_EMAIL||'',project_id:projectId,created_at:new Date().toISOString(),sync_epoch:epoch}))});t.oncomplete=function(){localStorage.setItem('flecap_client_seq',seq);ok()};t.onerror=function(){no(t.error)}})}
  async function queueAll(){var d=await db();return new Promise(function(ok,no){var r=d.transaction('queue').objectStore('queue').getAll();r.onsuccess=function(){ok(r.result||[])};r.onerror=function(){no(r.error)}})}
  async function queueDelete(ids){var d=await db();return new Promise(function(ok,no){var t=d.transaction('queue','readwrite'),s=t.objectStore('queue');ids.forEach(function(id){s.delete(id)});t.oncomplete=ok;t.onerror=function(){no(t.error)}})}
+ async function compactCurrentQueue(rows){
+  var projectId=activeProjectId(),epoch=currentEpoch()||'legacy',mine=(rows||[]).filter(function(x){return (!x.project_id||x.project_id===projectId)}),latest={},remove=[];
+  mine.forEach(function(x){
+   if(String(x.sync_epoch||'legacy')!==epoch){remove.push(x.local_id);return}
+   var k=String(x.section)+'|||'+String(x.entity_key),prev=latest[k];
+   if(prev)remove.push(prev.local_id);
+   latest[k]=x;
+  });
+  if(remove.length)await queueDelete(remove);
+  return Object.keys(latest).map(function(k){return latest[k]}).sort(function(a,b){return Number(a.local_id)-Number(b.local_id)});
+ }
  async function pendingBadge(){var projectId=activeProjectId(),q=(await queueAll()).filter(function(x){return !x.project_id||x.project_id===projectId});if(!navigator.onLine)badge('Sin conexión · '+q.length+' pendientes','offline');else if(q.length)badge(q.length+' cambios pendientes','pending');else badge('Sincronizado','ok')}
  function wait(ms){return new Promise(function(resolve){setTimeout(resolve,ms)})}
  async function saveSnapshotFallback(projectId,pending,error){
@@ -8318,7 +8329,7 @@ html.pecom-light .reg.present{background:#f3f8fd!important}
   syncing=true;
   var projectId=activeProjectId(),original=[];
   try{
-   var all=await queueAll(),q=all.filter(function(x){return !x.project_id||x.project_id===projectId});
+   var all=await queueAll(),q=await compactCurrentQueue(all);
    if(!q.length)return pendingBadge();
    original=q.slice();
    var total=q.length,done=0;
@@ -8338,6 +8349,8 @@ html.pecom-light .reg.present{background:#f3f8fd!important}
     await wait(25);
    }
    await pendingBadge();
+   try{localStorage.removeItem('flecap_sync_pending_v21::'+projectId)}catch(_e){}
+   document.dispatchEvent(new CustomEvent('flecap:stable-saved'));
   }catch(e){
    console.warn('FLECAP: sincronización pendiente',e);
    var detail=String(e&&e.message||'error de conexión');
@@ -8347,7 +8360,7 @@ html.pecom-light .reg.present{background:#f3f8fd!important}
  async function receive(op){if(op.client_id===clientId)return;var k=decodeEntityKey(op.entity_key);if(k===null)return;op=Object.assign({},op,{entity_key:k});state=applyOne(state,op);if(typeof mergeFlecapAdditionalMasters==='function')mergeFlecapAdditionalMasters(state);try{localStorage.setItem(KEY,JSON.stringify(window.FLECAP_compactStateForLocalStorage?window.FLECAP_compactStateForLocalStorage(state):state));localStorage.setItem('flecap_project_state::'+activeProjectId(),JSON.stringify(window.FLECAP_compactStateForLocalStorage?window.FLECAP_compactStateForLocalStorage(state):state))}catch(e){}lastLocal=clone(state);if(typeof renderAll==='function')renderAll();try{if(typeof renderPermissionPanel==='function')renderPermissionPanel()}catch(e){}badge('Actualizado por otro usuario','ok')}
  async function loadEvents(){if(!window.PECOM_SUPABASE)return;var r=await window.PECOM_SUPABASE.from('sync_changes').select('id,project_id,client_id,client_seq,section,entity_key,value,deleted').eq('project_id',activeProjectId()).order('id',{ascending:true});if(!r.error){(r.data||[]).forEach(function(op){var k=decodeEntityKey(op.entity_key);if(k!==null)state=applyOne(state,Object.assign({},op,{entity_key:k}))});try{localStorage.setItem(KEY,JSON.stringify(window.FLECAP_compactStateForLocalStorage?window.FLECAP_compactStateForLocalStorage(state):state));localStorage.setItem('flecap_project_state::'+activeProjectId(),JSON.stringify(window.FLECAP_compactStateForLocalStorage?window.FLECAP_compactStateForLocalStorage(state):state))}catch(e){}lastLocal=clone(state);if(typeof renderAll==='function')renderAll();try{if(typeof renderPermissionPanel==='function')renderPermissionPanel()}catch(e){}}}
  function connect(){if(channel||!window.PECOM_SUPABASE)return;channel=window.PECOM_SUPABASE.channel('flecap-granular-'+clientId).on('postgres_changes',{event:'INSERT',schema:'public',table:'sync_changes',filter:'project_id=eq.'+activeProjectId()},function(p){receive(p.new)}).subscribe()}
- async function saveNow(){saveTimer=null;var payload=pendingPayload;pendingPayload=null;if(!payload)return;if(!lastLocal)lastLocal=clone(payload);var ops=diff(lastLocal,payload);lastLocal=clone(payload);await queueAdd(ops);pendingBadge();flush()}
+ async function saveNow(){saveTimer=null;var payload=pendingPayload;pendingPayload=null;if(!payload)return;if(!lastLocal)lastLocal=clone(payload);var ops=diff(lastLocal,payload);lastLocal=clone(payload);if(!ops.length){await pendingBadge();document.dispatchEvent(new CustomEvent('flecap:stable-saved'));return}await queueAdd(ops);pendingBadge();flush()}
  function save(payload){if(String(window.PECOM_ROLE||'viewer').toLowerCase()==='viewer'){badge('Solo lectura','ok');return false;}if(window.FLECAP_BACKUPS)window.FLECAP_BACKUPS.markDirty();pendingPayload=clone(payload);clearTimeout(saveTimer);saveTimer=setTimeout(saveNow,300);return true}
  window.FLECAP_SYNC_ENGINE={adoptRemote:async function(remote){if(!(await queueAll()).length){state=clone(remote);if(typeof mergeFlecapAdditionalMasters==='function')mergeFlecapAdditionalMasters(state);lastLocal=clone(state)}await loadEvents();connect();flush()},flush:flush};
  // IMPORT SYNC COALESCING (perf fix 2026-09-20): durante una importación masiva de Matriz,
@@ -12988,7 +13001,7 @@ html.pecom-light .fsc-note,html.pecom-light .fsc-dates,html.pecom-light .fsc-leg
 <script id="flecap-operational-21-js">
 (function(){
  'use strict';
- var META='flecap_meta_v21::', DB='flecap_versions_v21', STORE='versions', wrapping=false, lastSnapshot=0;
+ var META='flecap_meta_v21::', DB='flecap_versions_v21', STORE='versions', wrapping=false, lastSnapshot=0, lastMeaningfulSignature='';
  function pid(){try{return localStorage.getItem('flecap_active_project_v1')||'legacy'}catch(e){return'legacy'}}
  function user(){return String(window.PECOM_CURRENT_EMAIL||window.PECOM_USER_NAME||'Usuario').trim()||'Usuario'}
  function now(){return new Date().toISOString()}
@@ -13006,8 +13019,16 @@ html.pecom-light .fsc-note,html.pecom-light .fsc-dates,html.pecom-light .fsc-leg
    }
    try{localStorage.setItem('flecap_sync_pending_v21::'+pid(),'1')}catch(e){}
    setSync('pending','Guardando…');setTimeout(function(){try{localStorage.removeItem('flecap_sync_pending_v21::'+pid())}catch(e){};refreshSync()},1400)}
+ function meaningfulSignature(){
+   try{
+     return JSON.stringify(typeof state!=='undefined'?state:{},function(k,v){
+       if(k==='_flecap_saved_at'||k==='_flecap_saved_project'||k==='_flecapMeta')return undefined;
+       return v;
+     });
+   }catch(e){return ''}
+ }
  function reasonFromEvent(){var a=document.activeElement;if(!a)return 'Cambio guardado';var id=a.id||'',txt=(a.textContent||a.getAttribute&&a.getAttribute('aria-label')||'').trim();if(/import/i.test(id+txt))return 'Importación de datos';if(/punch/i.test(id+txt))return 'Actualización Punch';if(/spool|fpq/i.test(id+txt))return 'Actualización Piping';if(/config/i.test(id+txt))return 'Configuración';return 'Cambio guardado'}
- function wrapPersist(){if(wrapping||typeof window.persist!=='function'||window.persist.__flecapV21)return;wrapping=true;var old=window.persist;function p(){setMeta(reasonFromEvent());markPending();var r=old.apply(this,arguments);setTimeout(updateLastModified,0);return r}p.__flecapV21=true;p.__previous=old;window.persist=p;try{persist=p}catch(e){}wrapping=false}
+ function wrapPersist(){if(wrapping||typeof window.persist!=='function'||window.persist.__flecapV21)return;wrapping=true;var old=window.persist;function p(){var sig=meaningfulSignature();if(sig&&sig===lastMeaningfulSignature){return true}setMeta(reasonFromEvent());markPending();var r=old.apply(this,arguments);if(r!==false)lastMeaningfulSignature=meaningfulSignature()||sig;setTimeout(updateLastModified,0);return r}p.__flecapV21=true;p.__previous=old;window.persist=p;try{persist=p}catch(e){}wrapping=false}
  function updateLastModified(){var m=meta();var top=document.querySelector('#flecapExecutiveState .fes-top');if(top&&top.children[2]){var b=top.children[2].querySelector('b');if(b)b.textContent=fmt(m.updatedAt)+(m.updatedBy?' · '+m.updatedBy:'')}document.querySelectorAll('.fx-meta-chip').forEach(function(x){var s=x.querySelector('span');if(s&&/última modificación|actualización/i.test(s.textContent||'')){var b=x.querySelector('b');if(b)b.textContent=fmt(m.updatedAt)}})}
  function db(){return new Promise(function(ok,no){var r=indexedDB.open(DB,1);r.onupgradeneeded=function(){var d=r.result;if(!d.objectStoreNames.contains(STORE)){var st=d.createObjectStore(STORE,{keyPath:'id'});st.createIndex('projectId','projectId',{unique:false});st.createIndex('createdAt','createdAt',{unique:false})}};r.onsuccess=function(){ok(r.result)};r.onerror=function(){no(r.error)}})}
  function cloneState(){try{return JSON.parse(JSON.stringify(typeof state!=='undefined'?state:{}))}catch(e){return{}}}
@@ -13025,8 +13046,8 @@ html.pecom-light .fsc-note,html.pecom-light .fsc-dates,html.pecom-light .fsc-leg
  function importSnapshots(){document.addEventListener('change',function(e){var x=e.target;if(!x||x.type!=='file'||!x.files||!x.files.length)return;var id=x.id||'';if(/importExcelFile|fpqImportFile|fpqTraceFile|importPunchPecomFile|importBackupFile/i.test(id))snapshot('Antes de importar '+(x.files[0].name||'archivo'),true)},true)}
  function safeUnload(){window.addEventListener('beforeunload',function(){try{if(typeof window.persist==='function')window.persist()}catch(e){}})}
  function maintenance(){/* Mantenimiento sólo manual. El estado se guarda en state y viaja con la obra. */try{window.FLECAP_beginAutoMaintenance=function(){return false};if(typeof state!=='undefined'&&state&&state.maintenance&&state.maintenance.automatic){state.maintenance={active:false,automatic:false,ended_at:now(),reason:'Mantenimiento automático cancelado'}}}catch(e){}}
- function remoteReady(){document.addEventListener('flecap:remote-ready',function(){try{var m=state&&state._flecapMeta;if(m&&m.updatedAt)localStorage.setItem(META+pid(),JSON.stringify(m));localStorage.removeItem('flecap_sync_pending_v21::'+pid())}catch(e){}refreshSync();updateLastModified();execStrip()},true)}
- function boot(){versionButton();syncEl();refreshSync();wrapPersist();maintenance();importSnapshots();safeUnload();remoteReady();updateLastModified();execStrip();curveVariance();window.addEventListener('online',refreshSync);window.addEventListener('offline',refreshSync);document.addEventListener('click',function(e){if(e.target.closest&&e.target.closest('#flecapCompletionBtn'))setTimeout(function(){updateLastModified();execStrip();curveVariance()},220);if(e.target.closest&&e.target.closest('[data-fsc-save]'))setTimeout(curveVariance,120)},true);/* 2.1.1: sin MutationObserver sobre Estado. El observador anterior se auto-disparaba porque execStrip() quitaba y volvía a insertar un hijo del mismo contenedor, generando un bucle infinito y bloqueando la página. Actualización sólo por eventos + temporizador liviano. */setInterval(function(){wrapPersist();refreshSync();updateLastModified()},5000)}
+ function remoteReady(){document.addEventListener('flecap:remote-ready',function(){try{var m=state&&state._flecapMeta;if(m&&m.updatedAt)localStorage.setItem(META+pid(),JSON.stringify(m));localStorage.removeItem('flecap_sync_pending_v21::'+pid());lastMeaningfulSignature=meaningfulSignature()}catch(e){}refreshSync();updateLastModified();execStrip()},true)}
+ function boot(){versionButton();syncEl();refreshSync();wrapPersist();lastMeaningfulSignature=meaningfulSignature();maintenance();importSnapshots();safeUnload();remoteReady();updateLastModified();execStrip();curveVariance();window.addEventListener('online',refreshSync);window.addEventListener('offline',refreshSync);document.addEventListener('click',function(e){if(e.target.closest&&e.target.closest('#flecapCompletionBtn'))setTimeout(function(){updateLastModified();execStrip();curveVariance()},220);if(e.target.closest&&e.target.closest('[data-fsc-save]'))setTimeout(curveVariance,120)},true);/* 2.1.1: sin MutationObserver sobre Estado. El observador anterior se auto-disparaba porque execStrip() quitaba y volvía a insertar un hijo del mismo contenedor, generando un bucle infinito y bloqueando la página. Actualización sólo por eventos + temporizador liviano. */setInterval(function(){wrapPersist();refreshSync();updateLastModified()},5000)}
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(boot,500)},{once:true});else setTimeout(boot,500);
  window.FLECAP_VERSIONS={snapshot:snapshot,open:function(){modal().classList.add('show');renderVersions()},restore:restore};
 })();
