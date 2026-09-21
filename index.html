@@ -1322,6 +1322,15 @@ html.pecom-light #flecapTraceability .ftr-col-filter{background:#fff;color:#1738
 @media(max-width:900px){#cloudLogin{padding:14px!important;align-items:flex-start!important;overflow:auto!important}#cloudLogin>div{width:min(620px,100%)!important;min-height:0!important;padding:285px 28px 28px!important;border-radius:20px!important;margin:auto!important}#cloudLogin>div:before{width:100%;height:245px;bottom:auto;border-radius:19px 19px 0 0;background-position:center 42%}#cloudLogin>div:after{font-size:30px}#cloudLogin>div>div:nth-child(2):after{font-size:16px!important}}
 @media(max-width:520px){#cloudLogin{padding:8px!important}#cloudLogin>div{padding:195px 18px 22px!important;border-radius:16px!important}#cloudLogin>div:before{height:170px;border-radius:15px 15px 0 0}#cloudLogin>div:after{font-size:26px}#cloudLogin>div>div:nth-child(2){margin-bottom:20px!important}#cloudLogin>div>div:nth-child(2):after{font-size:14px!important}#cloudLogin input{height:52px!important}#cloudLogin #cloudLoginBtn{height:54px!important}}
 </style>
+
+<!-- FLECAP: ocultar indicadores visuales de sincronización; la lógica sigue activa -->
+<style id="flecap-hide-sync-indicators-final">
+#flecapSyncHeader,
+#flecapSyncState,
+#flecapSyncBadge,
+.fx-sync-state,
+.fx-live { display:none !important; visibility:hidden !important; }
+</style>
 </head>
 <body>
 <div id="cloudLogin" style="position:fixed;inset:0;z-index:30000;background:#0d1624;display:flex;align-items:center;justify-content:center;padding:18px">
