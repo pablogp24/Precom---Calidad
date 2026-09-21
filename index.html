@@ -6387,6 +6387,10 @@ function applyPecomRole(role){
       el.hasAttribute("data-close") ||
       /* Solo lectura puede navegar e interactuar con controles de consulta. */
       el.classList.contains("flecapProjectSelect") ||
+      id==="flecapfixedprojectselect" ||
+      id==="flecapmoduleswitch" ||
+      id==="flecapmodulemobile" ||
+      el.hasAttribute("data-flecap-module-choice") ||
       el.classList.contains("fm-side-btn") && (el.hasAttribute("data-go") || el.dataset.action==="excel") ||
       id==="flecapsidebartoggle" || id==="flecapsidebaropen" ||
       id==="exportexcel" || id==="exportbackup" ||
