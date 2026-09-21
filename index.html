@@ -13974,4 +13974,61 @@ html:not(.pecom-light) #progressReportArea .fmg-table th{background:#15384c;colo
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(enhance,700)},{once:true});else setTimeout(enhance,700);
 })();
 </script>
+<script id="flecap-sync-authority-v1">
+(function(){
+ 'use strict';
+ var DB_NAME='flecap_sync_db', STORE='queue', timer=0, observer=null;
+ function project(){try{return localStorage.getItem('flecap_active_project_v1')||'legacy'}catch(e){return'legacy'}}
+ function format(ts){if(!ts)return 'Sin cambios registrados';try{return new Date(ts).toLocaleString('es-AR')}catch(e){return ts}}
+ function metadata(){try{return JSON.parse(localStorage.getItem('flecap_meta_v21::'+project())||'null')||{}}catch(e){return{}}}
+ function paint(kind,text){
+   var el=document.getElementById('flecapSyncHeader');if(!el)return;
+   var m=metadata();el.className=kind||'';
+   el.innerHTML='<i></i><span>'+text+'</span><small>'+format(m.updatedAt)+(m.updatedBy?' · '+m.updatedBy:'')+'</small>';
+ }
+ function queueCount(){
+   return new Promise(function(resolve){
+     try{
+       var request=indexedDB.open(DB_NAME,1);
+       request.onupgradeneeded=function(){var db=request.result;if(!db.objectStoreNames.contains(STORE))db.createObjectStore(STORE,{keyPath:'local_id',autoIncrement:true})};
+       request.onerror=function(){resolve(0)};
+       request.onsuccess=function(){
+         var db=request.result,tx=db.transaction(STORE,'readonly'),get=tx.objectStore(STORE).getAll();
+         get.onerror=function(){db.close();resolve(0)};
+         get.onsuccess=function(){var pid=project(),n=(get.result||[]).filter(function(x){return !x.project_id||x.project_id===pid}).length;db.close();resolve(n)};
+       };
+     }catch(e){resolve(0)}
+   });
+ }
+ async function refresh(){
+   clearTimeout(timer);
+   timer=setTimeout(async function(){
+     if(!navigator.onLine){paint('offline','Sin conexión');return}
+     var count=await queueCount();
+     if(count>0){paint('pending',count===1?'1 cambio pendiente':count+' cambios pendientes');return}
+     paint('','Sincronizado');
+   },80);
+ }
+ function detachLegacyObserver(){
+   var old=document.getElementById('flecapSyncBadge');if(!old)return null;
+   var clean=old.cloneNode(true);clean.__flecapHeaderObserved=true;old.replaceWith(clean);return clean;
+ }
+ function bind(){
+   var badge=detachLegacyObserver();
+   if(badge){observer=new MutationObserver(refresh);observer.observe(badge,{childList:true,subtree:true,attributes:true,characterData:true})}
+   refresh();
+ }
+ function boot(){
+   /* El encabezado se basa sólo en la cola real. Los llamados internos a
+      persist() sin diferencias ya no generan Guardando/Cambios pendientes. */
+   setTimeout(bind,11000);
+   window.addEventListener('online',refresh);window.addEventListener('offline',refresh);
+   document.addEventListener('flecap:stable-saved',refresh,true);
+   document.addEventListener('flecap:remote-ready',refresh,true);
+   setInterval(refresh,5000);
+ }
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
+ window.FLECAP_REFRESH_AUTHORITATIVE_SYNC=refresh;
+})();
+</script>
 </body></html>
