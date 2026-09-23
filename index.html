@@ -396,7 +396,7 @@ html.pecom-light #flecapModuleSwitch:hover{background:#e7f1f7!important;color:#0
      const p=projectList().find(x=>x.id===ev.target.value);if(p)setActive(p.id,p);
    }
  },true);
- function init(){ensureAccessPicker();refreshProjectUi();setInterval(refreshProjectUi,5000)}
+ function init(){ensureAccessPicker();refreshProjectUi();document.addEventListener('flecap:remote-ready',refreshProjectUi,true);document.addEventListener('visibilitychange',function(){if(!document.hidden)refreshProjectUi()})}
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();
 </script>
@@ -1331,6 +1331,11 @@ html.pecom-light #flecapTraceability .ftr-col-filter{background:#fff;color:#1738
 .fx-sync-state,
 .fx-live { display:none !important; visibility:hidden !important; }
 </style>
+
+<script id="flecap-fast-profile-v1">
+/* FLECAP FAST 2026-09-23: menos copias profundas, menos polling y guardado cloud agrupado. */
+window.FLECAP_FAST_PROFILE={version:"1.0",date:"2026-09-23",compactState:true,indexedDbCache:true,cloudDebounceMs:900,eventDrivenUi:true};
+</script>
 </head>
 <body>
 <div id="cloudLogin" style="position:fixed;inset:0;z-index:30000;background:#0d1624;display:flex;align-items:center;justify-content:center;padding:18px">
@@ -2148,7 +2153,9 @@ let quick="ALL",currentRecord=null,currentMaster=null,currentPunch=null,pendingF
 window.FLECAP_compactStateForLocalStorage=function(src){
  try{
    if(!src||!src.flecapModuleData)return src;
-   const c=JSON.parse(JSON.stringify(src));
+   /* FAST: copia superficial. Los datos se serializan después; no hace falta
+      clonar varios MB sólo para quitar las vistas activas duplicadas. */
+   const c=Object.assign({},src);
    ['tags','masters','instances','punches','applicabilityOverrides','subsystemDeliveries'].forEach(k=>{try{delete c[k]}catch(e){}});
    c.__flecapCompactModules=1;
    return c;
@@ -2183,7 +2190,9 @@ function persist(){
        let mod=(document.body&&document.body.getAttribute('data-flecap-module'))||state.flecapDataModule||localStorage.getItem('flecap_active_module::'+pid)||'quality';
        mod=mod==='precom'?'precom':'quality';
        const fields=['tags','masters','instances','punches','applicabilityOverrides','subsystemDeliveries'];
-       const box={};fields.forEach(k=>box[k]=JSON.parse(JSON.stringify(state[k]||(k==='instances'||k==='applicabilityOverrides'||k==='subsystemDeliveries'?{}:[]))));
+       /* FAST: el módulo activo puede referenciar las mismas estructuras en memoria.
+          El guardado compacto serializa flecapModuleData y evita la copia profunda. */
+       const box={};fields.forEach(k=>box[k]=state[k]||(k==='instances'||k==='applicabilityOverrides'||k==='subsystemDeliveries'?{}:[]));
        state.flecapModuleData[mod]=box;state.flecapDataModule=mod;
      }
    }catch(_e){}
@@ -3794,6 +3803,8 @@ html:not(.pecom-light) #recordModal .filebox{background:#132333!important;color:
 @media(max-width:800px){#flecapReferenceTopControls #pecomThemeToggle{width:58px!important;min-width:58px!important;height:34px!important;padding:0 6px!important}}
 </style>
 <div id="flecapBuildDispatch" style="position:fixed;right:12px;bottom:12px;z-index:999999;background:#7c3aed;color:white;padding:6px 10px;border-radius:8px;font:700 11px Arial;box-shadow:0 4px 16px #0005">FLECAP BUILD DESPACHO DIRECTO 17-09-2026</div>
+
+
 </body></html>`);
  popup.document.close();
 }
@@ -6492,8 +6503,15 @@ function refreshOnlineAdminUi(){
  function activeProjectId(){return localStorage.getItem("flecap_active_project_v1")||"legacy"}
  function storeProjectLocal(projectId,payload){
    try{
-     localStorage.setItem('flecap_project_state::'+projectId,JSON.stringify(payload));
-     if(projectId===activeProjectId())localStorage.setItem(KEY,JSON.stringify(payload));
+     var compact=window.FLECAP_compactStateForLocalStorage?window.FLECAP_compactStateForLocalStorage(payload):payload;
+     /* FAST: matrices grandes van a IndexedDB; localStorage conserva sólo el stub. */
+     if(window.FLECAP_LARGE_STATE){
+       window.FLECAP_LARGE_STATE.save(projectId,compact).catch(function(e){console.warn('FLECAP caché local',e)});
+     }else{
+       var json=JSON.stringify(compact);
+       localStorage.setItem('flecap_project_state::'+projectId,json);
+       if(projectId===activeProjectId())localStorage.setItem(KEY,json);
+     }
    }catch(e){}
  }
 
@@ -6586,7 +6604,9 @@ function refreshOnlineAdminUi(){
    status("☁ Guardando...");
    // Capturar ahora la obra evita que un cambio pendiente termine en otra obra.
    const projectId=activeProjectId();
-   saveTimer=setTimeout(()=>saveRemote(payload,projectId),450);
+   /* FAST: agrupa ráfagas de edición para reducir escrituras completas en Supabase. */
+   const durable=window.FLECAP_compactStateForLocalStorage?window.FLECAP_compactStateForLocalStorage(payload):payload;
+   saveTimer=setTimeout(()=>saveRemote(durable,projectId),1500);
  };
 
  async function loadAudit(){
@@ -6941,7 +6961,8 @@ function refreshOnlineAdminUi(){
   };
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",run);
   else run();
-  setInterval(run,2000);
+  document.addEventListener('flecap:remote-ready',run,true);
+  window.addEventListener('focus',run);
 })();
 
 
@@ -6956,7 +6977,7 @@ function refreshOnlineAdminUi(){
  };
  if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",enable);
  else enable();
- setInterval(enable,1500);
+ document.addEventListener('flecap:remote-ready',enable,true);
 })();
 
 
@@ -8370,7 +8391,7 @@ html.pecom-light .reg.present{background:#f3f8fd!important}
  async function loadEvents(){if(!window.PECOM_SUPABASE)return;var r=await window.PECOM_SUPABASE.from('sync_changes').select('id,project_id,client_id,client_seq,section,entity_key,value,deleted').eq('project_id',activeProjectId()).order('id',{ascending:true});if(!r.error){(r.data||[]).forEach(function(op){var k=decodeEntityKey(op.entity_key);if(k!==null)state=applyOne(state,Object.assign({},op,{entity_key:k}))});try{localStorage.setItem(KEY,JSON.stringify(window.FLECAP_compactStateForLocalStorage?window.FLECAP_compactStateForLocalStorage(state):state));localStorage.setItem('flecap_project_state::'+activeProjectId(),JSON.stringify(window.FLECAP_compactStateForLocalStorage?window.FLECAP_compactStateForLocalStorage(state):state))}catch(e){}lastLocal=clone(state);if(typeof renderAll==='function')renderAll();try{if(typeof renderPermissionPanel==='function')renderPermissionPanel()}catch(e){}}}
  function connect(){if(channel||!window.PECOM_SUPABASE)return;channel=window.PECOM_SUPABASE.channel('flecap-granular-'+clientId).on('postgres_changes',{event:'INSERT',schema:'public',table:'sync_changes',filter:'project_id=eq.'+activeProjectId()},function(p){receive(p.new)}).subscribe()}
  async function saveNow(){saveTimer=null;var payload=pendingPayload;pendingPayload=null;if(!payload)return;if(!lastLocal)lastLocal=clone(payload);var ops=diff(lastLocal,payload);lastLocal=clone(payload);if(!ops.length){await pendingBadge();document.dispatchEvent(new CustomEvent('flecap:stable-saved'));return}await queueAdd(ops);pendingBadge();flush()}
- function save(payload){if(String(window.PECOM_ROLE||'viewer').toLowerCase()==='viewer'){badge('Solo lectura','ok');return false;}if(window.FLECAP_BACKUPS)window.FLECAP_BACKUPS.markDirty();pendingPayload=clone(payload);clearTimeout(saveTimer);saveTimer=setTimeout(saveNow,300);return true}
+ function save(payload){if(String(window.PECOM_ROLE||'viewer').toLowerCase()==='viewer'){badge('Solo lectura','ok');return false;}if(window.FLECAP_BACKUPS)window.FLECAP_BACKUPS.markDirty();pendingPayload=payload;clearTimeout(saveTimer);saveTimer=setTimeout(saveNow,650);return true}
  window.FLECAP_SYNC_ENGINE={adoptRemote:async function(remote){if(!(await queueAll()).length){state=clone(remote);if(typeof mergeFlecapAdditionalMasters==='function')mergeFlecapAdditionalMasters(state);lastLocal=clone(state)}await loadEvents();connect();flush()},flush:flush};
  // IMPORT SYNC COALESCING (perf fix 2026-09-20): durante una importación masiva de Matriz,
  // persist() sigue guardando localmente (IndexedDB + localStorage) pero el guardado remoto
@@ -8397,7 +8418,7 @@ html.pecom-light .reg.present{background:#f3f8fd!important}
   console.log('[FLECAP IMPORT PERF] resumen · excel='+(_P.excelReadMs||0)+' ms · procesamiento local='+(_P.localUpdateMs||0)+' ms · IndexedDB='+(_P.largeStateMs||0)+' ms · supabase matrix_store='+(_P.matrixStoreMs||0)+' ms · supabase app_state='+(_P.appStateMs||0)+' ms · ops remotas='+(okRemote?'2 (matrix_store + app_state)':'2 + cola de reintento')+' · cloudSaveState suprimidos='+C.suppressed+' · guardados IndexedDB evitados='+(C.idbSkipped+(_P.secondIdbSaveSkipped?1:0))+' · badges evitados='+C.badgeSuppressed+' · total='+Math.round(performance.now()-(window.FLECAP_PERF&&window.FLECAP_PERF.t0||t0))+' ms');};
  window.cloudSaveState=function(payload){save(payload)};
  window.addEventListener('online',function(){badge('Conexión recuperada · sincronizando…','pending');flush();connect()});window.addEventListener('offline',pendingBadge);
- setInterval(flush,30000);setTimeout(function(){lastLocal=clone(state);pendingBadge();connect();flush()},1200);
+ setInterval(function(){if(!document.hidden)flush()},60000);setTimeout(function(){lastLocal=clone(state);pendingBadge();connect();flush()},1200);
 })();
 </script>
 <style id="flecap-v29-users-inside-settings-final">
@@ -8431,7 +8452,7 @@ html.pecom-light .reg.present{background:#f3f8fd!important}
   if(ev.target&&ev.target.closest&&ev.target.closest('#configBtn'))setTimeout(refresh,0);
  },true);
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',refresh,{once:true});else refresh();
- setInterval(refresh,5000);
+ setInterval(function(){if(!document.hidden)refresh()},60000);
 })();
 </script>
 <script id="flecap-project-identity-v1">
@@ -8726,7 +8747,7 @@ html.pecom-light .reg.present{background:#f3f8fd!important}
    if(sel.value!==pid&&items.some(function(p){return p.id===pid}))sel.value=pid;
  }
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',ensure,{once:true});else ensure();
- setTimeout(ensure,300);setInterval(ensure,5000);
+ setTimeout(ensure,300);setInterval(function(){if(!document.hidden)ensure()},60000);
 })();
 </script>
 <style id="flecap-discipline-progress-css">
@@ -9781,7 +9802,7 @@ html:not(.pecom-light) #flecapMaintenanceBanner{background:#3f2b0b;color:#fff3c4
  document.addEventListener('click',function(ev){var b=ev.target&&ev.target.closest&&ev.target.closest('#flecapMaintenanceToggle');if(b){ev.preventDefault();toggle();return}if(info().active&&!allowed()&&ev.target&&ev.target.closest&&ev.target.closest(writeSelector)){ev.preventDefault();ev.stopPropagation();ev.stopImmediatePropagation();alert('FLECAP está en mantenimiento. Podés consultar la información, pero las modificaciones están temporalmente bloqueadas.')}},true);
  var oldApply=window.applyPecomRole;if(typeof oldApply==='function')window.applyPecomRole=function(){var r=oldApply.apply(this,arguments);setTimeout(refresh,0);return r};
  var oldRender=window.renderAll;if(typeof oldRender==='function')window.renderAll=function(){var r=oldRender.apply(this,arguments);setTimeout(refresh,0);return r};
- if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',refresh,{once:true});else refresh();setInterval(refresh,2500);
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',refresh,{once:true});else refresh();setInterval(function(){if(!document.hidden)refresh()},30000);
 })();
 </script>
 <style id="flecap-mobile-sidebar-final-fix-v1">
@@ -10207,7 +10228,7 @@ html.pecom-light .fpc-title h2{color:#102a43}html.pecom-light .fpc-title p{color
   var name=document.querySelector('.flecap-user-name');if(name&&/undefined|null/i.test(name.textContent||''))name.textContent='Usuario';
  }
  removeUndefined();setTimeout(removeUndefined,700);
- setInterval(paintExcelModule,2500);
+ setInterval(function(){if(!document.hidden)paintExcelModule()},30000);
  function offerChoice(){var login=document.getElementById('cloudLogin');if(!login||getComputedStyle(login).display==='none')openChooser()}
  var login=document.getElementById('cloudLogin');if(login)new MutationObserver(offerChoice).observe(login,{attributes:true,attributeFilter:['style','class']});
  async function bootModuleData(){if(!ensureModuleData())return setTimeout(bootModuleData,150);await refreshCurrentModulePermissions();var wanted=saved==='precom'?'precom':'quality';if(modulePermission(wanted)==='none'){var qAccess=modulePermission('quality'),pAccess=modulePermission('precom');wanted=qAccess!=='none'?'quality':(pAccess!=='none'?'precom':'quality');saved=wanted;document.body.setAttribute('data-flecap-module',wanted);try{localStorage.setItem('flecap_active_module',wanted);localStorage.setItem('flecap_active_module::'+(localStorage.getItem('flecap_active_project_v1')||'legacy'),wanted)}catch(e){}}loadModuleData(wanted);paintSwitch();if(wanted==='precom')clickPage('control');else if(!saved)offerChoice();removeUndefined()}
@@ -10243,7 +10264,7 @@ html.pecom-light .fpc-title h2{color:#102a43}html.pecom-light .fpc-title p{color
  function checkpoint(){var run=function(){try{if(window.FLECAP_LARGE_STATE&&typeof state!=='undefined'&&state)window.FLECAP_LARGE_STATE.save(pid(),window.FLECAP_compactStateForLocalStorage?window.FLECAP_compactStateForLocalStorage(state):state)}catch(e){}};if(window.requestIdleCallback)requestIdleCallback(run,{timeout:3000});else setTimeout(run,0)}
  if(document.readyState==='complete')restore();else window.addEventListener('load',restore,{once:true});
  document.addEventListener('visibilitychange',function(){if(document.visibilityState==='hidden')checkpoint()});
- setInterval(checkpoint,120000);
+ setInterval(function(){if(!document.hidden)checkpoint()},300000);
 })();
 </script>
 <style id="flecap-piping-quality-stable-css">
@@ -10995,7 +11016,7 @@ body[data-flecap-module="quality"] #flecapPipingQualityBtn{display:flex!importan
      }
    }
    document.addEventListener('flecap:remote-ready',reconcilePipingFromCloud);
-   var syncTimer=setInterval(reconcilePipingFromCloud,2000);
+   var syncTimer=setInterval(function(){if(!document.hidden)reconcilePipingFromCloud()},60000);document.addEventListener('visibilitychange',function(){if(!document.hidden)reconcilePipingFromCloud()});window.addEventListener('online',reconcilePipingFromCloud);
    window.addEventListener('beforeunload',function(){clearInterval(syncTimer);document.removeEventListener('flecap:remote-ready',reconcilePipingFromCloud)},{once:true});
    new MutationObserver(syncVisibility).observe(document.body,{attributes:true,attributeFilter:['data-flecap-module']});
  }
@@ -13056,7 +13077,7 @@ html.pecom-light .fsc-note,html.pecom-light .fsc-dates,html.pecom-light .fsc-leg
  function safeUnload(){window.addEventListener('beforeunload',function(){try{if(typeof window.persist==='function')window.persist()}catch(e){}})}
  function maintenance(){/* Mantenimiento sólo manual. El estado se guarda en state y viaja con la obra. */try{window.FLECAP_beginAutoMaintenance=function(){return false};if(typeof state!=='undefined'&&state&&state.maintenance&&state.maintenance.automatic){state.maintenance={active:false,automatic:false,ended_at:now(),reason:'Mantenimiento automático cancelado'}}}catch(e){}}
  function remoteReady(){document.addEventListener('flecap:remote-ready',function(){try{var m=state&&state._flecapMeta;if(m&&m.updatedAt)localStorage.setItem(META+pid(),JSON.stringify(m));localStorage.removeItem('flecap_sync_pending_v21::'+pid());lastMeaningfulSignature=meaningfulSignature()}catch(e){}refreshSync();updateLastModified();execStrip()},true)}
- function boot(){versionButton();syncEl();refreshSync();wrapPersist();lastMeaningfulSignature=meaningfulSignature();maintenance();importSnapshots();safeUnload();remoteReady();updateLastModified();execStrip();curveVariance();window.addEventListener('online',refreshSync);window.addEventListener('offline',refreshSync);document.addEventListener('click',function(e){if(e.target.closest&&e.target.closest('#flecapCompletionBtn'))setTimeout(function(){updateLastModified();execStrip();curveVariance()},220);if(e.target.closest&&e.target.closest('[data-fsc-save]'))setTimeout(curveVariance,120)},true);/* 2.1.1: sin MutationObserver sobre Estado. El observador anterior se auto-disparaba porque execStrip() quitaba y volvía a insertar un hijo del mismo contenedor, generando un bucle infinito y bloqueando la página. Actualización sólo por eventos + temporizador liviano. */setInterval(function(){wrapPersist();refreshSync();updateLastModified()},5000)}
+ function boot(){versionButton();syncEl();refreshSync();wrapPersist();lastMeaningfulSignature=meaningfulSignature();maintenance();importSnapshots();safeUnload();remoteReady();updateLastModified();execStrip();curveVariance();window.addEventListener('online',refreshSync);window.addEventListener('offline',refreshSync);document.addEventListener('click',function(e){if(e.target.closest&&e.target.closest('#flecapCompletionBtn'))setTimeout(function(){updateLastModified();execStrip();curveVariance()},220);if(e.target.closest&&e.target.closest('[data-fsc-save]'))setTimeout(curveVariance,120)},true);/* 2.1.1: sin MutationObserver sobre Estado. El observador anterior se auto-disparaba porque execStrip() quitaba y volvía a insertar un hijo del mismo contenedor, generando un bucle infinito y bloqueando la página. Actualización sólo por eventos + temporizador liviano. */setInterval(function(){if(!document.hidden){wrapPersist();refreshSync();updateLastModified()}},60000)}
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(boot,500)},{once:true});else setTimeout(boot,500);
  window.FLECAP_VERSIONS={snapshot:snapshot,open:function(){modal().classList.add('show');renderVersions()},restore:restore};
 })();
@@ -13436,7 +13457,7 @@ async function restore(forceCloud){
 function handle(f){if(!f)return;var rd=new FileReader();q('ftrStatus').textContent='Leyendo matriz…';rd.onload=function(e){parseWorkbook(e.target.result,f.name).catch(function(err){console.error(err);q('ftrStatus').textContent='Error: '+(err.message||err)})};rd.readAsArrayBuffer(f)}
 function open(){if((document.body.getAttribute('data-flecap-module')||'quality')!=='quality')return;document.querySelectorAll('main .page').forEach(function(p){p.classList.remove('active')});q('flecapTraceability').classList.add('active');document.querySelectorAll('#flecapModernSidebar .fm-side-btn').forEach(function(b){b.classList.remove('active')});var b=q('flecapTraceabilityBtn');if(b)b.classList.add('active');restore(true);window.scrollTo(0,0)}
 function menu(){var m=document.querySelector('#flecapModernSidebar .fm-menu');if(!m)return;var b=q('flecapTraceabilityBtn');if(!b){b=document.createElement('button');b.id='flecapTraceabilityBtn';b.type='button';b.className='fm-side-btn';b.innerHTML='<span>🧭</span><span>Seguimiento de Matriz</span>';var p=q('flecapPipingQualityBtn');if(p)p.insertAdjacentElement('afterend',b);else m.appendChild(b)}b.onclick=function(e){e.preventDefault();e.stopPropagation();open()};b.style.setProperty('display',(document.body.getAttribute('data-flecap-module')||'quality')==='quality'?'flex':'none','important')}
-function init(){menu();setInterval(menu,2500);document.addEventListener('flecap:remote-ready',function(){resyncTraceability('flecap:remote-ready')},true);q('ftrFile').onchange=function(e){handle(e.target.files[0])};['ftrSheet','ftrSystem','ftrLine','ftrStatusFilter'].forEach(function(id){q(id).onchange=apply});q('ftrSearch').oninput=function(){clearTimeout(window.__ftrT);window.__ftrT=setTimeout(apply,180)};q('ftrTypeAll').onclick=function(){q('ftrTypeChecks').querySelectorAll('.ftrTypeCheck').forEach(function(c){c.checked=true;selectedTypes.add(c.value)});typeLabel();apply()};q('ftrTypeNone').onclick=function(){selectedTypes.clear();q('ftrTypeChecks').querySelectorAll('.ftrTypeCheck').forEach(function(c){c.checked=false});typeLabel();apply()};q('ftrClear').onclick=function(){['ftrSheet','ftrSystem','ftrLine','ftrStatusFilter','ftrSearch'].forEach(function(id){q(id).value=''});Object.keys(columnFilters).forEach(function(k){columnFilters[k]=''});q('ftrHead').querySelectorAll('.ftr-col-filter').forEach(function(x){x.value=''});selectedTypes.clear();buildTypes();apply()};var dz=q('ftrDrop');['dragenter','dragover'].forEach(function(ev){dz.addEventListener(ev,function(e){e.preventDefault()})});dz.addEventListener('drop',function(e){e.preventDefault();handle(e.dataTransfer.files[0])});document.addEventListener('click',function(e){var b=e.target.closest&&e.target.closest('#flecapModernSidebar .fm-side-btn');if(b&&b.id!=='flecapTraceabilityBtn')q('flecapTraceability').classList.remove('active')},true);restore()}
+function init(){menu();setInterval(function(){if(!document.hidden)menu()},30000);document.addEventListener('flecap:remote-ready',function(){resyncTraceability('flecap:remote-ready')},true);q('ftrFile').onchange=function(e){handle(e.target.files[0])};['ftrSheet','ftrSystem','ftrLine','ftrStatusFilter'].forEach(function(id){q(id).onchange=apply});q('ftrSearch').oninput=function(){clearTimeout(window.__ftrT);window.__ftrT=setTimeout(apply,180)};q('ftrTypeAll').onclick=function(){q('ftrTypeChecks').querySelectorAll('.ftrTypeCheck').forEach(function(c){c.checked=true;selectedTypes.add(c.value)});typeLabel();apply()};q('ftrTypeNone').onclick=function(){selectedTypes.clear();q('ftrTypeChecks').querySelectorAll('.ftrTypeCheck').forEach(function(c){c.checked=false});typeLabel();apply()};q('ftrClear').onclick=function(){['ftrSheet','ftrSystem','ftrLine','ftrStatusFilter','ftrSearch'].forEach(function(id){q(id).value=''});Object.keys(columnFilters).forEach(function(k){columnFilters[k]=''});q('ftrHead').querySelectorAll('.ftr-col-filter').forEach(function(x){x.value=''});selectedTypes.clear();buildTypes();apply()};var dz=q('ftrDrop');['dragenter','dragover'].forEach(function(ev){dz.addEventListener(ev,function(e){e.preventDefault()})});dz.addEventListener('drop',function(e){e.preventDefault();handle(e.dataTransfer.files[0])});document.addEventListener('click',function(e){var b=e.target.closest&&e.target.closest('#flecapModernSidebar .fm-side-btn');if(b&&b.id!=='flecapTraceabilityBtn')q('flecapTraceability').classList.remove('active')},true);restore()}
 window.FLECAP_OPEN_TRACEABILITY=open;
 document.addEventListener('flecap:remote-ready',function(){
  try{
@@ -13805,7 +13826,7 @@ body[data-pecom-role="viewer"] #flecapModernSidebar .fm-side-btn{
     unlockViewerNavigation();
     var side=document.getElementById('flecapModernSidebar');
     if(side) new MutationObserver(unlockViewerNavigation).observe(side,{childList:true,subtree:true,attributes:true,attributeFilter:['disabled','style','class']});
-    setInterval(unlockViewerNavigation,1200);
+    document.addEventListener('flecap:remote-ready',unlockViewerNavigation,true);
   }
   document.addEventListener('click',function(ev){
     if(!isViewer()) return;
@@ -13876,8 +13897,8 @@ html.pecom-light #flecapChartToolbarV2 .fcv2-label{color:#526f80}html.pecom-ligh
   applyView(root,lastView);
  }
  document.addEventListener('click',function(e){if(e.target&&e.target.closest&&e.target.closest('#flecapCompletionBtn'))setTimeout(install,350)},true);
- setInterval(install,700);
- setTimeout(install,1200);
+ document.addEventListener('flecap:remote-ready',function(){setTimeout(install,60)},true);
+ setTimeout(install,500);
 })();
 </script>
 
@@ -13894,7 +13915,7 @@ body.flecap-viewer #flecapTraceFile,body.flecap-viewer label[for="flecapTraceFil
  }
  document.addEventListener('flecap:remote-ready',function(){setTimeout(apply,0)},true);
  document.addEventListener('DOMContentLoaded',function(){setTimeout(apply,150)},{once:true});
- setInterval(apply,2500);
+ window.addEventListener('focus',apply);
 })();
 </script>
 
@@ -14034,10 +14055,41 @@ html:not(.pecom-light) #progressReportArea .fmg-table th{background:#15384c;colo
    window.addEventListener('online',refresh);window.addEventListener('offline',refresh);
    document.addEventListener('flecap:stable-saved',refresh,true);
    document.addEventListener('flecap:remote-ready',refresh,true);
-   setInterval(refresh,5000);
+   document.addEventListener('visibilitychange',function(){if(!document.hidden)refresh()});
  }
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
  window.FLECAP_REFRESH_AUTHORITATIVE_SYNC=refresh;
+})();
+</script>
+<script id="flecap-ultra-performance-v1">
+(function(){
+ 'use strict';
+ window.FLECAP_PERFORMANCE_BUILD='ULTRA-20260923';
+ // One refresh per frame for callers that can opt into the scheduler.
+ var rafJobs=new Map();
+ window.FLECAP_SCHEDULE_FRAME=function(key,fn){
+   if(rafJobs.has(key))return;
+   var id=requestAnimationFrame(function(){rafJobs.delete(key);try{fn()}catch(e){console.warn('FLECAP frame job',key,e)}});
+   rafJobs.set(key,id);
+ };
+ // One idle job per key for non-visual maintenance.
+ var idleJobs=new Map();
+ window.FLECAP_SCHEDULE_IDLE=function(key,fn,timeout){
+   if(idleJobs.has(key))return;
+   var run=function(){idleJobs.delete(key);try{fn()}catch(e){console.warn('FLECAP idle job',key,e)}};
+   var id=window.requestIdleCallback?requestIdleCallback(run,{timeout:timeout||1500}):setTimeout(run,32);
+   idleJobs.set(key,id);
+ };
+ // Keep browser back/forward cache available whenever possible.
+ window.addEventListener('pagehide',function(){try{if(window.FLECAP_SYNC_ENGINE&&window.FLECAP_SYNC_ENGINE.flush)window.FLECAP_SYNC_ENGINE.flush()}catch(e){}},{capture:false});
+ // Repaint current screens once when returning to the tab instead of polling constantly.
+ document.addEventListener('visibilitychange',function(){
+   if(document.hidden)return;
+   window.FLECAP_SCHEDULE_FRAME('resume-render',function(){
+     try{if(typeof window.FLECAP_RENDER_EXECUTIVE_STATE==='function'&&document.getElementById('flecapExecutiveState')?.classList.contains('active'))window.FLECAP_RENDER_EXECUTIVE_STATE()}catch(e){}
+     try{if(typeof window.FLECAP_ENHANCE_EXECUTIVE==='function')window.FLECAP_ENHANCE_EXECUTIVE()}catch(e){}
+   });
+ });
 })();
 </script>
 </body></html>
