@@ -39,7 +39,7 @@ async function projectsFor(email,role){
  }
  return out;
 }
-function routeFor(p){return './proyectos/app/?project='+encodeURIComponent(p.id)}
+function routeFor(p){return './proyectos/app/?project='+encodeURIComponent(p.id)+'&from=portal'}
 function render(list){
  $('projectCount').textContent=list.length;
  const cards=list.map(p=>`<article class="card"><div class="status"><i></i>Proyecto habilitado</div><div class="company">${esc(p.company||'PECOM')}</div><h2>${esc(p.name||'Proyecto')}</h2><div class="meta">Acceso asignado a ${esc(currentEmail)}</div><button class="open" data-id="${esc(p.id)}">ABRIR OBRA →</button></article>`).join('');
@@ -50,7 +50,17 @@ function render(list){
   try{
     sessionStorage.setItem('flecap_portal_handoff',JSON.stringify({email:currentEmail,role:currentRole,project:p.id,ts:Date.now()}));
     // Para editores/admin, confirmar que Supabase terminó de persistir la sesión antes de navegar.
-    if(currentRole!=='viewer'){await sb.auth.getSession()}
+    if(currentRole!=='viewer'){
+      const sr=await sb.auth.getSession();
+      const s=sr&&sr.data&&sr.data.session;
+      if(s&&s.access_token&&s.refresh_token){
+        sessionStorage.setItem('flecap_portal_auth',JSON.stringify({
+          access_token:s.access_token,
+          refresh_token:s.refresh_token,
+          ts:Date.now()
+        }));
+      }
+    }
   }catch(e){}
   location.href=routeFor(p)
 });
