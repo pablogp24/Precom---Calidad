@@ -1404,7 +1404,7 @@ window.FLECAP_RELEASE_STARTUP_GATE=release;
  if(!pid||q.get('from')!=='portal')return;
  try{
    const h=JSON.parse(sessionStorage.getItem('flecap_portal_handoff')||'null');
-   if(h&&String(h.project)===String(pid)&&Date.now()-Number(h.ts||0)<120000){
+   if(h&&String(h.project)===String(pid)&&Date.now()-Number(h.ts||0)<300000){
      window.__FLECAP_PORTAL_ENTRY__=h;
      localStorage.setItem('flecap_active_project_v1',pid);
      const s=document.createElement('style');s.id='flecapPortalDirectCss';
@@ -6956,30 +6956,17 @@ function refreshOnlineAdminUi(){
    if(session){
      await bootSession(session);
    }else{
-     // Los usuarios viewer no tienen sesión Auth por diseño. El portal deja un
-     // handoff temporal; se vuelve a validar contra allowed_users antes de abrir.
+     // Entrada desde el portal: sirve para admin, editor y viewer.
+     // No dependemos de que Supabase haya restaurado Auth antes de cambiar de ruta.
      let h=null;
      try{h=JSON.parse(sessionStorage.getItem('flecap_portal_handoff')||'null')}catch(e){}
      const requested=new URLSearchParams(location.search).get('project')||'';
-     const fresh=h&&Date.now()-Number(h.ts||0)<120000&&String(h.project||'')===String(requested);
-     if(fresh&&String(h.role||'viewer').toLowerCase()==='viewer'){
-       const access=await allowed(String(h.email||'').toLowerCase());
-       if(access.allowed&&String(access.role||'viewer').toLowerCase()==='viewer'){
-         currentEmail=String(h.email||'').toLowerCase();
-         window.PECOM_CURRENT_EMAIL=currentEmail;
-         applyPecomRole('viewer');
-         try{localStorage.setItem('flecap_last_role','viewer')}catch(_e){}
-         if(window.FLECAP_PROJECT_GOVERNANCE&&typeof window.FLECAP_PROJECT_GOVERNANCE.prepareForUser==='function'){
-           await window.FLECAP_PROJECT_GOVERNANCE.prepareForUser(sb,currentEmail,'viewer');
-         }
-         window.cloudReady=true;
-         await loadRemote();
-         document.dispatchEvent(new CustomEvent('flecap:remote-ready'));
-         refreshOnlineAdminUi();
-         loginEl().style.display='none';
-         msgEl().textContent='';
-         status('☁ Solo lectura · sincronizado');
-       }else await bootSession(null);
+     const fromPortal=new URLSearchParams(location.search).get('from')==='portal';
+     const fresh=!!(fromPortal&&h&&h.email&&Date.now()-Number(h.ts||0)<300000&&String(h.project||'')===String(requested));
+     if(fresh){
+       window.__FLECAP_PORTAL_ENTRY__=h;
+       localStorage.setItem('flecap_active_project_v1',requested);
+       await bootSession(null);
      }else{
        await bootSession(null);
      }
