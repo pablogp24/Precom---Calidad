@@ -2,23 +2,19 @@
 
 <html lang="es">
 <head>
-<script id="flecapPortalProjectBootstrap">
+<script id="flecap-portal-project-bootstrap-final">
 (function(){
   try{
     var q=new URLSearchParams(location.search);
     var pid=String(q.get('project')||'').trim();
-    if(!pid)return;
-    /* Fijar la obra solicitada ANTES de que arranque FLECAP. No recarga ni llama switchTo. */
-    localStorage.setItem('flecap_active_project_v1',pid);
-    var ph=JSON.parse(localStorage.getItem('flecap_portal_handoff')||'null');
-    if(ph && String(ph.project||'')===pid){
-      sessionStorage.setItem('flecap_portal_handoff',JSON.stringify(ph));
+    if(pid && q.get('from')==='portal'){
+      localStorage.setItem('flecap_active_project_v1',pid);
+      localStorage.setItem('flecap_project_switch_pending_v1',pid);
     }
-    var pa=JSON.parse(localStorage.getItem('flecap_portal_auth')||'null');
-    if(pa)sessionStorage.setItem('flecap_portal_auth',JSON.stringify(pa));
-  }catch(e){console.warn('FLECAP portal bootstrap',e);}
+  }catch(e){console.warn('FLECAP portal project bootstrap',e)}
 })();
 </script>
+
 <meta charset="utf-8"/>
 <meta content="width=device-width,initial-scale=1,viewport-fit=cover" name="viewport"/>
 <meta content="#071019" name="theme-color"/>
@@ -1409,30 +1405,6 @@ var splashIndex=0,splashTimer=setInterval(function(){if(released){clearInterval(
 window.FLECAP_RELEASE_STARTUP_GATE=release;
 })();
 </script>
-
-<!-- FLECAP · integración portal sobre base estable 2026-09-25 -->
-<script id="flecap-portal-project-entry-stable-v1">
-(function(){
-  try{
-    var q=new URLSearchParams(location.search);
-    var pid=String(q.get('project')||'').trim();
-    if(!pid)return;
-
-    /* Se fija la obra ANTES de que arranque Supabase/FLECAP.
-       No se borra ni inicializa ningún estado existente. */
-    localStorage.setItem('flecap_active_project_v1',pid);
-
-    /* El portal deja esta identidad como ayuda visual. La identidad canónica
-       se vuelve a obtener del catálogo/proyecto existente. */
-    var h=null;
-    try{h=JSON.parse(localStorage.getItem('flecap_portal_handoff')||'null')}catch(_e){}
-    if(h && String(h.project||'')===pid){
-      window.__FLECAP_PORTAL_ENTRY__=h;
-    }
-  }catch(e){console.warn('FLECAP portal entry',e)}
-})();
-</script>
-
 </head>
 <body>
 <div id="flecapStartupSplash" aria-live="polite">
@@ -3906,91 +3878,6 @@ html:not(.pecom-light) #recordModal .filebox{background:#132333!important;color:
 @media(max-width:800px){#flecapReferenceTopControls #pecomThemeToggle{width:58px!important;min-width:58px!important;height:34px!important;padding:0 6px!important}}
 </style>
 <div id="flecapBuildDispatch" style="position:fixed;right:12px;bottom:12px;z-index:999999;background:#7c3aed;color:white;padding:6px 10px;border-radius:8px;font:700 11px Arial;box-shadow:0 4px 16px #0005">FLECAP BUILD DESPACHO DIRECTO 17-09-2026</div>
-
-<script id="flecap-portal-navigation-stable-v1">
-(function(){
-  var PORTAL='/portal-nuevo.html';
-
-  function addBackButton(){
-    if(document.getElementById('flecapBackToProjects'))return;
-    var btn=document.createElement('button');
-    btn.id='flecapBackToProjects';
-    btn.type='button';
-    btn.className='btn';
-    btn.innerHTML='← Cambiar obra';
-    btn.title='Volver al portal de obras';
-    btn.style.cssText='display:inline-flex!important;align-items:center!important;justify-content:center!important;min-height:34px!important;padding:0 12px!important;border-radius:8px!important;font-weight:800!important;white-space:nowrap!important;';
-
-    btn.addEventListener('click',function(){
-      try{
-        /* Guardar sólo la copia local de la obra actual; no cerrar sesión. */
-        var pid=localStorage.getItem('flecap_active_project_v1')||'legacy';
-        if(typeof state!=='undefined' && state){
-          var payload=window.FLECAP_compactStateForLocalStorage
-            ? window.FLECAP_compactStateForLocalStorage(state):state;
-          localStorage.setItem('flecap_project_state::'+pid,JSON.stringify(payload));
-        }
-      }catch(_e){}
-      location.href=PORTAL;
-    });
-
-    var tools=document.querySelector('#fxAppTopbar .fx-toptools');
-    if(tools){ tools.insertBefore(btn,tools.firstChild); return; }
-
-    var controls=document.getElementById('flecapReferenceTopControls');
-    if(controls){ controls.insertBefore(btn,controls.firstChild); return; }
-
-    btn.style.cssText += 'position:fixed!important;right:18px!important;bottom:18px!important;z-index:130000!important;background:#0f789d!important;color:white!important;border:1px solid #39b9d5!important;';
-    document.body.appendChild(btn);
-  }
-
-  function normalizePortalEntry(){
-    try{
-      var q=new URLSearchParams(location.search);
-      var pid=String(q.get('project')||'').trim();
-      if(!pid)return;
-
-      /* Nunca crear blank() desde la navegación del portal.
-         loadRemote() de la base estable recupera app_state de este ID. */
-      localStorage.setItem('flecap_active_project_v1',pid);
-
-      /* El selector interno queda sólo como indicador de la obra activa.
-         La navegación entre obras se hace desde el portal. */
-      document.querySelectorAll('.flecapProjectSelect').forEach(function(sel){
-        sel.disabled=true;
-        sel.title='Para cambiar de obra usá “Cambiar obra”';
-      });
-    }catch(e){}
-  }
-
-  function start(){
-    normalizePortalEntry();
-    addBackButton();
-    setTimeout(addBackButton,400);
-    setTimeout(addBackButton,1200);
-  }
-
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});
-  else start();
-})();
-</script>
-<style id="flecap-portal-navigation-stable-css">
-#flecapBackToProjects{
-  background:#0c3145!important;
-  color:#eef8fb!important;
-  border:1px solid #2f6178!important;
-}
-#flecapBackToProjects:hover{background:#12455f!important}
-html.pecom-light #flecapBackToProjects{
-  background:#e8f2f7!important;
-  color:#15364a!important;
-  border-color:#a8c2d1!important;
-}
-@media(max-width:800px){
-  #flecapBackToProjects{width:100%!important;margin:6px 0!important}
-}
-</style>
-
 </body></html>`);
  popup.document.close();
 }
@@ -6870,12 +6757,6 @@ function refreshOnlineAdminUi(){
        refreshOnlineAdminUi();
        status("☁ Sincronizado");
        loginEl().style.display="none";
-       try{
-         sessionStorage.removeItem('flecap_portal_auth');
-         sessionStorage.removeItem('flecap_portal_handoff');
-         localStorage.removeItem('flecap_portal_auth');
-         localStorage.removeItem('flecap_portal_handoff');
-       }catch(_e){}
        msgEl().textContent="";
      }catch(e){
        console.error("Error abriendo PECOM:",e);
@@ -6955,78 +6836,27 @@ function refreshOnlineAdminUi(){
    sb=window.supabase.createClient(cfg.supabaseUrl,cfg.supabaseAnonKey);
    window.PECOM_SUPABASE=sb;
 
-   // Entrada desde el portal: restaurar explícitamente la sesión Supabase
-   // antes de ejecutar bootSession(). El portal y la APP siguen usando una
-   // única autenticación; no se modifica ni se crea el estado de la obra.
+   // Entrada desde el portal: restaurar explícitamente la MISMA sesión antes
+   // de que el login interno decida si debe mostrarse. No recarga ni hace switchTo.
    try{
-     const raw=localStorage.getItem('flecap_portal_auth');
-     const hand=raw?JSON.parse(raw):null;
-     if(hand && hand.access_token && hand.refresh_token &&
-        Date.now()-Number(hand.ts||0) < 5*60*1000){
-       const restored=await sb.auth.setSession({
-         access_token:hand.access_token,
-         refresh_token:hand.refresh_token
-       });
-       if(restored && restored.error){
-         console.warn('FLECAP: no se pudo restaurar la sesión del portal',restored.error);
+     const q=new URLSearchParams(location.search);
+     if(q.get('from')==='portal'){
+       const pid=String(q.get('project')||'').trim();
+       if(pid){
+         localStorage.setItem('flecap_active_project_v1',pid);
+         localStorage.removeItem('flecap_project_switch_pending_v1');
+       }
+       const raw=localStorage.getItem('flecap_portal_auth');
+       const pa=raw?JSON.parse(raw):null;
+       if(pa && pa.access_token && pa.refresh_token && (!pa.ts || Date.now()-Number(pa.ts)<10*60*1000)){
+         const restored=await sb.auth.setSession({access_token:pa.access_token,refresh_token:pa.refresh_token});
+         if(restored && restored.error)console.warn('No se pudo restaurar la sesión del portal',restored.error);
        }
      }
-   }catch(e){
-     console.warn('FLECAP: sesión del portal no disponible',e);
-   }
+   }catch(e){console.warn('FLECAP portal session bootstrap',e)}
 
-   let {data:{session}}=await sb.auth.getSession();
-
-   // Respaldo robusto para navegación Portal -> Obra:
-   // si el SDK todavía no expuso la sesión, usar el handoff de corta duración
-   // para abrir la obra sin mostrar un segundo login. La autorización se vuelve
-   // a comprobar contra allowed_users y la carga usa el Project ID ya fijado.
-   if(!session){
-     let ph=null;
-     try{ph=JSON.parse(localStorage.getItem('flecap_portal_handoff')||'null')}catch(_e){}
-     const requested=new URLSearchParams(location.search).get('project')||'';
-     const valid=ph && ph.email && String(ph.project||'')===String(requested) &&
-                 Date.now()-Number(ph.ts||0)<5*60*1000;
-     if(valid){
-       try{
-         currentEmail=String(ph.email).toLowerCase();
-         window.PECOM_CURRENT_EMAIL=currentEmail;
-         const access=await allowed(currentEmail);
-         if(access.allowed){
-           applyPecomRole(access.role||ph.role||'viewer');
-           try{localStorage.setItem('flecap_last_role',access.role||ph.role||'viewer')}catch(_e){}
-           if(window.FLECAP_PROJECT_GOVERNANCE && typeof window.FLECAP_PROJECT_GOVERNANCE.prepareForUser==='function'){
-             await window.FLECAP_PROJECT_GOVERNANCE.prepareForUser(sb,currentEmail,access.role||ph.role||'viewer');
-           }
-           window.cloudReady=true;
-           msgEl().textContent='Cargando la versión actualizada de la obra...';
-           status('☁ Cargando datos...');
-           await loadRemote();
-           document.dispatchEvent(new CustomEvent('flecap:remote-ready'));
-           refreshOnlineAdminUi();
-           try{renderAll()}catch(_e){}
-           loginEl().style.display='none';
-           msgEl().textContent='';
-           status('☁ Sincronizado');
-           localStorage.removeItem('flecap_portal_auth');
-           localStorage.removeItem('flecap_portal_handoff');
-         }else{
-           await bootSession(null);
-         }
-       }catch(e){
-         console.error('FLECAP: acceso desde portal',e);
-         // No bloquear la aplicación por un error secundario de sincronización.
-         try{renderAll()}catch(_e){}
-         loginEl().style.display='none';
-         msgEl().textContent='';
-         status('☁ Sincronización pendiente');
-       }
-     }else{
-       await bootSession(null);
-     }
-   }else{
-     await bootSession(session);
-   }
+   const {data:{session}}=await sb.auth.getSession();
+   await bootSession(session);
 
  sb.auth.onAuthStateChange(async(event,session)=>{
    if(event==="PASSWORD_RECOVERY"){
