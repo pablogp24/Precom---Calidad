@@ -6784,6 +6784,7 @@ function refreshOnlineAdminUi(){
        refreshOnlineAdminUi();
        status("☁ Sincronizado");
        loginEl().style.display="none";
+       try{sessionStorage.removeItem('flecap_portal_handoff')}catch(_e){}
        msgEl().textContent="";
      }catch(e){
        console.error("Error abriendo PECOM:",e);
@@ -6862,8 +6863,45 @@ function refreshOnlineAdminUi(){
    }
    sb=window.supabase.createClient(cfg.supabaseUrl,cfg.supabaseAnonKey);
    window.PECOM_SUPABASE=sb;
-   const {data:{session}}=await sb.auth.getSession();
-   await bootSession(session);
+   let session=null;
+   // La sesión de Supabase usa localStorage del mismo dominio; damos un margen
+   // para que quede disponible después de navegar desde el portal.
+   for(let i=0;i<8&&!session;i++){
+     const res=await sb.auth.getSession();
+     session=res&&res.data&&res.data.session;
+     if(!session)await new Promise(r=>setTimeout(r,120));
+   }
+   if(session){
+     await bootSession(session);
+   }else{
+     // Los usuarios viewer no tienen sesión Auth por diseño. El portal deja un
+     // handoff temporal; se vuelve a validar contra allowed_users antes de abrir.
+     let h=null;
+     try{h=JSON.parse(sessionStorage.getItem('flecap_portal_handoff')||'null')}catch(e){}
+     const requested=new URLSearchParams(location.search).get('project')||'';
+     const fresh=h&&Date.now()-Number(h.ts||0)<120000&&String(h.project||'')===String(requested);
+     if(fresh&&String(h.role||'viewer').toLowerCase()==='viewer'){
+       const access=await allowed(String(h.email||'').toLowerCase());
+       if(access.allowed&&String(access.role||'viewer').toLowerCase()==='viewer'){
+         currentEmail=String(h.email||'').toLowerCase();
+         window.PECOM_CURRENT_EMAIL=currentEmail;
+         applyPecomRole('viewer');
+         try{localStorage.setItem('flecap_last_role','viewer')}catch(_e){}
+         if(window.FLECAP_PROJECT_GOVERNANCE&&typeof window.FLECAP_PROJECT_GOVERNANCE.prepareForUser==='function'){
+           await window.FLECAP_PROJECT_GOVERNANCE.prepareForUser(sb,currentEmail,'viewer');
+         }
+         window.cloudReady=true;
+         await loadRemote();
+         document.dispatchEvent(new CustomEvent('flecap:remote-ready'));
+         refreshOnlineAdminUi();
+         loginEl().style.display='none';
+         msgEl().textContent='';
+         status('☁ Solo lectura · sincronizado');
+       }else await bootSession(null);
+     }else{
+       await bootSession(null);
+     }
+   }
 
  sb.auth.onAuthStateChange(async(event,session)=>{
    if(event==="PASSWORD_RECOVERY"){
