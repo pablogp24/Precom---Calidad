@@ -1410,6 +1410,20 @@ window.FLECAP_RELEASE_STARTUP_GATE=release;
     var h=null;
     try{h=JSON.parse(localStorage.getItem('flecap_portal_handoff')||'null')}catch(_e){}
     if(h && String(h.project||'')===pid){
+      /* IMPORTANTE: el core estable ejecuta migrate() antes de consultar Supabase.
+         Si la obra elegida no está todavía en el catálogo local, migrate() vuelve
+         a la obra anterior. Registramos SOLO la identidad de la obra solicitada;
+         no tocamos sus datos ni creamos estado. */
+      try{
+        var cat=JSON.parse(localStorage.getItem('flecap_projects_v1')||'[]');
+        if(!Array.isArray(cat))cat=[];
+        var entry={id:pid,company:String(h.company||'PECOM'),project:String(h.name||h.projectName||'Proyecto'),createdAt:String(h.created_at||new Date().toISOString())};
+        var ix=cat.findIndex(function(x){return String(x&&x.id||'')===pid});
+        if(ix>=0)cat[ix]=Object.assign({},cat[ix],entry);else cat.push(entry);
+        localStorage.setItem('flecap_projects_v1',JSON.stringify(cat));
+        localStorage.setItem('flecap_project_identity::'+pid,JSON.stringify({company:entry.company,project:entry.project}));
+        localStorage.setItem('flecap_project_identity_v1',JSON.stringify({company:entry.company,project:entry.project}));
+      }catch(_catalogErr){console.warn('FLECAP portal catalog',_catalogErr)}
       window.__FLECAP_PORTAL_ENTRY__=h;
     }
   }catch(e){console.warn('FLECAP portal entry',e)}
@@ -6830,16 +6844,7 @@ function refreshOnlineAdminUi(){
        }
        applyPecomRole(access.role);
        if(window.FLECAP_PROJECT_GOVERNANCE && typeof window.FLECAP_PROJECT_GOVERNANCE.prepareForUser==="function"){
-         const __projects=await window.FLECAP_PROJECT_GOVERNANCE.prepareForUser(sb,currentEmail,access.role);
-         // Portal -> obra: usar EXACTAMENTE el mismo switchTo que usa el selector interno.
-         // Se ejecuta recién después de autenticar y conocer las obras autorizadas.
-         const __requested=String(new URLSearchParams(location.search).get('project')||'').trim();
-         const __allowed=__requested && Array.isArray(__projects) && __projects.some(p=>String(p.id)===__requested);
-         const __active=localStorage.getItem('flecap_active_project_v1')||'legacy';
-         if(__allowed && __active!==__requested && window.FLECAP_PROJECTS && typeof window.FLECAP_PROJECTS.switchTo==='function'){
-           window.FLECAP_PROJECTS.switchTo(__requested);
-           return;
-         }
+         await window.FLECAP_PROJECT_GOVERNANCE.prepareForUser(sb,currentEmail,access.role);
        }
        try{localStorage.setItem('flecap_last_role',access.role||'viewer')}catch(e){}
        refreshOnlineAdminUi();
@@ -6988,14 +6993,7 @@ function refreshOnlineAdminUi(){
            applyPecomRole(access.role||ph.role||'viewer');
            try{localStorage.setItem('flecap_last_role',access.role||ph.role||'viewer')}catch(_e){}
            if(window.FLECAP_PROJECT_GOVERNANCE && typeof window.FLECAP_PROJECT_GOVERNANCE.prepareForUser==='function'){
-             const __projects=await window.FLECAP_PROJECT_GOVERNANCE.prepareForUser(sb,currentEmail,access.role||ph.role||'viewer');
-             const __requested=String(new URLSearchParams(location.search).get('project')||'').trim();
-             const __allowed=__requested && Array.isArray(__projects) && __projects.some(p=>String(p.id)===__requested);
-             const __active=localStorage.getItem('flecap_active_project_v1')||'legacy';
-             if(__allowed && __active!==__requested && window.FLECAP_PROJECTS && typeof window.FLECAP_PROJECTS.switchTo==='function'){
-               window.FLECAP_PROJECTS.switchTo(__requested);
-               return;
-             }
+             await window.FLECAP_PROJECT_GOVERNANCE.prepareForUser(sb,currentEmail,access.role||ph.role||'viewer');
            }
            window.cloudReady=true;
            msgEl().textContent='Cargando la versión actualizada de la obra...';
