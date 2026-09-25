@@ -1394,49 +1394,50 @@ window.FLECAP_RELEASE_STARTUP_GATE=release;
 </script>
 
 <!-- FLECAP · integración portal sobre base estable 2026-09-25 -->
-<script id="flecap-portal-project-entry-stable-v1">
+<script id="flecap-portal-project-entry-stable-v2">
 (function(){
   try{
     var q=new URLSearchParams(location.search);
     var pid=String(q.get('project')||'').trim();
     if(!pid)return;
 
-    /* Se fija la obra ANTES de que arranque Supabase/FLECAP.
-       No se borra ni inicializa ningún estado existente. */
-    localStorage.setItem('flecap_active_project_v1',pid);
-
-    /* El portal deja esta identidad como ayuda visual. La identidad canónica
-       se vuelve a obtener del catálogo/proyecto existente. */
     var h=null;
     try{h=JSON.parse(localStorage.getItem('flecap_portal_handoff')||'null')}catch(_e){}
-    if(h && String(h.project||'')===pid){
+    var valid=h && String(h.project||'')===pid &&
+              Date.now()-Number(h.ts||0)<5*60*1000;
+
+    // El proyecto elegido en el portal tiene prioridad ABSOLUTA.
+    localStorage.setItem('flecap_active_project_v1',pid);
+    localStorage.setItem('flecap_project_switch_pending_v1',pid);
+
+    // Muy importante: el sistema estable ejecuta migrate() antes de consultar
+    // Supabase. Si el proyecto aún no está en el catálogo local, migrate()
+    // vuelve a la última obra. Por eso incorporamos aquí la obra seleccionada
+    // antes de que arranque FLECAP.
+    var list=[];
+    try{list=JSON.parse(localStorage.getItem('flecap_projects_v1')||'[]')||[]}catch(_e){list=[]}
+    if(!list.some(function(p){return String(p.id)===pid})){
+      list.push({
+        id:pid,
+        company:valid?String(h.company||'PECOM'):'PECOM',
+        project:valid?String(h.name||'Proyecto'):'Proyecto',
+        createdAt:new Date().toISOString()
+      });
+      localStorage.setItem('flecap_projects_v1',JSON.stringify(list));
+    }
+
+    if(valid){
+      var ident={company:String(h.company||'PECOM'),project:String(h.name||'Proyecto')};
+      localStorage.setItem('flecap_project_identity::'+pid,JSON.stringify(ident));
+      localStorage.setItem('flecap_project_identity_v1',JSON.stringify(ident));
       window.__FLECAP_PORTAL_ENTRY__=h;
     }
-  }catch(e){console.warn('FLECAP portal entry',e)}
+  }catch(e){console.warn('FLECAP portal project bootstrap',e)}
 })();
 </script>
 
 </head>
 <body>
-
-<script id="flecap-project-url-priority-v2">
-(function(){
-  try{
-    const q=new URLSearchParams(location.search);
-    const pid=String(q.get('project')||'').trim();
-    if(!pid)return;
-
-    // La obra elegida en el portal manda siempre sobre la última obra recordada.
-    localStorage.setItem('flecap_active_project_v1',pid);
-    sessionStorage.setItem('flecap_forced_project_from_portal',pid);
-
-    // Si existe configuración de proyecto activa en memoria, forzarla también
-    // antes de que la UI superior termine de renderizar.
-    window.__FLECAP_FORCED_PROJECT_ID__=pid;
-  }catch(e){console.warn('FLECAP project priority',e)}
-})();
-</script>
-
 <div id="flecapStartupSplash" aria-live="polite">
   <div class="flecap-splash-card">
     <div class="flecap-splash-mark">FLECAP</div>
@@ -3994,84 +3995,31 @@ html.pecom-light #flecapBackToProjects{
 </style>
 
 
-<script id="flecap-single-project-navigation-v2">
+<script id="flecap-portal-back-button-v3">
 (function(){
-  const PORTAL='/portal-nuevo.html';
-
-  function enforceProject(){
-    try{
-      const pid=sessionStorage.getItem('flecap_forced_project_from_portal') ||
-                new URLSearchParams(location.search).get('project');
-      if(!pid)return;
-      localStorage.setItem('flecap_active_project_v1',pid);
-
-      // Select the matching option if the legacy selector exists, but do not
-      // allow it to be used for navigation.
-      document.querySelectorAll('.flecapProjectSelect').forEach(function(sel){
-        let matched=false;
-        Array.from(sel.options||[]).forEach(function(o){
-          if(String(o.value)===String(pid)){sel.value=o.value;matched=true;}
-        });
-        sel.disabled=true;
-        sel.style.pointerEvents='none';
-        sel.style.opacity='.85';
-        sel.title='La obra se selecciona desde el portal FLECAP';
-      });
-    }catch(e){}
+  function add(){
+    if(document.getElementById('flecapPortalBackBtn'))return;
+    var b=document.createElement('button');
+    b.id='flecapPortalBackBtn'; b.type='button'; b.textContent='← Obras';
+    b.title='Volver al portal de obras';
+    b.onclick=function(){location.href='/portal-nuevo.html'};
+    var host=document.querySelector('#fxAppTopbar .fx-toptools') ||
+             document.getElementById('flecapReferenceTopControls');
+    if(host) host.insertBefore(b,host.firstChild);
+    else { b.className='flecapPortalBackFloat'; document.body.appendChild(b); }
   }
-
-  function installPortalButton(){
-    let btn=document.getElementById('flecapBackToProjects');
-    if(!btn){
-      btn=document.createElement('button');
-      btn.id='flecapBackToProjects';
-      btn.type='button';
-      btn.textContent='← Obras';
-      btn.title='Volver al portal de obras';
-      btn.addEventListener('click',function(){ location.href=PORTAL; });
-      const host=document.querySelector('#fxAppTopbar .fx-toptools') ||
-                 document.getElementById('flecapReferenceTopControls');
-      if(host) host.insertBefore(btn,host.firstChild);
-      else document.body.appendChild(btn);
-    }else{
-      btn.textContent='← Obras';
-      btn.onclick=function(){ location.href=PORTAL; };
-    }
-  }
-
-  function hideLegacyChangeLabel(){
-    // Hide only the old "CAMBIAR OBRA" control block, not the project name elsewhere.
-    document.querySelectorAll('.flecapProjectSelect').forEach(function(sel){
-      const parent=sel.parentElement;
-      if(parent){
-        const txt=(parent.textContent||'').toUpperCase();
-        if(txt.includes('CAMBIAR OBRA')) parent.style.display='none';
-      }
-    });
-  }
-
-  function apply(){
-    enforceProject();
-    installPortalButton();
-    hideLegacyChangeLabel();
-  }
-
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',apply,{once:true});
-  else apply();
-
-  // The stable app rebuilds parts of the topbar; re-apply after those renders.
-  [250,700,1500,3000].forEach(ms=>setTimeout(apply,ms));
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',add,{once:true});else add();
+  setTimeout(add,700); setTimeout(add,1800);
 })();
 </script>
-<style id="flecap-single-project-navigation-css">
-#flecapBackToProjects{
-  display:inline-flex!important;align-items:center!important;justify-content:center!important;
-  min-height:34px!important;padding:0 13px!important;border-radius:9px!important;
-  background:#0c3145!important;color:#eef8fb!important;border:1px solid #2f6178!important;
-  font-weight:800!important;cursor:pointer!important;white-space:nowrap!important;z-index:120000!important;
+<style id="flecap-portal-back-button-css-v3">
+#flecapPortalBackBtn,.flecapPortalBackFloat{
+ display:inline-flex!important;align-items:center!important;justify-content:center!important;
+ min-height:34px!important;padding:0 13px!important;border-radius:9px!important;
+ background:#0c3145!important;color:#eef8fb!important;border:1px solid #2f6178!important;
+ font-weight:800!important;cursor:pointer!important;white-space:nowrap!important
 }
-#flecapBackToProjects:hover{background:#12455f!important}
-@media(max-width:800px){#flecapBackToProjects{min-height:38px!important}}
+.flecapPortalBackFloat{position:fixed!important;right:18px!important;bottom:18px!important;z-index:130000!important}
 </style>
 
 </body></html>`);
