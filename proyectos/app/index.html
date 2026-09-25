@@ -8797,12 +8797,11 @@ html.pecom-light .reg.present{background:#f3f8fd!important}
 })();
 </script>
 <style id="flecap-fixed-project-switcher-css">
-#flecapFixedProjectSwitcher{position:absolute;top:20px;left:420px;z-index:1000;display:flex;align-items:center;gap:5px;padding:4px 6px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#172033;box-shadow:0 2px 8px #0002}
-#flecapPortalBackBtn{height:26px;border:1px solid #0b63b6;border-radius:7px;background:#0b63b6;color:#fff;padding:2px 10px;font:900 9px/1 system-ui;white-space:nowrap;cursor:pointer}#flecapPortalBackBtn:hover{background:#084f91}
-#flecapFixedProjectSwitcher label{font:800 8px/1 system-ui;white-space:nowrap}
-#flecapFixedProjectSelect{min-width:190px;max-width:340px;height:26px;border:1px solid #94a3b8;border-radius:7px;background:#fff;color:#111827;padding:2px 6px;font:700 10px system-ui}
+#flecapFixedProjectSwitcher{position:absolute;top:16px;left:420px;z-index:1000;display:flex;align-items:center;gap:10px;padding:5px 8px;border:1px solid #cbd5e1;border-radius:9px;background:#fff;color:#172033;box-shadow:0 2px 8px #0002}
+#flecapPortalBackBtn{height:30px;border:1px solid #0b63b6;border-radius:7px;background:#0b63b6;color:#fff;padding:2px 12px;font:900 9px/1 system-ui;white-space:nowrap;cursor:pointer}#flecapPortalBackBtn:hover{background:#084f91}
+#flecapFixedProjectName{display:flex;align-items:center;min-height:30px;min-width:220px;max-width:420px;padding:0 10px;border-left:1px solid #d7e0e7;color:#173b62;font:900 10px/1.2 system-ui;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #flecapProjectBar{display:none!important}
-@media(max-width:850px){header{padding-bottom:55px!important}#flecapFixedProjectSwitcher{position:absolute;top:auto;left:12px;right:12px;bottom:8px}#flecapFixedProjectSelect{min-width:0;max-width:none;flex:1}}
+@media(max-width:850px){header{padding-bottom:55px!important}#flecapFixedProjectSwitcher{position:absolute;top:auto;left:12px;right:12px;bottom:8px}#flecapFixedProjectName{min-width:0;max-width:none;flex:1}}
 </style>
 <script id="flecap-fixed-project-switcher-js">
 (function(){
@@ -8814,22 +8813,14 @@ html.pecom-light .reg.present{background:#f3f8fd!important}
    var box=document.getElementById('flecapFixedProjectSwitcher');
    if(!box){
      box=document.createElement('div');box.id='flecapFixedProjectSwitcher';
-     box.innerHTML='<button type="button" id="flecapPortalBackBtn" aria-label="Volver a obras">← OBRAS</button><label for="flecapFixedProjectSelect">CAMBIAR OBRA</label><select id="flecapFixedProjectSelect" aria-label="Cambiar obra activa"></select>';
+     box.innerHTML='<button type="button" id="flecapPortalBackBtn" aria-label="Volver a obras">← OBRAS</button><div id="flecapFixedProjectName" aria-label="Obra activa"></div>';
      header.appendChild(box);
      var portalBtn=box.querySelector('#flecapPortalBackBtn');if(portalBtn)portalBtn.addEventListener('click',function(){location.href='/portal-nuevo.html'});
-     box.querySelector('select').addEventListener('change',function(){
-       var pid=this.value;if(!pid||pid===active())return;
-       if(window.FLECAP_PROJECTS&&typeof window.FLECAP_PROJECTS.switchTo==='function')window.FLECAP_PROJECTS.switchTo(pid);
-       else{localStorage.setItem('flecap_active_project_v1',pid);location.reload()}
-     });
    }
-   var sel=document.getElementById('flecapFixedProjectSelect'),items=list(),pid=active();
-   var signature=items.map(function(p){return p.id+'|'+p.company+'|'+p.project}).join(';;');
-   if(sel.dataset.signature!==signature){
-     sel.innerHTML='';items.forEach(function(p){var o=document.createElement('option');o.value=p.id;o.textContent=(p.company?p.company+' · ':'')+p.project;o.selected=p.id===pid;sel.appendChild(o)});
-     sel.dataset.signature=signature;
-   }
-   if(sel.value!==pid&&items.some(function(p){return p.id===pid}))sel.value=pid;
+   var name=document.getElementById('flecapFixedProjectName'),items=list(),pid=active();
+   var p=items.find(function(x){return String(x.id)===String(pid)});
+   var txt=p?((p.company?p.company+' · ':'')+(p.project||'Obra activa')):'Obra activa';
+   if(name&&name.textContent!==txt)name.textContent=txt;
  }
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',ensure,{once:true});else ensure();
  setTimeout(ensure,300);setInterval(ensure,5000);
