@@ -1385,8 +1385,11 @@ window.addEventListener('offline',release,{once:true});
 /* Salvaguarda: una falla de autenticación/red no puede dejar la interfaz oculta
    indefinidamente. El login sigue visible durante esta espera. */
 setTimeout(function(){
-  if(!released && window.cloudReady===false)release();
-},8000);
+  if(!released){
+    console.warn('FLECAP: liberación de seguridad del arranque');
+    release();
+  }
+},12000);
 var splashMessages=['Cargando última versión de la obra…','Sincronizando matriz y registros…','Preparando seguimiento y trazabilidad…','Actualizando indicadores de avance…'];
 var splashIndex=0,splashTimer=setInterval(function(){if(released){clearInterval(splashTimer);return}var el=document.getElementById('flecapStartupStatus');if(el){splashIndex=(splashIndex+1)%splashMessages.length;el.textContent=splashMessages[splashIndex]}},1400);
 window.FLECAP_RELEASE_STARTUP_GATE=release;
@@ -6770,11 +6773,43 @@ function refreshOnlineAdminUi(){
        window.PECOM_CURRENT_EMAIL=currentEmail;
        applyPecomRole(String(pe.role||"viewer"));
        loginEl().style.display="none";
-       status("☁ Acceso desde portal");
+       status("☁ Acceso desde portal · cargando obra");
+       try{
+         const access=await withTimeout(allowed(currentEmail),8000,'Tiempo agotado validando usuario');
+         if(!access.allowed)throw new Error('Este correo no está autorizado.');
+         applyPecomRole(access.role||String(pe.role||'viewer'));
+         try{localStorage.setItem('flecap_last_role',access.role||pe.role||'viewer')}catch(_e){}
+         if(window.FLECAP_PROJECT_GOVERNANCE&&typeof window.FLECAP_PROJECT_GOVERNANCE.prepareForUser==='function'){
+           await withTimeout(window.FLECAP_PROJECT_GOVERNANCE.prepareForUser(sb,currentEmail,access.role||pe.role||'viewer'),8000,'Tiempo agotado preparando proyecto');
+         }
+         window.cloudReady=true;
+         await withTimeout(loadRemote(),15000,'Tiempo agotado cargando la obra');
+         status("☁ Sincronizado");
+       }catch(e){
+         console.warn('FLECAP: apertura desde portal con contingencia local',e);
+         window.cloudReady=false;
+         try{
+           const pid=activeProjectId();
+           let localProject=null;
+           if(window.FLECAP_LARGE_STATE&&typeof window.FLECAP_LARGE_STATE.load==='function'){
+             localProject=await Promise.race([window.FLECAP_LARGE_STATE.load(pid),new Promise(r=>setTimeout(()=>r(null),2500))]);
+           }
+           if(!localProject)try{localProject=JSON.parse(localStorage.getItem('flecap_project_state::'+pid)||localStorage.getItem(KEY)||'null')}catch(_e){}
+           if(localProject)state=window.FLECAP_expandStateFromLocalStorage?window.FLECAP_expandStateFromLocalStorage(localProject,pid):localProject;
+           try{renderAll()}catch(_e){}
+           status("☁ Abierto · sincronización pendiente");
+         }catch(_e){}
+       }finally{
+         document.dispatchEvent(new CustomEvent('flecap:remote-ready'));
+         try{if(window.FLECAP_RELEASE_STARTUP_GATE)window.FLECAP_RELEASE_STARTUP_GATE()}catch(_e){}
+         loginEl().style.display="none";
+         setTimeout(function(){try{const b=document.querySelector('#nav [data-page="control"],#flecapModernSidebar [data-go="control"]');if(b)b.click()}catch(_e){}},150);
+       }
        return;
      }
      loginEl().style.display="flex";
      status("☁ Sin sesión");
+     try{if(window.FLECAP_RELEASE_STARTUP_GATE)window.FLECAP_RELEASE_STARTUP_GATE()}catch(_e){}
      return;
    }
    const email=session.user.email.toLowerCase();
@@ -6811,9 +6846,8 @@ function refreshOnlineAdminUi(){
        msgEl().textContent="Cargando la versión actualizada de la obra...";
        status("☁ Cargando datos...");
        await new Promise(r=>setTimeout(r,0));
-       await loadRemote();
-       // Seguimiento de Piping conserva su lógica, pero adopta la copia central
-       // antes de mostrar la aplicación para evitar el salto visual de datos viejos.
+       await withTimeout(loadRemote(),15000,'Tiempo agotado cargando la obra');
+       // La interfaz se libera sólo después de intentar adoptar la copia central.
        document.dispatchEvent(new CustomEvent("flecap:remote-ready"));
        refreshOnlineAdminUi();
        status("☁ Sincronizado");
@@ -6852,6 +6886,7 @@ function refreshOnlineAdminUi(){
          msgEl().textContent="";
          status("☁ Sesión iniciada · sincronización pendiente");
        }catch(_openErr){console.error(_openErr);loginEl().style.display="none"}
+       try{document.dispatchEvent(new CustomEvent("flecap:remote-ready"));if(window.FLECAP_RELEASE_STARTUP_GATE)window.FLECAP_RELEASE_STARTUP_GATE()}catch(_e){}
        return;
      }
 
