@@ -6734,7 +6734,15 @@ function refreshOnlineAdminUi(){
        }
        applyPecomRole(access.role);
        if(window.FLECAP_PROJECT_GOVERNANCE && typeof window.FLECAP_PROJECT_GOVERNANCE.prepareForUser==="function"){
-         await window.FLECAP_PROJECT_GOVERNANCE.prepareForUser(sb,currentEmail,access.role);
+         const __projects=await window.FLECAP_PROJECT_GOVERNANCE.prepareForUser(sb,currentEmail,access.role);
+        try{
+          const __q=new URLSearchParams(location.search), __pid=String(__q.get('project')||'').trim();
+          if(__q.get('from')==='portal' && __pid && Array.isArray(__projects) && __projects.some(p=>String(p.id)===__pid)){
+            const __p=__projects.find(p=>String(p.id)===__pid);
+            localStorage.setItem('flecap_active_project_v1',__pid);
+            localStorage.setItem('flecap_project_identity_v1',JSON.stringify({company:__p.company||'PECOM',project:__p.project||__p.name||'Proyecto'}));
+          }
+        }catch(__e){console.warn('FLECAP obra portal',__e)}
        }
        try{localStorage.setItem('flecap_last_role',access.role||'viewer')}catch(e){}
        refreshOnlineAdminUi();
@@ -6912,7 +6920,15 @@ function refreshOnlineAdminUi(){
        applyPecomRole("viewer");
        try{localStorage.setItem('flecap_last_role','viewer')}catch(_e){}
        if(window.FLECAP_PROJECT_GOVERNANCE && typeof window.FLECAP_PROJECT_GOVERNANCE.prepareForUser==="function"){
-         await window.FLECAP_PROJECT_GOVERNANCE.prepareForUser(sb,email,"viewer");
+         const __projects=await window.FLECAP_PROJECT_GOVERNANCE.prepareForUser(sb,email,"viewer");
+        try{
+          const __q=new URLSearchParams(location.search), __pid=String(__q.get('project')||'').trim();
+          if(__q.get('from')==='portal' && __pid && Array.isArray(__projects) && __projects.some(p=>String(p.id)===__pid)){
+            const __p=__projects.find(p=>String(p.id)===__pid);
+            localStorage.setItem('flecap_active_project_v1',__pid);
+            localStorage.setItem('flecap_project_identity_v1',JSON.stringify({company:__p.company||'PECOM',project:__p.project||__p.name||'Proyecto'}));
+          }
+        }catch(__e){console.warn('FLECAP obra portal viewer',__e)}
        }
        window.cloudReady=true;
        refreshOnlineAdminUi();
