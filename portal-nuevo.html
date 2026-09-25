@@ -45,7 +45,15 @@ function render(list){
  const cards=list.map(p=>`<article class="card"><div class="status"><i></i>Proyecto habilitado</div><div class="company">${esc(p.company||'PECOM')}</div><h2>${esc(p.name||'Proyecto')}</h2><div class="meta">Acceso asignado a ${esc(currentEmail)}</div><button class="open" data-id="${esc(p.id)}">ABRIR OBRA →</button></article>`).join('');
  const add=currentRole==='admin'?`<article class="newcard show" id="newProjectCard"><div><b>+</b><span>NUEVA OBRA</span><small>Crear proyecto FLECAP</small></div></article>`:'';
  $('projectGrid').innerHTML=(cards||add)?cards+add:'<div class="empty">Tu usuario está autorizado en FLECAP, pero no tiene obras asignadas.</div>';
- document.querySelectorAll('.open').forEach(b=>b.onclick=()=>{const p=list.find(x=>String(x.id)===String(b.dataset.id));if(p)location.href=routeFor(p)});
+ document.querySelectorAll('.open').forEach(b=>b.onclick=async()=>{
+  const p=list.find(x=>String(x.id)===String(b.dataset.id));if(!p)return;
+  try{
+    sessionStorage.setItem('flecap_portal_handoff',JSON.stringify({email:currentEmail,role:currentRole,project:p.id,ts:Date.now()}));
+    // Para editores/admin, confirmar que Supabase terminó de persistir la sesión antes de navegar.
+    if(currentRole!=='viewer'){await sb.auth.getSession()}
+  }catch(e){}
+  location.href=routeFor(p)
+});
  const nc=$('newProjectCard');if(nc)nc.onclick=()=>{$('newProjectName').value='';$('newProjectMsg').textContent='';$('newProjectModal').classList.remove('hidden');$('newProjectName').focus()};
 }
 function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
