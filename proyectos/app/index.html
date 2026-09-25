@@ -2,6 +2,23 @@
 
 <html lang="es">
 <head>
+<script id="flecapPortalProjectBootstrap">
+(function(){
+  try{
+    var q=new URLSearchParams(location.search);
+    var pid=String(q.get('project')||'').trim();
+    if(!pid)return;
+    /* Fijar la obra solicitada ANTES de que arranque FLECAP. No recarga ni llama switchTo. */
+    localStorage.setItem('flecap_active_project_v1',pid);
+    var ph=JSON.parse(localStorage.getItem('flecap_portal_handoff')||'null');
+    if(ph && String(ph.project||'')===pid){
+      sessionStorage.setItem('flecap_portal_handoff',JSON.stringify(ph));
+    }
+    var pa=JSON.parse(localStorage.getItem('flecap_portal_auth')||'null');
+    if(pa)sessionStorage.setItem('flecap_portal_auth',JSON.stringify(pa));
+  }catch(e){console.warn('FLECAP portal bootstrap',e);}
+})();
+</script>
 <meta charset="utf-8"/>
 <meta content="width=device-width,initial-scale=1,viewport-fit=cover" name="viewport"/>
 <meta content="#071019" name="theme-color"/>
@@ -1410,20 +1427,6 @@ window.FLECAP_RELEASE_STARTUP_GATE=release;
     var h=null;
     try{h=JSON.parse(localStorage.getItem('flecap_portal_handoff')||'null')}catch(_e){}
     if(h && String(h.project||'')===pid){
-      /* IMPORTANTE: el core estable ejecuta migrate() antes de consultar Supabase.
-         Si la obra elegida no está todavía en el catálogo local, migrate() vuelve
-         a la obra anterior. Registramos SOLO la identidad de la obra solicitada;
-         no tocamos sus datos ni creamos estado. */
-      try{
-        var cat=JSON.parse(localStorage.getItem('flecap_projects_v1')||'[]');
-        if(!Array.isArray(cat))cat=[];
-        var entry={id:pid,company:String(h.company||'PECOM'),project:String(h.name||h.projectName||'Proyecto'),createdAt:String(h.created_at||new Date().toISOString())};
-        var ix=cat.findIndex(function(x){return String(x&&x.id||'')===pid});
-        if(ix>=0)cat[ix]=Object.assign({},cat[ix],entry);else cat.push(entry);
-        localStorage.setItem('flecap_projects_v1',JSON.stringify(cat));
-        localStorage.setItem('flecap_project_identity::'+pid,JSON.stringify({company:entry.company,project:entry.project}));
-        localStorage.setItem('flecap_project_identity_v1',JSON.stringify({company:entry.company,project:entry.project}));
-      }catch(_catalogErr){console.warn('FLECAP portal catalog',_catalogErr)}
       window.__FLECAP_PORTAL_ENTRY__=h;
     }
   }catch(e){console.warn('FLECAP portal entry',e)}
