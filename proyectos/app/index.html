@@ -1385,35 +1385,39 @@ window.addEventListener('offline',release,{once:true});
 /* Salvaguarda: una falla de autenticación/red no puede dejar la interfaz oculta
    indefinidamente. El login sigue visible durante esta espera. */
 setTimeout(function(){
-  if(!released){
-    console.warn('FLECAP: liberación de seguridad del arranque');
-    release();
-  }
-},12000);
+  if(!released && window.cloudReady===false)release();
+},8000);
 var splashMessages=['Cargando última versión de la obra…','Sincronizando matriz y registros…','Preparando seguimiento y trazabilidad…','Actualizando indicadores de avance…'];
 var splashIndex=0,splashTimer=setInterval(function(){if(released){clearInterval(splashTimer);return}var el=document.getElementById('flecapStartupStatus');if(el){splashIndex=(splashIndex+1)%splashMessages.length;el.textContent=splashMessages[splashIndex]}},1400);
 window.FLECAP_RELEASE_STARTUP_GATE=release;
 })();
 </script>
-</head>
-<body>
 
-<script id="flecap-portal-direct-entry-v4">
+<!-- FLECAP · integración portal sobre base estable 2026-09-25 -->
+<script id="flecap-portal-project-entry-stable-v1">
 (function(){
- const q=new URLSearchParams(location.search),pid=q.get('project');
- if(!pid||q.get('from')!=='portal')return;
- try{
-   const h=JSON.parse(sessionStorage.getItem('flecap_portal_handoff')||'null');
-   if(h&&String(h.project)===String(pid)&&Date.now()-Number(h.ts||0)<300000){
-     window.__FLECAP_PORTAL_ENTRY__=h;
-     localStorage.setItem('flecap_active_project_v1',pid);
-     const s=document.createElement('style');s.id='flecapPortalDirectCss';
-     s.textContent='#cloudLogin{display:none!important}';document.documentElement.appendChild(s);
-   }
- }catch(e){}
+  try{
+    var q=new URLSearchParams(location.search);
+    var pid=String(q.get('project')||'').trim();
+    if(!pid)return;
+
+    /* Se fija la obra ANTES de que arranque Supabase/FLECAP.
+       No se borra ni inicializa ningún estado existente. */
+    localStorage.setItem('flecap_active_project_v1',pid);
+
+    /* El portal deja esta identidad como ayuda visual. La identidad canónica
+       se vuelve a obtener del catálogo/proyecto existente. */
+    var h=null;
+    try{h=JSON.parse(sessionStorage.getItem('flecap_portal_handoff')||'null')}catch(_e){}
+    if(h && String(h.project||'')===pid){
+      window.__FLECAP_PORTAL_ENTRY__=h;
+    }
+  }catch(e){console.warn('FLECAP portal entry',e)}
 })();
 </script>
 
+</head>
+<body>
 <div id="flecapStartupSplash" aria-live="polite">
   <div class="flecap-splash-card">
     <div class="flecap-splash-mark">FLECAP</div>
@@ -3886,52 +3890,89 @@ html:not(.pecom-light) #recordModal .filebox{background:#132333!important;color:
 </style>
 <div id="flecapBuildDispatch" style="position:fixed;right:12px;bottom:12px;z-index:999999;background:#7c3aed;color:white;padding:6px 10px;border-radius:8px;font:700 11px Arial;box-shadow:0 4px 16px #0005">FLECAP BUILD DESPACHO DIRECTO 17-09-2026</div>
 
-<script id="flecap-shared-project-router-v1">
+<script id="flecap-portal-navigation-stable-v1">
 (function(){
- const params=new URLSearchParams(location.search), requested=params.get('project');
- if(!requested){location.replace('../../');return}
- const norm=v=>String(v||'').trim().toLowerCase();
- async function validate(){
-  const sb=window.PECOM_SUPABASE;
-  const email=norm(window.PECOM_CURRENT_EMAIL);
-  const role=String(window.PECOM_ROLE||'viewer').toLowerCase();
-  if(!sb||!email){setTimeout(validate,250);return}
-  try{
-   const pr=await sb.from('projects').select('id,company,name,active').eq('id',requested).maybeSingle();
-   if(pr.error||!pr.data||pr.data.active===false)throw new Error('Proyecto inexistente o inactivo.');
-   let ok=role==='admin';
-   if(!ok){
-    const rs=await sb.from('app_state').select('payload').eq('id',requested).maybeSingle();
-    const mp=rs.data&&rs.data.payload&&rs.data.payload.flecapModulePermissions&&rs.data.payload.flecapModulePermissions[email];
-    ok=!!(mp&&((mp.quality&&mp.quality!=='none')||(mp.precom&&mp.precom!=='none')));
-   }
-   if(!ok)throw new Error('Tu usuario no tiene acceso a esta obra.');
-   const current=localStorage.getItem('flecap_active_project_v1');
-   localStorage.setItem('flecap_active_project_v1',requested);
-   localStorage.setItem('flecap_project_identity_v1',JSON.stringify({company:pr.data.company,project:pr.data.name}));
-   sessionStorage.setItem('flecap_shared_project_validated',requested);
-   try{const lg=document.getElementById('cloudLogin');if(lg)lg.style.setProperty('display','none','important')}catch(_e){}
-   if(current!==requested&&!sessionStorage.getItem('flecap_shared_project_reloaded_'+requested)){
-    sessionStorage.setItem('flecap_shared_project_reloaded_'+requested,'1');location.reload();return;
-   }
-   const back=document.createElement('button');back.textContent='← Proyectos';back.className='btn';
-   back.style.cssText='position:fixed;left:12px;bottom:12px;z-index:120500';
-   back.onclick=()=>location.href='../../';document.body.appendChild(back);
-   setTimeout(function(){
-     try{
-       const lg=document.getElementById('cloudLogin');if(lg)lg.style.setProperty('display','none','important');
-       const b=document.querySelector('#nav [data-page="control"],#flecapModernSidebar [data-go="control"]');
-       if(b)b.click();
-     }catch(_e){}
-   },400);
-  }catch(e){
-   alert(e.message||'Acceso no autorizado.');
-   location.replace('../../');
+  var PORTAL='/portal-nuevo.html';
+
+  function addBackButton(){
+    if(document.getElementById('flecapBackToProjects'))return;
+    var btn=document.createElement('button');
+    btn.id='flecapBackToProjects';
+    btn.type='button';
+    btn.className='btn';
+    btn.innerHTML='← Cambiar obra';
+    btn.title='Volver al portal de obras';
+    btn.style.cssText='display:inline-flex!important;align-items:center!important;justify-content:center!important;min-height:34px!important;padding:0 12px!important;border-radius:8px!important;font-weight:800!important;white-space:nowrap!important;';
+
+    btn.addEventListener('click',function(){
+      try{
+        /* Guardar sólo la copia local de la obra actual; no cerrar sesión. */
+        var pid=localStorage.getItem('flecap_active_project_v1')||'legacy';
+        if(typeof state!=='undefined' && state){
+          var payload=window.FLECAP_compactStateForLocalStorage
+            ? window.FLECAP_compactStateForLocalStorage(state):state;
+          localStorage.setItem('flecap_project_state::'+pid,JSON.stringify(payload));
+        }
+      }catch(_e){}
+      location.href=PORTAL;
+    });
+
+    var tools=document.querySelector('#fxAppTopbar .fx-toptools');
+    if(tools){ tools.insertBefore(btn,tools.firstChild); return; }
+
+    var controls=document.getElementById('flecapReferenceTopControls');
+    if(controls){ controls.insertBefore(btn,controls.firstChild); return; }
+
+    btn.style.cssText += 'position:fixed!important;right:18px!important;bottom:18px!important;z-index:130000!important;background:#0f789d!important;color:white!important;border:1px solid #39b9d5!important;';
+    document.body.appendChild(btn);
   }
- }
- if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(validate,300),{once:true});else setTimeout(validate,300);
+
+  function normalizePortalEntry(){
+    try{
+      var q=new URLSearchParams(location.search);
+      var pid=String(q.get('project')||'').trim();
+      if(!pid)return;
+
+      /* Nunca crear blank() desde la navegación del portal.
+         loadRemote() de la base estable recupera app_state de este ID. */
+      localStorage.setItem('flecap_active_project_v1',pid);
+
+      /* El selector interno queda sólo como indicador de la obra activa.
+         La navegación entre obras se hace desde el portal. */
+      document.querySelectorAll('.flecapProjectSelect').forEach(function(sel){
+        sel.disabled=true;
+        sel.title='Para cambiar de obra usá “Cambiar obra”';
+      });
+    }catch(e){}
+  }
+
+  function start(){
+    normalizePortalEntry();
+    addBackButton();
+    setTimeout(addBackButton,400);
+    setTimeout(addBackButton,1200);
+  }
+
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});
+  else start();
 })();
 </script>
+<style id="flecap-portal-navigation-stable-css">
+#flecapBackToProjects{
+  background:#0c3145!important;
+  color:#eef8fb!important;
+  border:1px solid #2f6178!important;
+}
+#flecapBackToProjects:hover{background:#12455f!important}
+html.pecom-light #flecapBackToProjects{
+  background:#e8f2f7!important;
+  color:#15364a!important;
+  border-color:#a8c2d1!important;
+}
+@media(max-width:800px){
+  #flecapBackToProjects{width:100%!important;margin:6px 0!important}
+}
+</style>
 
 </body></html>`);
  popup.document.close();
@@ -6767,49 +6808,8 @@ function refreshOnlineAdminUi(){
 
  async function bootSession(session){
    if(!session?.user?.email){
-     const pe=window.__FLECAP_PORTAL_ENTRY__;
-     if(pe&&pe.email){
-       currentEmail=String(pe.email||"").toLowerCase();
-       window.PECOM_CURRENT_EMAIL=currentEmail;
-       applyPecomRole(String(pe.role||"viewer"));
-       loginEl().style.display="none";
-       status("☁ Acceso desde portal · cargando obra");
-       try{
-         const access=await withTimeout(allowed(currentEmail),8000,'Tiempo agotado validando usuario');
-         if(!access.allowed)throw new Error('Este correo no está autorizado.');
-         applyPecomRole(access.role||String(pe.role||'viewer'));
-         try{localStorage.setItem('flecap_last_role',access.role||pe.role||'viewer')}catch(_e){}
-         if(window.FLECAP_PROJECT_GOVERNANCE&&typeof window.FLECAP_PROJECT_GOVERNANCE.prepareForUser==='function'){
-           await withTimeout(window.FLECAP_PROJECT_GOVERNANCE.prepareForUser(sb,currentEmail,access.role||pe.role||'viewer'),8000,'Tiempo agotado preparando proyecto');
-         }
-         window.cloudReady=true;
-         await withTimeout(loadRemote(),15000,'Tiempo agotado cargando la obra');
-         status("☁ Sincronizado");
-       }catch(e){
-         console.warn('FLECAP: apertura desde portal con contingencia local',e);
-         window.cloudReady=false;
-         try{
-           const pid=activeProjectId();
-           let localProject=null;
-           if(window.FLECAP_LARGE_STATE&&typeof window.FLECAP_LARGE_STATE.load==='function'){
-             localProject=await Promise.race([window.FLECAP_LARGE_STATE.load(pid),new Promise(r=>setTimeout(()=>r(null),2500))]);
-           }
-           if(!localProject)try{localProject=JSON.parse(localStorage.getItem('flecap_project_state::'+pid)||localStorage.getItem(KEY)||'null')}catch(_e){}
-           if(localProject)state=window.FLECAP_expandStateFromLocalStorage?window.FLECAP_expandStateFromLocalStorage(localProject,pid):localProject;
-           try{renderAll()}catch(_e){}
-           status("☁ Abierto · sincronización pendiente");
-         }catch(_e){}
-       }finally{
-         document.dispatchEvent(new CustomEvent('flecap:remote-ready'));
-         try{if(window.FLECAP_RELEASE_STARTUP_GATE)window.FLECAP_RELEASE_STARTUP_GATE()}catch(_e){}
-         loginEl().style.display="none";
-         setTimeout(function(){try{const b=document.querySelector('#nav [data-page="control"],#flecapModernSidebar [data-go="control"]');if(b)b.click()}catch(_e){}},150);
-       }
-       return;
-     }
      loginEl().style.display="flex";
      status("☁ Sin sesión");
-     try{if(window.FLECAP_RELEASE_STARTUP_GATE)window.FLECAP_RELEASE_STARTUP_GATE()}catch(_e){}
      return;
    }
    const email=session.user.email.toLowerCase();
@@ -6846,16 +6846,13 @@ function refreshOnlineAdminUi(){
        msgEl().textContent="Cargando la versión actualizada de la obra...";
        status("☁ Cargando datos...");
        await new Promise(r=>setTimeout(r,0));
-       await withTimeout(loadRemote(),15000,'Tiempo agotado cargando la obra');
-       // La interfaz se libera sólo después de intentar adoptar la copia central.
+       await loadRemote();
+       // Seguimiento de Piping conserva su lógica, pero adopta la copia central
+       // antes de mostrar la aplicación para evitar el salto visual de datos viejos.
        document.dispatchEvent(new CustomEvent("flecap:remote-ready"));
        refreshOnlineAdminUi();
        status("☁ Sincronizado");
        loginEl().style.display="none";
-       try{
-         sessionStorage.removeItem('flecap_portal_handoff');
-         sessionStorage.removeItem('flecap_portal_auth');
-       }catch(_e){}
        msgEl().textContent="";
      }catch(e){
        console.error("Error abriendo PECOM:",e);
@@ -6886,7 +6883,6 @@ function refreshOnlineAdminUi(){
          msgEl().textContent="";
          status("☁ Sesión iniciada · sincronización pendiente");
        }catch(_openErr){console.error(_openErr);loginEl().style.display="none"}
-       try{document.dispatchEvent(new CustomEvent("flecap:remote-ready"));if(window.FLECAP_RELEASE_STARTUP_GATE)window.FLECAP_RELEASE_STARTUP_GATE()}catch(_e){}
        return;
      }
 
@@ -6935,42 +6931,8 @@ function refreshOnlineAdminUi(){
    }
    sb=window.supabase.createClient(cfg.supabaseUrl,cfg.supabaseAnonKey);
    window.PECOM_SUPABASE=sb;
-   // Recuperar explícitamente la sesión entregada por el portal. Esto evita
-   // depender de cuándo Supabase restaura su almacenamiento al cambiar de ruta.
-   try{
-     const raw=sessionStorage.getItem('flecap_portal_auth');
-     const hand=raw?JSON.parse(raw):null;
-     if(hand&&Date.now()-Number(hand.ts||0)<120000&&hand.access_token&&hand.refresh_token){
-       const restored=await sb.auth.setSession({access_token:hand.access_token,refresh_token:hand.refresh_token});
-       if(restored&&restored.error)console.warn('FLECAP: no se pudo restaurar la sesión del portal',restored.error);
-     }
-   }catch(e){console.warn('FLECAP: handoff de sesión no disponible',e)}
-   let session=null;
-   // La sesión de Supabase usa localStorage del mismo dominio; damos un margen
-   // para que quede disponible después de navegar desde el portal.
-   for(let i=0;i<8&&!session;i++){
-     const res=await sb.auth.getSession();
-     session=res&&res.data&&res.data.session;
-     if(!session)await new Promise(r=>setTimeout(r,120));
-   }
-   if(session){
-     await bootSession(session);
-   }else{
-     // Entrada desde el portal: sirve para admin, editor y viewer.
-     // No dependemos de que Supabase haya restaurado Auth antes de cambiar de ruta.
-     let h=null;
-     try{h=JSON.parse(sessionStorage.getItem('flecap_portal_handoff')||'null')}catch(e){}
-     const requested=new URLSearchParams(location.search).get('project')||'';
-     const fromPortal=new URLSearchParams(location.search).get('from')==='portal';
-     const fresh=!!(fromPortal&&h&&h.email&&Date.now()-Number(h.ts||0)<300000&&String(h.project||'')===String(requested));
-     if(fresh){
-       window.__FLECAP_PORTAL_ENTRY__=h;
-       localStorage.setItem('flecap_active_project_v1',requested);
-       await bootSession(null);
-     }else{
-       await bootSession(null);
-     }
-   }
+   const {data:{session}}=await sb.auth.getSession();
+   await bootSession(session);
 
  sb.auth.onAuthStateChange(async(event,session)=>{
    if(event==="PASSWORD_RECOVERY"){
