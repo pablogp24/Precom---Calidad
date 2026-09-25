@@ -6853,6 +6853,10 @@ function refreshOnlineAdminUi(){
        refreshOnlineAdminUi();
        status("☁ Sincronizado");
        loginEl().style.display="none";
+       try{
+         sessionStorage.removeItem('flecap_portal_auth');
+         sessionStorage.removeItem('flecap_portal_handoff');
+       }catch(_e){}
        msgEl().textContent="";
      }catch(e){
        console.error("Error abriendo PECOM:",e);
@@ -6931,6 +6935,27 @@ function refreshOnlineAdminUi(){
    }
    sb=window.supabase.createClient(cfg.supabaseUrl,cfg.supabaseAnonKey);
    window.PECOM_SUPABASE=sb;
+
+   // Entrada desde el portal: restaurar explícitamente la sesión Supabase
+   // antes de ejecutar bootSession(). El portal y la APP siguen usando una
+   // única autenticación; no se modifica ni se crea el estado de la obra.
+   try{
+     const raw=sessionStorage.getItem('flecap_portal_auth');
+     const hand=raw?JSON.parse(raw):null;
+     if(hand && hand.access_token && hand.refresh_token &&
+        Date.now()-Number(hand.ts||0) < 5*60*1000){
+       const restored=await sb.auth.setSession({
+         access_token:hand.access_token,
+         refresh_token:hand.refresh_token
+       });
+       if(restored && restored.error){
+         console.warn('FLECAP: no se pudo restaurar la sesión del portal',restored.error);
+       }
+     }
+   }catch(e){
+     console.warn('FLECAP: sesión del portal no disponible',e);
+   }
+
    const {data:{session}}=await sb.auth.getSession();
    await bootSession(session);
 
