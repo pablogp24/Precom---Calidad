@@ -96,10 +96,14 @@ async function enter(email,role){currentEmail=norm(email);currentRole=role||'vie
 async function boot(){
   $('login').classList.add('hidden');
   try{
+    const unlocked=sessionStorage.getItem('flecap_portal_unlocked_v1')==='1';
     const {data,error}=await sb.auth.getSession();
     if(error)throw error;
     const session=data&&data.session;
-    if(session&&session.user&&session.user.email){
+
+    // Solo reutilizar la sesión si ESTA pestaña ya fue desbloqueada con contraseña.
+    // Así, al volver con ← OBRAS no pide clave otra vez; una entrada nueva sí.
+    if(unlocked && session&&session.user&&session.user.email){
       const a=await allowed(session.user.email);
       if(a){await enter(session.user.email,a.role);return}
     }
@@ -116,6 +120,7 @@ $('loginBtn').onclick=async()=>{
    if(r.error)throw r.error;
    const a=await allowed(email);
    if(!a){await sb.auth.signOut();throw new Error('Este correo no está autorizado.')}
+   sessionStorage.setItem('flecap_portal_unlocked_v1','1');
    await enter(email,a.role);
  }catch(e){$('msg').textContent=e.message||'No se pudo ingresar.'}
  finally{btn.disabled=false;btn.textContent='Ingresar'}
@@ -153,7 +158,7 @@ $('createProjectBtn').onclick=async()=>{
  finally{btn.disabled=false;btn.textContent='Crear obra'}
 };
 
-$('logoutBtn').onclick=async()=>{try{await sb.auth.signOut()}catch(e){}currentEmail='';$('password').value='';$('login').classList.remove('hidden')};
+$('logoutBtn').onclick=async()=>{try{await sb.auth.signOut()}catch(e){}try{sessionStorage.removeItem('flecap_portal_unlocked_v1');localStorage.removeItem('flecap_portal_auth');localStorage.removeItem('flecap_portal_handoff')}catch(e){}currentEmail='';$('password').value='';$('login').classList.remove('hidden')};
 boot().catch(e=>{$('msg').textContent=e.message||'No se pudo iniciar FLECAP.';$('login').classList.remove('hidden')});
 </script>
 </body></html>
