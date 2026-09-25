@@ -48,13 +48,13 @@ function render(list){
  document.querySelectorAll('.open').forEach(b=>b.onclick=async()=>{
   const p=list.find(x=>String(x.id)===String(b.dataset.id));if(!p)return;
   try{
-    sessionStorage.setItem('flecap_portal_handoff',JSON.stringify({email:currentEmail,role:currentRole,project:p.id,ts:Date.now()}));
+    localStorage.setItem('flecap_portal_handoff',JSON.stringify({email:currentEmail,role:currentRole,project:p.id,ts:Date.now()}));
     // Para editores/admin, confirmar que Supabase terminó de persistir la sesión antes de navegar.
     if(currentRole!=='viewer'){
       const sr=await sb.auth.getSession();
       const s=sr&&sr.data&&sr.data.session;
       if(s&&s.access_token&&s.refresh_token){
-        sessionStorage.setItem('flecap_portal_auth',JSON.stringify({
+        localStorage.setItem('flecap_portal_auth',JSON.stringify({
           access_token:s.access_token,
           refresh_token:s.refresh_token,
           ts:Date.now()
