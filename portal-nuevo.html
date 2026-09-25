@@ -96,16 +96,24 @@ async function enter(email,role){currentEmail=norm(email);currentRole=role||'vie
 async function boot(){
   $('login').classList.add('hidden');
   try{
+    const q=new URLSearchParams(location.search);
+    const vuelveDeObra=q.get('from')==='app';
     const unlocked=sessionStorage.getItem('flecap_portal_unlocked_v1')==='1';
     const {data,error}=await sb.auth.getSession();
     if(error)throw error;
     const session=data&&data.session;
 
-    // Solo reutilizar la sesión si ESTA pestaña ya fue desbloqueada con contraseña.
-    // Así, al volver con ← OBRAS no pide clave otra vez; una entrada nueva sí.
-    if(unlocked && session&&session.user&&session.user.email){
+    // Reutilizar la sesión únicamente si ya se autenticó en esta pestaña
+    // o si vuelve explícitamente desde una obra FLECAP.
+    if((unlocked||vuelveDeObra) && session&&session.user&&session.user.email){
       const a=await allowed(session.user.email);
-      if(a){await enter(session.user.email,a.role);return}
+      if(a){
+        sessionStorage.setItem('flecap_portal_unlocked_v1','1');
+        // Limpiar ?from=app sin recargar.
+        if(vuelveDeObra)history.replaceState(null,'','/portal-nuevo.html');
+        await enter(session.user.email,a.role);
+        return;
+      }
     }
   }catch(e){console.warn('FLECAP portal: sesión no reutilizable',e)}
   $('login').classList.remove('hidden');
