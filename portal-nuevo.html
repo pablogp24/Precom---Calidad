@@ -222,6 +222,43 @@ async function boot(){
   let session=null;
   try{const r=await sb.auth.getSession();session=r&&r.data&&r.data.session?r.data.session:null}
   catch(_e){console.warn('FLECAP portal: getSession no disponible; se continúa con identidad persistida',_e)}
+  // 0) Vuelta desde una obra: NO volver a pedir login. El handoff fue creado
+  //    por la app al pulsar "OBRAS" y se acepta localmente si sigue vigente.
+  //    La obra vuelve a validar permisos al abrirse.
+  if(vuelveDeObra){
+    let backHandoff=null;
+    try{backHandoff=JSON.parse(localStorage.getItem('flecap_portal_handoff')||'null')}catch(_e){}
+    const fresh=backHandoff&&backHandoff.email&&(!backHandoff.ts||Date.now()-Number(backHandoff.ts)<12*60*60*1000);
+    if(fresh){
+      sessionStorage.setItem('flecap_portal_unlocked_v1','1');
+      history.replaceState(null,'','/portal-nuevo.html');
+      const cached=portalCacheFor(backHandoff.email);
+      if(cached){
+        currentEmail=norm(backHandoff.email);
+        currentRole=backHandoff.role||cached.role||'viewer';
+        $('userEmail').textContent=currentEmail;
+        $('login').classList.add('hidden');
+        render(cached.list||[]);
+        // Actualizar el catálogo en segundo plano sin bloquear la navegación.
+        projectsFor(currentEmail,currentRole).then(list=>{portalCacheSave(currentEmail,currentRole,list);render(list)}).catch(()=>{});
+        return;
+      }
+      // Si todavía no hay catálogo cacheado, conservar igualmente la identidad
+      // y continuar por el flujo normal sin convertir un fallo de red en login.
+      try{
+        const list=await projectsFor(norm(backHandoff.email),backHandoff.role||'viewer');
+        currentEmail=norm(backHandoff.email);currentRole=backHandoff.role||'viewer';
+        portalCacheSave(currentEmail,currentRole,list);
+        $('userEmail').textContent=currentEmail;$('login').classList.add('hidden');render(list);
+        return;
+      }catch(_catalogErr){
+        currentEmail=norm(backHandoff.email);currentRole=backHandoff.role||'viewer';
+        $('userEmail').textContent=currentEmail;$('login').classList.add('hidden');
+        $('projectGrid').innerHTML='<div class="empty">No se pudo actualizar el catálogo de obras. Reintentá en unos segundos.</div>';
+        return;
+      }
+    }
+  }
   // 1) Sesión Supabase viva.
   if(session&&session.user&&session.user.email){
     const a=await allowed(session.user.email);
