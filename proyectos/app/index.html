@@ -1762,7 +1762,7 @@ window.__PECOM_LOGIN_SHIELD_READY=true;
 <label>Tipo de junta<details id="ftrTypeBox"><summary id="ftrTypeLabel">Todos</summary><div class="ftr-type-menu"><div class="ftr-type-actions"><button id="ftrTypeAll" type="button">Seleccionar todos</button><button id="ftrTypeNone" type="button">Quitar todos</button></div><div id="ftrTypeChecks"></div></div></details></label>
 <label>Estado<select id="ftrStatusFilter"></select></label><label>Buscar<input id="ftrSearch" placeholder="línea, spool, junta..."/></label>
 </div>
-<div class="ftr-tools"><button id="ftrClear" type="button">Limpiar filtros</button><span id="ftrCount">0 registros</span></div>
+<div class="ftr-tools"><button id="ftrClear" type="button">Limpiar filtros</button><button id="ftrExportXlsx" type="button" class="btn">⬇ Matriz.xlsx</button><button id="ftrExportPend" type="button" class="btn">⬇ Listado de pendientes.xlsx</button><span id="ftrCount">0 registros</span></div>
 <div class="ftr-kpis" id="ftrKpis"></div>
 <div class="ftr-charts"><div class="ftr-card"><h3>Curva S · Avance por pulgadas soldadas</h3><small class="ftr-s-note">Acumulado real sobre pulgadas SW previstas · FW y FFW excluidas</small><div class="ftr-scurve" id="ftrActivity"></div></div><div class="ftr-card"><h3>Distribución por tipo</h3><div id="ftrTypesChart"></div></div></div>
 <div class="ftr-card ftr-table-card"><div class="ftr-table-wrap"><table><thead id="ftrHead"></thead><tbody id="ftrBody"></tbody></table></div></div>
@@ -13483,6 +13483,13 @@ function renderCharts(){
  function getBool(k,def){var v=localStorage.getItem(k);return v===null?def:v==='1'}
  var fwOn=getBool('flecap_scurve_include_fw_v1',false);
  var ffwOn=getBool('flecap_scurve_include_ffw_v1',false);
+ /* FLECAP cierre 2026-09-26: la preferencia FW/FFW es única para toda la app.
+    Si el usuario la cambió en Seguimiento de Piping, manda esa; el cambio aquí
+    también escribe en la preferencia central. */
+ try{
+   var __pref=(window.FLECAP_FWFFW_PREF&&window.FLECAP_FWFFW_PREF.get())||null;
+   if(__pref){fwOn=__pref.fw;ffwOn=__pref.ffw}
+ }catch(_prefErr){}
  function included(r){
    var jc=jointClass(r);
    if(jc==='FW')return fwOn;
@@ -13624,8 +13631,8 @@ function renderCharts(){
    inp.onblur=commitEndDate;
    inp.onkeydown=function(ev){if(ev.key==='Enter'){ev.preventDefault();commitEndDate()}};
  }
- var fw=q('ftrIncludeFW');if(fw)fw.onchange=function(){localStorage.setItem('flecap_scurve_include_fw_v1',this.checked?'1':'0');renderCharts()};
- var ffw=q('ftrIncludeFFW');if(ffw)ffw.onchange=function(){localStorage.setItem('flecap_scurve_include_ffw_v1',this.checked?'1':'0');renderCharts()};
+ var fw=q('ftrIncludeFW');if(fw)fw.onchange=function(){localStorage.setItem('flecap_scurve_include_fw_v1',this.checked?'1':'0');try{if(window.FLECAP_FWFFW_PREF){var __v=window.FLECAP_FWFFW_PREF.get();__v.fw=this.checked;window.FLECAP_FWFFW_PREF.set(__v)}}catch(_fwPref){};renderCharts();try{window.FLECAP_WELD_DASH_REFRESH&&window.FLECAP_WELD_DASH_REFRESH()}catch(_fwR){}};
+ var ffw=q('ftrIncludeFFW');if(ffw)ffw.onchange=function(){localStorage.setItem('flecap_scurve_include_ffw_v1',this.checked?'1':'0');try{if(window.FLECAP_FWFFW_PREF){var __w=window.FLECAP_FWFFW_PREF.get();__w.ffw=this.checked;window.FLECAP_FWFFW_PREF.set(__w)}}catch(_ffwPref){};renderCharts();try{window.FLECAP_WELD_DASH_REFRESH&&window.FLECAP_WELD_DASH_REFRESH()}catch(_ffwR){}};
  var typeBox=q('ftrTypesChart'),typeCard=typeBox&&typeBox.closest('.ftr-card');
  if(typeCard)typeCard.style.setProperty('display','none','important');
  if(card){card.style.setProperty('grid-column','1 / -1','important');card.style.setProperty('width','100%','important')}
@@ -14014,7 +14021,7 @@ body[data-pecom-role="viewer"] #flecapModernSidebar .fm-side-btn{
     unlockViewerNavigation();
     var side=document.getElementById('flecapModernSidebar');
     if(side) new MutationObserver(unlockViewerNavigation).observe(side,{childList:true,subtree:true,attributes:true,attributeFilter:['disabled','style','class']});
-    setInterval(unlockViewerNavigation,1200);
+    setInterval(unlockViewerNavigation,6000);
   }
   document.addEventListener('click',function(ev){
     if(!isViewer()) return;
@@ -14085,7 +14092,7 @@ html.pecom-light #flecapChartToolbarV2 .fcv2-label{color:#526f80}html.pecom-ligh
   applyView(root,lastView);
  }
  document.addEventListener('click',function(e){if(e.target&&e.target.closest&&e.target.closest('#flecapCompletionBtn'))setTimeout(install,350)},true);
- setInterval(install,700);
+ setInterval(install,3000);
  setTimeout(install,1200);
 })();
 </script>
@@ -14103,7 +14110,7 @@ body.flecap-viewer #flecapTraceFile,body.flecap-viewer label[for="flecapTraceFil
  }
  document.addEventListener('flecap:remote-ready',function(){setTimeout(apply,0)},true);
  document.addEventListener('DOMContentLoaded',function(){setTimeout(apply,150)},{once:true});
- setInterval(apply,2500);
+ setInterval(apply,6000);
 })();
 </script>
 
@@ -14249,4 +14256,476 @@ html:not(.pecom-light) #progressReportArea .fmg-table th{background:#15384c;colo
  window.FLECAP_REFRESH_AUTHORITATIVE_SYNC=refresh;
 })();
 </script>
+
+<script id="flecap-closeout-core-v1">
+/* FLECAP · Cierre de etapa · núcleo de cálculo y estados (solo lectura de datos, sin mutaciones) */
+(function(){
+'use strict';
+function pid(){try{return localStorage.getItem('flecap_active_project_v1')||'legacy'}catch(e){return 'legacy'}}
+
+/* ── 1) ESTADOS CENTRALIZADOS ─────────────────────────────────────────
+   Flujo único: PENDIENTE → REALIZADO → PRESENTADO → OBSERVADO → FIRMADO → CERRADO.
+   OBSERVADO NO computa como cerrado. Compatibilidad: 0=PENDIENTE, 1P=PRESENTADO, 1=REALIZADO. */
+window.FLECAP_STATES={
+  ORDER:['PENDIENTE','REALIZADO','PRESENTADO','OBSERVADO','FIRMADO','CERRADO'],
+  CLOSED_SET:['FIRMADO','CERRADO'],           /* cerrado real: solo FIRMADO/CERRADO */
+  ADVANCE_SET:['REALIZADO','PRESENTADO','FIRMADO','CERRADO'], /* computa avance (OBSERVADO no) */
+  normalize:function(v){
+    var s=String(v==null?'':v).trim().toUpperCase();
+    if(s==='0')return 'PENDIENTE';
+    if(s==='1P')return 'PRESENTADO';
+    if(s==='1')return 'REALIZADO';
+    if(!s)return 'PENDIENTE';
+    if(s==='PARCIAL')return 'PRESENTADO';
+    if(s==='COMPLETADO')return 'REALIZADO';
+    if(/^(FIRMADA?|SIGNED)$/.test(s))return 'FIRMADO';
+    if(/^(CERRAD[OA]?|CLOSED)$/.test(s))return 'CERRADO';
+    if(/^(OBSERVAD[OA]?|RECHAZADO|NO CONFORME)$/.test(s))return 'OBSERVADO';
+    if(/^(PRESENTADA?|1P)$/.test(s))return 'PRESENTADO';
+    if(/^(REALIZAD[OA]?|HECHO|OK|1)$/.test(s))return 'REALIZADO';
+    if(/^(PENDIENTE|ABIERTO|PENDING|0)$/.test(s))return 'PENDIENTE';
+    return s;
+  },
+  isClosed:function(v){return this.CLOSED_SET.indexOf(this.normalize(v))>=0},
+  counts:function(items){
+    var o={PENDIENTE:0,REALIZADO:0,PRESENTADO:0,OBSERVADO:0,FIRMADO:0,CERRADO:0,total:0,cerrados:0,avance:0,otro:0};
+    (items||[]).forEach(function(it){
+      var s=window.FLECAP_STATES.normalize(it);
+      if(o[s]===undefined){o.otro++;return}
+      o[s]++;o.total++;
+      if(window.FLECAP_STATES.CLOSED_SET.indexOf(s)>=0)o.cerrados++;
+      if(window.FLECAP_STATES.ADVANCE_SET.indexOf(s)>=0)o.avance++;
+    });
+    return o;
+  }
+};
+
+/* ── 2) PULGADAS DE SOLDADURA DESDE LA TRAZABILIDAD REAL ───────────── */
+function diaNum(v){
+  var s=String(v==null?'':v).trim().replace(/\s/g,'').replace(',','.');
+  var m=s.match(/-?\d+(?:\.\d+)?/);
+  if(!m)return 0;
+  var x=Number(m[0]);
+  return (isFinite(x)&&x>0&&x<80)?x:0;
+}
+function jointClassOf(rec){
+  var vals=[];
+  ['__type','__class','type','__joint','joint'].forEach(function(k){
+    if(rec[k]!=null)vals.push(String(rec[k]));
+  });
+  var s=vals.join(',').toUpperCase();
+  /* FW y FFW deben detectarse aunque el campo tipo traiga "JUNTA FW" o códigos compuestos */
+  if(/(^|[^\w])FFW([^\w]|$)/.test(s))return 'FFW';
+  if(/(^|[^\w])FW([^\w]|$)/.test(s))return 'FW';
+  if(/(^|[^\w])SW([^\w]|$)/.test(s))return 'SW';
+  return '';
+}
+function parseWeldDate(v){
+  var z=String(v==null?'':v).trim();if(!z)return null;
+  var m;
+  if((m=z.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/)))return new Date(+m[1],+m[2]-1,+m[3]);
+  if((m=z.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/))){
+    var y=+m[3];if(y<100)y+=2000;return new Date(y,+m[2]-1,+m[1]);
+  }
+  if(typeof v==='number'&&v>20000){
+    var d=new Date(Math.round((v-25569)*86400000));
+    return new Date(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate());
+  }
+  var d=new Date(z);
+  return isNaN(d)?null:new Date(d.getFullYear(),d.getMonth(),d.getDate());
+}
+function traceRows(){
+  if(window.__FLECAP_TRACE_ROWS__&&Array.isArray(window.__FLECAP_TRACE_ROWS__)&&window.__FLECAP_TRACE_ROWS__.length)return window.__FLECAP_TRACE_ROWS__;
+  try{
+    for(var i=0;i<localStorage.length;i++){
+      var k=localStorage.key(i);
+      if(!/^flecap_weld_trace/.test(String(k||'')))continue;
+      var rec=JSON.parse(localStorage.getItem(k)||'null');
+      if(rec&&Array.isArray(rec.rows)&&rec.rows.length&&rec.projectId===pid())return rec.rows;
+      if(rec&&Array.isArray(rec.rows)&&rec.rows.length)return rec.rows;
+    }
+  }catch(e){}
+  return [];
+}
+window.FLECAP_WELD_INCHES=function(opts){
+  opts=opts||{};
+  var includeFW=!!opts.includeFW, includeFFW=!!opts.includeFFW;
+  var rows=traceRows(), total=0, sold=0, joints=0, soldJoints=0, byDay={}, fwTotal=0, fwSold=0, ffwTotal=0, ffwSold=0, perDay={};
+  var missingTotal=0, missingSold=0; /* juntas soldables sin diámetro o sin fecha: no se inventan */
+  rows.forEach(function(r){
+    var jc=jointClassOf(r);
+    if(jc==='FW'){fwTotal++;if(parseWeldDate(r.__date||r.date))fwSold++;}
+    else if(jc==='FFW'){ffwTotal++;if(parseWeldDate(r.__date||r.date))ffwSold++;}
+    var included;
+    if(jc==='FW')included=includeFW;
+    else if(jc==='FFW')included=includeFFW;
+    else included=true; /* SW y juntas sin tipo explícito son soldadura de obra */
+    if(!included)return;
+    var dia=diaNum(r.__dia||r.dia||r.diameter);
+    if(!(dia>0)){missingTotal++;return}
+    joints++;total+=dia;
+    var dt=parseWeldDate(r.__date||r.date||r.weldDate);
+    if(dt){
+      soldJoints++;sold+=dia;
+      var k=dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');
+      byDay[k]=(byDay[k]||0)+dia;
+    }else{missingSold++}
+  });
+  var days=Object.keys(byDay).sort();
+  var acc=0, series=days.map(function(k){acc+=byDay[k];return {date:k,daily:Math.round(byDay[k]*10)/10,acc:Math.round(acc*10)/10,pct:total?Math.round(acc*1000/total)/10:0}});
+  var today=new Date(),tk=today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0');
+  return {
+    total:Math.round(total*10)/10, sold:Math.round(sold*10)/10, pending:Math.round(Math.max(0,total-sold)*10)/10,
+    pct:total?Math.round(sold*1000/total)/10:0,
+    todaySold:Math.round((byDay[tk]||0)*10)/10,
+    joints:joints, soldJoints:soldJoints, missingDiameter:missingTotal, missingDate:missingSold,
+    fwTotal:fwTotal, fwSold:fwSold, ffwTotal:ffwTotal, ffwSold:ffwSold,
+    series:series, source:rows.length
+  };
+};
+/* Estado previo de FW/FFW (persistente por obra) */
+window.FLECAP_FWFFW_PREF={
+  get:function(){
+    try{
+      var raw=JSON.parse(localStorage.getItem('flecap_fwffw_v1::'+pid())||'null');
+      if(raw&&typeof raw==='object')return {fw:!!raw.fw,ffw:!!raw.ffw};
+    }catch(e){}
+    return {fw:false,ffw:false}; /* por defecto EXCLUIDAS */
+  },
+  set:function(v){
+    try{localStorage.setItem('flecap_fwffw_v1::'+pid(),JSON.stringify({fw:!!v.fw,ffw:!!v.ffw,ts:Date.now()}))}catch(e){}
+  }
+};
+
+/* ── 3) SPOOLS DESDE LA TRAZABILIDAD (separado del avance de soldadura) ── */
+function normSpoolId(v){
+  var s=String(v==null?'':v).replace(/\u00a0/g,' ').trim().toUpperCase().replace(/^SPOOL\s*[-_:]?\s*/,'').replace(/^SP\s*[-_:]?\s*/,'').replace(/\s+/g,'');
+  if(/^\d+(?:\.0+)?$/.test(s))s=String(parseInt(s,10));
+  return s;
+}
+function normLine(v){
+  var x=String(v==null?'':v).toUpperCase().trim();
+  try{x=x.normalize('NFD').replace(/[\u0300-\u036f]/g,'')}catch(e){}
+  return x.replace(/½/g,'1/2').replace(/¼/g,'1/4').replace(/¾/g,'3/4').replace(/\s+/g,'').replace(/_/g,'').replace(/"/g,'');
+}
+window.FLECAP_SPOOL_STATS=function(){
+  var rows=traceRows(), all={}, done={}, sent={};
+  var dm={};
+  try{dm=JSON.parse(localStorage.getItem('flecap_piping_spool_dispatch::'+pid())||'{}')||{}}catch(e){}
+  rows.forEach(function(r){
+    var ln=normLine(r.__line||r.line||r.__iso||'');if(!ln)return;
+    var sid=normSpoolId(r.__spool||r.spool);if(!sid||sid==='-')return;
+    var k=ln+'|||'+sid;all[k]=1;
+    if(parseWeldDate(r.__date||r.date)||String(r.__status||r.status||'').toUpperCase().match(/COMPLET|REALIZ|OK/))done[k]=1;
+  });
+  Object.keys(dm).forEach(function(lnRaw){
+    var ln=normLine(lnRaw),rd=dm[lnRaw]||{};
+    Object.keys(rd).forEach(function(sidRaw){
+      var sid=normSpoolId(sidRaw),k=ln+'|||'+sid;
+      if(rd[sidRaw]&&all[k])sent[k]=1;
+    });
+  });
+  var total=Object.keys(all).length, sentCount=Object.keys(sent).length;
+  return {total:total, sent:sentCount, pending:Math.max(0,total-sentCount), done:Object.keys(done).length,
+          pct:total?Math.round(sentCount*1000/total)/10:0};
+};
+})();
+</script>
+
+<script id="flecap-closeout-export-v1">
+/* FLECAP · Exportaciones de la Matriz de soldadura (reimportables) */
+(function(){
+'use strict';
+function q(id){return document.getElementById(id)}
+function pid(){try{return localStorage.getItem('flecap_active_project_v1')||'legacy'}catch(e){return'legacy'}}
+function traceRows(){
+  if(window.__FLECAP_TRACE_ROWS__&&Array.isArray(window.__FLECAP_TRACE_ROWS__)&&window.__FLECAP_TRACE_ROWS__.length)return window.__FLECAP_TRACE_ROWS__;
+  try{
+    for(var i=0;i<localStorage.length;i++){
+      var k=localStorage.key(i);
+      if(!/^flecap_weld_trace/.test(String(k||'')))continue;
+      var rec=JSON.parse(localStorage.getItem(k)||'null');
+      if(rec&&Array.isArray(rec.rows)&&rec.rows.length&&rec.projectId===pid())return rec.rows;
+      if(rec&&Array.isArray(rec.rows)&&rec.rows.length)return rec.rows;
+    }
+  }catch(e){}
+  return [];
+}
+function field(r,keys){for(var i=0;i<keys.length;i++){var v=r[keys[i]];if(v!=null&&String(v).trim()!=='')return String(v).trim()}return ''}
+function toRecords(rows){
+  return (rows||[]).map(function(r){
+    return {
+      'Sistema/OT':field(r,['__system','system']),
+      'L\u00ednea':field(r,['__line','line']),
+      'Isom\u00e9trico':field(r,['__iso','iso','isometric']),
+      'Spool':field(r,['__spool','spool']),
+      'Junta':field(r,['__joint','joint']),
+      'Di\u00e1metro':field(r,['__dia','dia','diameter']),
+      'Tipo':field(r,['__type','type']),
+      'Fecha soldadura':field(r,['__date','date','weldDate']),
+      'Estado':field(r,['__status','status'])
+    };
+  });
+}
+function writeBook(data,name,sheet){
+  if(!window.XLSX){alert('No est\u00e1 disponible el motor Excel XLSX.');return}
+  var wb=XLSX.utils.book_new();
+  var ws=XLSX.utils.json_to_sheet(data.length?data:[{'Sin registros':'\u2014'}]);
+  ws['!cols']=[{wch:18},{wch:24},{wch:14},{wch:12},{wch:12},{wch:10},{wch:10},{wch:14},{wch:14}];
+  XLSX.utils.book_append_sheet(wb,ws,sheet||'Matriz');
+  XLSX.writeFile(wb,name,{bookType:'xlsx',compression:true});
+}
+function isPending(rec){
+  var st=String(rec['Estado']||'').trim().toUpperCase();
+  if(st)return st==='PENDIENTE'||st==='PEND';
+  return !String(rec['Fecha soldadura']||'').trim();
+}
+function wire(){
+  var a=q('ftrExportXlsx'),b=q('ftrExportPend');
+  if(!a)return;
+  a.onclick=function(){
+    var rows=traceRows();if(!rows.length){alert('No hay matriz cargada todav\u00eda. Import\u00e1 el Excel de trazabilidad primero.');return}
+    writeBook(toRecords(rows),'Matriz.xlsx','Matriz');
+  };
+  if(b)b.onclick=function(){
+    var rows=traceRows();if(!rows.length){alert('No hay matriz cargada todav\u00eda. Import\u00e1 el Excel de trazabilidad primero.');return}
+    var pend=toRecords(rows).filter(isPending);
+    if(!pend.length){alert('No hay juntas pendientes: todas las juntas de la matriz tienen soldadura registrada.');return}
+    writeBook(pend,'Listado de pendientes.xlsx','Pendientes');
+  };
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(wire,400)},{once:true});else setTimeout(wire,300);
+})();
+</script>
+
+<script id="flecap-closeout-ui-v1">
+/* FLECAP · Cierre de etapa · interfaz: KPIs de pulgadas, FW/FFW, Curva S real, spools */
+(function(){
+'use strict';
+function q(id){return document.getElementById(id)}
+function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+function fmt(n){return (Math.round(Number(n||0)*10)/10).toLocaleString('es-AR',{maximumFractionDigits:1})}
+function dash(v){return (v===null||v===undefined||isNaN(v))?'—':v}
+
+/* ── Panel de pulgadas + FW/FFW en Seguimiento de Piping ───────────── */
+function ensurePanel(){
+  if(!q('fpqKpis'))return;
+  var p=q('flecapInchesPanel');
+  if(p)return;
+  p=document.createElement('div');p.id='flecapInchesPanel';
+  p.style.cssText='display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:9px;margin:0 0 14px;padding:14px;border:1px solid #2a4a5e;border-radius:12px;background:linear-gradient(160deg,rgba(13,42,59,.65),rgba(9,24,35,.85))';
+  q('fpqKpis').parentNode.insertBefore(p,q('fpqKpis'));
+}
+function pref(){return window.FLECAP_FWFFW_PREF?window.FLECAP_FWFFW_PREF.get():{fw:false,ffw:false}}
+function stats(){return window.FLECAP_WELD_INCHES?window.FLECAP_WELD_INCHES(pref()):null}
+function spools(){return window.FLECAP_SPOOL_STATS?window.FLECAP_SPOOL_STATS():null}
+
+function renderInchesPanel(){
+  ensurePanel();var p=q('flecapInchesPanel');if(!p)return;
+  var c=stats(),pr=pref();
+  if(!c){p.innerHTML='<div style="grid-column:1/-1;color:#8eabba;font-size:12px">Importá la trazabilidad de soldadura (Seguimiento de Matriz) para calcular el avance por pulgadas.</div>';return}
+  var boxes=[
+    ['PULGADAS TOTALES',fmt(c.total)+'"',c.joints+' juntas SW','accent-teal'],
+    ['PULGADAS SOLDADAS',fmt(c.sold)+'"',c.soldJoints+' de '+c.joints+' juntas','accent-green'],
+    ['PULGADAS PENDIENTES',fmt(c.pending)+'"',(c.missingDiameter?('· '+c.missingDiameter+' juntas sin diámetro'):'diámetro completo'),'accent-amber'],
+    ['AVANCE POR PULGADAS',(c.total?fmt(c.pct)+'%':'—'),(pr.fw?'incluye FW':'excluye FW')+' · '+(pr.ffw?'incluye FFW':'excluye FFW'),'accent-blue'],
+    ['SOLDADO DEL DÍA',fmt(c.todaySold)+'"','fecha: '+new Date().toLocaleDateString('es-AR'),'accent-purple']
+  ];
+  var html=boxes.map(function(b){
+    return '<div class="modern-kpi fpq-board-card '+b[3]+'" style="min-width:0"><span>'+b[0]+'</span><b>'+b[1]+'</b><small>'+b[2]+'</small></div>';
+  }).join('');
+  var s=spools();
+  if(s&&s.total){
+    html+='<div class="modern-kpi fpq-board-card accent-teal" style="min-width:0"><span>SPOOLS TOTALES</span><b>'+s.total+'</b><small>de la trazabilidad</small></div>'+
+          '<div class="modern-kpi fpq-board-card accent-purple" style="min-width:0"><span>SPOOLS DESPACHADOS</span><b>'+s.sent+'</b><small>'+fmt(s.pct)+'% enviado a obra</small></div>'+
+          '<div class="modern-kpi fpq-board-card accent-amber" style="min-width:0"><span>PENDIENTES DE DESPACHO</span><b>'+s.pending+'</b><small>gestión logística · no afecta avance de soldadura</small></div>';
+  }
+  html+='<div class="fpq-fwffw-toggle" style="grid-column:1/-1;display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:10px 12px;border:1px dashed #31566b;border-radius:9px;margin-top:2px">'+
+    '<b style="font-size:11px;letter-spacing:.6px;color:#a9c1cf">INCLUIR EN EL AVANCE POR PULGADAS:</b>'+
+    '<label style="display:inline-flex;align-items:center;gap:7px;cursor:pointer;font-size:12px"><input type="checkbox" id="flecapFwChk" '+(pr.fw?'checked':'')+'> <b>FW</b> <small style="color:#8eabba">('+c.fwSold+'/'+c.fwTotal+' soldadas)</small></label>'+
+    '<label style="display:inline-flex;align-items:center;gap:7px;cursor:pointer;font-size:12px"><input type="checkbox" id="flecapFfwChk" '+(pr.ffw?'checked':'')+'> <b>FFW</b> <small style="color:#8eabba">('+c.ffwSold+'/'+c.ffwTotal+' soldadas)</small></label>'+
+    '<small style="color:#8eabba">Por defecto FW y FFW quedan excluidas del avance por pulgadas.</small>'+
+    '</div>';
+  p.innerHTML=html;
+  var fw=q('flecapFwChk'),ffw=q('flecapFfwChk');
+  if(fw)fw.onchange=function(){var v=pref();v.fw=this.checked;window.FLECAP_FWFFW_PREF.set(v);renderInchesPanel();renderCurva()};
+  if(ffw)ffw.onchange=function(){var v=pref();v.ffw=this.checked;window.FLECAP_FWFFW_PREF.set(v);renderInchesPanel();renderCurva()};
+}
+
+/* ── Curva S real de producción de soldadura (PLAN vs REAL) ────────── */
+function planKey(){var p='legacy';try{p=localStorage.getItem('flecap_active_project_v1')||'legacy'}catch(e){}return 'flecap_scurve_weld_plan_v1::'+p}
+function readPlan(){
+  try{
+    var p=JSON.parse(localStorage.getItem(planKey())||'null');
+    if(p&&p.start&&p.end&&(p.mode==='totalInches'||p.mode==='pct')&&p.points)return p;
+  }catch(e){}
+  return null;
+}
+function writePlan(p){try{localStorage.setItem(planKey(),JSON.stringify(p))}catch(e){}}
+function planPctAt(plan,d){
+  var st=new Date(plan.start+'T00:00:00'),en=new Date(plan.end+'T00:00:00');
+  if(isNaN(st)||isNaN(en)||en<=st)return null;
+  var x=(d-st)/(en-st);if(x<0)x=0;if(x>1)x=1;
+  var n=plan.points.length-1,pos=x*n,i=Math.floor(pos),f=pos-i;
+  var a=plan.points[i],b=plan.points[Math.min(i+1,n)];
+  return Math.round((a+(b-a)*f)*10)/10;
+}
+function ensureCurva(){
+  var host=q('flecapInchesPanel');if(!host)return;
+  var c=q('flecapWeldSCurve');if(c)return;
+  c=document.createElement('div');c.id='flecapWeldSCurve';
+  c.style.cssText='grid-column:1/-1;margin-top:10px;border:1px solid #2a4a5e;border-radius:12px;padding:14px;background:rgba(9,24,35,.75)';
+  host.parentNode.insertBefore(c,host.nextSibling);
+}
+function renderCurva(){
+  ensureCurva();var box=q('flecapWeldSCurve');if(!box)return;
+  var c=stats(),plan=readPlan();
+  if(!c||!c.series.length){box.innerHTML='<div style="color:#8eabba;font-size:12px">La Curva S se dibuja con las fechas de soldadura reales de la trazabilidad. Todavía no hay registros con fecha.</div>';return}
+  var W=1200,H=340,L=64,R=64,T=42,B=54,pw=W-L-R,ph=H-T-B;
+  var first=new Date(c.series[0].date+'T00:00:00'),lastReal=new Date(c.series[c.series.length-1].date+'T00:00:00');
+  var finish=plan?new Date(plan.end+'T00:00:00'):new Date(lastReal.getTime()+90*86400000);
+  var start=plan?new Date(plan.start+'T00:00:00'):first;
+  if(finish<=start)finish=new Date(start.getTime()+90*86400000);
+  var xD=function(d){return L+Math.max(0,Math.min(1,(d-start)/(finish-start||1)))*pw};
+  var yP=function(v){return T+ph-(Math.max(0,Math.min(100,v))/100)*ph};
+  var maxDaily=Math.max(1,Math.max.apply(null,c.series.map(function(s){return s.daily})));
+  var yD=function(v){return T+ph-(v/maxDaily)*ph*.8};
+  var grid=[0,20,40,60,80,100].map(function(v){var y=yP(v);return '<line x1="'+L+'" y1="'+y+'" x2="'+(W-R)+'" y2="'+y+'" stroke="rgba(140,170,190,.18)" stroke-width="1"/><text x="'+(W-R+8)+'" y="'+(y+4)+'" fill="#8eabba" font-size="11">'+v+'%</text>'}).join('');
+  var bars=c.series.map(function(s){
+    var d=new Date(s.date+'T00:00:00'),x=xD(d),bw=Math.max(2,Math.min(9,pw/220)),y=yD(s.daily);
+    return '<rect x="'+(x-bw/2)+'" y="'+y+'" width="'+bw+'" height="'+(T+ph-y)+'" rx="1.5" fill="rgba(33,183,122,.55)"><title>'+s.date+' · Soldado del día: '+fmt(s.daily)+'" · Acumulado: '+fmt(s.acc)+'" · Avance: '+fmt(s.pct)+'%</title></rect>';
+  }).join('');
+  var realPath=c.series.map(function(s,i){var d=new Date(s.date+'T00:00:00');return (i?'L':'M')+xD(d).toFixed(1)+' '+yP(s.pct).toFixed(1)}).join(' ');
+  var realDots=c.series.map(function(s){var d=new Date(s.date+'T00:00:00');return '<circle cx="'+xD(d)+'" cy="'+yP(s.pct)+'" r="3" fill="#21b77a"><title>'+s.date+' · Real '+fmt(s.pct)+'% · '+fmt(s.acc)+'"</title></circle>'}).join('');
+  var planPath='',planDots='',planInfo='';
+  if(plan){
+    var pts=[];var cur=new Date(start);
+    while(cur<=finish){var p=planPctAt(plan,cur);if(p!=null)pts.push({d:cur,p:p});cur=new Date(cur.getTime()+86400000)}
+    planPath=pts.map(function(p,i){return (i?'L':'M')+xD(p.d).toFixed(1)+' '+yP(p.p).toFixed(1)}).join(' ');
+    planDots=pts.filter(function(_,i){return i%7===0||i===pts.length-1}).map(function(p){return '<circle cx="'+xD(p.d)+'" cy="'+yP(p.p)+'" r="2.5" fill="#6c8fa2"><title>Plan '+p.d.toLocaleDateString('es-AR')+' · '+fmt(p.p)+'%</title></circle>'}).join('');
+    var today=new Date();today=new Date(today.getFullYear(),today.getMonth(),today.getDate());
+    var pp=planPctAt(plan,today);
+    planInfo='<span style="color:#8eabba">· PLAN hoy: <b style="color:#cfe0e8">'+(pp==null?'—':fmt(pp)+'%')+'</b> vs REAL: <b style="color:#21b77a">'+fmt(c.pct)+'%</b></span>';
+  }else{
+    planInfo='<span style="color:#d7a51f;font-size:11px">Cargá el plan de referencia para comparar PLAN vs REAL.</span>';
+  }
+  var months=[],md=new Date(start.getFullYear(),start.getMonth(),1);
+  while(md<=finish){months.push(new Date(md));md=new Date(md.getFullYear(),md.getMonth()+1,1)}
+  var MN=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  var labs=months.map(function(d){return '<text x="'+xD(d)+'" y="'+(H-16)+'" fill="#8eabba" font-size="10" text-anchor="middle">'+MN[d.getMonth()]+'-'+String(d.getFullYear()).slice(-2)+'</text>'}).join('');
+  box.innerHTML=
+  '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:8px">'+
+    '<div><b style="font-size:14px">CURVA S · PRODUCCIÓN DE SOLDADURA</b><div style="font-size:11px;color:#8eabba;margin-top:2px">Barras: pulgadas soldadas por día (datos reales) · Línea verde: acumulado REAL · Línea gris: PLAN'+planInfo+'</div></div>'+
+    '<button id="flecapWeldPlanEdit" type="button" style="min-height:34px;padding:7px 12px;border:1px solid #3b5a6d;border-radius:8px;background:#153a4f;color:#dceaf1;font-weight:800;cursor:pointer;font-size:11px">⚙ Plan de referencia</button>'+
+  '</div>'+
+  '<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:auto" preserveAspectRatio="none">'+grid+bars+
+    (planPath?'<path d="'+planPath+'" fill="none" stroke="#6c8fa2" stroke-width="2.5" stroke-dasharray="1 0"/>':'')+
+    '<path d="'+realPath+'" fill="none" stroke="#21b77a" stroke-width="2.5"/>'+realDots+planDots+
+    '<line x1="'+xD(finish)+'" y1="'+T+'" x2="'+xD(finish)+'" y2="'+(T+ph)+'" stroke="#ef8a35" stroke-dasharray="5 4" stroke-width="1.5"/>'+
+    '<text x="'+(xD(finish)-6)+'" y="'+(T+12)+'" fill="#ef8a35" font-size="10" text-anchor="end">Fin previsto</text>'+labs+
+  '</svg>'+
+  '<div style="display:flex;gap:18px;flex-wrap:wrap;font-size:11px;color:#8eabba;margin-top:6px">'+
+    '<span><i style="display:inline-block;width:10px;height:10px;background:rgba(33,183,122,.55);border-radius:2px;margin-right:5px"></i>Pulgadas/día</span>'+
+    '<span><i style="display:inline-block;width:14px;height:3px;background:#21b77a;border-radius:2px;margin-right:5px"></i>REAL acumulado</span>'+
+    (plan?'<span><i style="display:inline-block;width:14px;height:3px;background:#6c8fa2;border-radius:2px;margin-right:5px"></i>PLAN de referencia</span>':'')+
+    '<span><i style="display:inline-block;width:3px;height:12px;background:#ef8a35;margin-right:5px"></i>Fin previsto de construcción</span>'+
+  '</div>'+
+  '<div id="flecapWeldPlanEditor" style="display:none;margin-top:12px;padding:12px;border:1px dashed #31566b;border-radius:9px"></div>';
+  var btn=q('flecapWeldPlanEdit');
+  if(btn)btn.onclick=function(){
+    var ed=q('flecapWeldPlanEditor');if(!ed)return;
+    ed.style.display=ed.style.display==='none'?'block':'none';
+    if(ed.style.display==='block'){
+      ed.innerHTML=
+      '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;align-items:end">'+
+        '<label style="font-size:11px;color:#a9c1cf">Inicio de obra<input id="fwpStart" type="date" value="'+(plan?plan.start:'')+'" style="width:100%;margin-top:4px;padding:7px;border:1px solid #3b5a6d;border-radius:7px;background:#0c2433;color:#e8f1f5"></label>'+
+        '<label style="font-size:11px;color:#a9c1cf">Fin previsto de construcción<input id="fwpEnd" type="date" value="'+(plan?plan.end:'')+'" style="width:100%;margin-top:4px;padding:7px;border:1px solid #3b5a6d;border-radius:7px;background:#0c2433;color:#e8f1f5"></label>'+
+        '<label style="font-size:11px;color:#a9c1cf">Fin previsto de obra<input id="fwpEndAll" type="date" value="'+(plan&&plan.endAll?plan.endAll:'')+'" style="width:100%;margin-top:4px;padding:7px;border:1px solid #3b5a6d;border-radius:7px;background:#0c2433;color:#e8f1f5"></label>'+
+        '<label style="font-size:11px;color:#a9c1cf">Pulgadas totales previstas (opcional)<input id="fwpTotal" type="number" min="0" step="0.1" value="'+(plan&&plan.totalInches?plan.totalInches:'')+'" placeholder="= pulgadas reales de la matriz" style="width:100%;margin-top:4px;padding:7px;border:1px solid #3b5a6d;border-radius:7px;background:#0c2433;color:#e8f1f5"></label>'+
+      '</div>'+
+      '<div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;align-items:center">'+
+        '<button id="fwpSave" type="button" style="min-height:34px;padding:7px 14px;border:0;border-radius:8px;background:#21a66b;color:#fff;font-weight:800;cursor:pointer">Guardar plan</button>'+
+        '<button id="fwpClear" type="button" style="min-height:34px;padding:7px 14px;border:1px solid #3b5a6d;border-radius:8px;background:transparent;color:#cfe0e8;cursor:pointer">Quitar plan</button>'+
+        '<small style="color:#8eabba">El plan se genera como curva en S sobre el período elegido. El REAL siempre proviene de las soldaduras registradas; los días sin producción quedan en 0.</small>'+
+      '</div>';
+      q('fwpSave').onclick=function(){
+        var s=q('fwpStart').value,e=q('fwpEnd').value,ea=q('fwpEndAll').value,ti=Number(q('fwpTotal').value)||0;
+        if(!s||!e)return alert('Ingresá fecha de inicio y de fin de construcción.');
+        if(new Date(e)<=new Date(s))return alert('El fin debe ser posterior al inicio.');
+        var N=30,pts=[],i;
+        for(i=0;i<=N;i++){var f=i/N;pts.push(Math.round((1-Math.cos(Math.PI*f))/2*1000)/10)}
+        writePlan({start:s,end:e,endAll:ea||'',mode:'totalInches',totalInches:ti,points:pts,updatedAt:new Date().toISOString()});
+        renderCurva();
+      };
+      q('fwpClear').onclick=function(){writePlan(null);renderCurva()};
+    }
+  };
+}
+
+/* ── Reemplazo del KPI "Avance físico" en el strip ejecutivo ───────── */
+var execReplaceDone=false;
+function replaceExecStrip(){
+  var strip=document.getElementById('flecapExecPipingStrip');if(!strip)return;
+  var kpis=strip.querySelectorAll('.fep-kpi');
+  kpis.forEach(function(k){
+    var lbl=k.querySelector('span');
+    if(lbl&&/avance f/i.test(lbl.textContent||'')){
+      var c=stats();if(!c)return;
+      k.querySelector('b').textContent=c.total?fmt(c.pct)+'%':'—';
+      var sm=k.querySelector('small');if(sm)sm.textContent='Avance por pulgadas soldadas'+(c.total?' · '+fmt(c.sold)+'" / '+fmt(c.total)+'"':' · sin datos');
+    }
+  });
+  execReplaceDone=true;
+}
+
+/* ── Desacople del Alert de importación: resumen en un banner ──────── */
+var _origAlert=window.alert;
+window.alert=function(msg){
+  try{
+    var s=String(msg||'');
+    if(/Matriz importada correctamente/.test(s)&&/TAG en Excel/.test(s)){
+      var old=document.getElementById('flecapImportSummary');
+      if(old)old.remove();
+      var host=q('fpqKpis')?q('fpqKpis').parentNode:document.body;
+      var b=document.createElement('div');b.id='flecapImportSummary';
+      b.style.cssText='margin:0 0 14px;padding:12px 16px;border:1px solid #2b7a4b;border-radius:10px;background:rgba(33,166,107,.1);color:#c9ecd9;font-size:12px;white-space:pre-line;line-height:1.6';
+      b.innerHTML='<b>✅ '+esc(s.split('\n')[0])+'</b>\n'+esc(s.split('\n').slice(1).join('\n').trim())+
+        '<button type="button" style="float:right;border:0;background:transparent;color:#8eabba;cursor:pointer;font-size:14px" aria-label="Cerrar">✕</button>';
+      b.querySelector('button').onclick=function(){b.remove()};
+      host.insertBefore(b,host.firstChild);
+      return;
+    }
+  }catch(e){}
+  return _origAlert.apply(window,arguments);
+};
+
+/* ── Orquestación ──────────────────────────────────────────────────── */
+var scheduled=false;
+function scheduleRender(){
+  if(scheduled)return;scheduled=true;
+  setTimeout(function(){scheduled=false;try{renderInchesPanel()}catch(e){console.warn('FLECAP panel pulgadas',e)}try{renderCurva()}catch(e){console.warn('FLECAP curva',e)}try{replaceExecStrip()}catch(e){}},140);
+}
+document.addEventListener('click',scheduleRender,true);
+document.addEventListener('change',scheduleRender,true);
+document.addEventListener('flecap:remote-ready',scheduleRender,true);
+window.FLECAP_WELD_DASH_REFRESH=scheduleRender;
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(scheduleRender,600)},{once:true});
+else setTimeout(scheduleRender,400);
+})();
+</script>
+
+<style id="flecap-closeout-light-v1">
+/* Modo día: legibilidad de KPIs de pulgadas, FW/FFW, Curva S y exportaciones */
+html.pecom-light #flecapInchesPanel,html.pecom-light #flecapWeldSCurve{background:#fff!important;border-color:#cad9e2!important;color:#17384e!important}
+html.pecom-light #flecapInchesPanel .modern-kpi{background:#f2f7fa!important;border-color:#cad9e2!important;color:#17384e!important}
+html.pecom-light #flecapInchesPanel .modern-kpi span,html.pecom-light #flecapInchesPanel .modern-kpi small{color:#527087!important}
+html.pecom-light #flecapInchesPanel .fpq-fwffw-toggle{border-color:#b9cbd7!important;color:#17384e!important}
+html.pecom-light #flecapInchesPanel .fpq-fwffw-toggle b{color:#244b60!important}
+html.pecom-light #flecapInchesPanel .fpq-fwffw-toggle small{color:#607d8d!important}
+html.pecom-light #flecapWeldSCurve svg text{fill:#527087}
+html.pecom-light #flecapWeldSCurve #flecapWeldPlanEditor{border-color:#b9cbd7!important}
+html.pecom-light #flecapImportSummary{background:#e8f7ef!important;border-color:#2b7a4b!important;color:#175c39!important}
+html.pecom-light .ftr-tools button{background:#fff!important;color:#17384e!important;border-color:#b9cbd7!important}
+</style>
+
 </body></html>
