@@ -1,5 +1,5 @@
-const CACHE = 'flecap-precom-fix-20260918-2';
-const STATIC = ['./manifest.webmanifest'];
+const CACHE = 'flecap-portal-flow-20260926-1';
+const STATIC = ['./manifest.webmanifest', './portal-nuevo.html', './online-config.js', './'];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(c => Promise.all(STATIC.map(u => c.add(u).catch(()=>null)))).then(()=>self.skipWaiting()));
 });
@@ -10,9 +10,10 @@ self.addEventListener('message', event => { if(event.data && event.data.type==='
 self.addEventListener('fetch', event => {
   if(event.request.method !== 'GET') return;
   const url = new URL(event.request.url);
-  const isCritical = event.request.mode === 'navigate' || /\/(index\.html|online-config\.js)$/.test(url.pathname);
+  const isCritical = event.request.mode === 'navigate' || /\/(index\.html|online-config\.js|portal-nuevo\.html)$/.test(url.pathname);
   if(isCritical){
-    event.respondWith(fetch(event.request,{cache:'no-store'}).catch(()=>caches.match(event.request).then(r=>r||caches.match('./index.html'))));
+    // Red primero (sin caché) para recibir actualizaciones; sin red, responde con la copia precacheada.
+    event.respondWith(fetch(event.request,{cache:'no-store'}).catch(()=>caches.match(event.request,{ignoreSearch:true}).then(r=>r||caches.match('./index.html'))));
     return;
   }
   event.respondWith(fetch(event.request).then(r=>{
