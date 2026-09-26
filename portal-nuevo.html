@@ -1,6 +1,80 @@
 <!doctype html>
 <html lang="es">
 <head>
+<script id="flecap-performance-layer-v1">
+/* FLECAP · capa de rendimiento y estabilidad (no altera lógica, datos ni permisos) */
+(function(){
+  if(window.__FLECAP_PERF_V1)return;window.__FLECAP_PERF_V1=true;
+  var W=window,D=document;
+  /* 1) Temporizadores periódicos: sin solapamiento y en pausa con la pestaña oculta (se ejecutan al volver). */
+  var nativeSI=W.setInterval.bind(W),nativeCI=W.clearInterval.bind(W),paused=new Map();
+  W.setInterval=function(fn,ms){
+    if(typeof fn!=='function')return nativeSI.apply(W,arguments);
+    var args=Array.prototype.slice.call(arguments,2),running=false,id;
+    var tick=function(){
+      if(running)return;
+      if(D.hidden&&(ms||0)<=10000){paused.set(id,tick);return}
+      var r;try{r=fn.apply(W,args)}catch(e){console.error('FLECAP intervalo',e);return}
+      if(r&&typeof r.then==='function'){running=true;r.then(function(){running=false},function(e){running=false;console.warn('FLECAP intervalo async',e)})}
+    };
+    id=nativeSI(tick,ms);return id;
+  };
+  W.clearInterval=function(id){paused.delete(id);return nativeCI(id)};
+  D.addEventListener('visibilitychange',function(){if(D.hidden)return;var list=Array.from(paused.values());paused.clear();list.forEach(function(t){try{t()}catch(e){}})});
+
+  /* 2) Observadores de DOM: agrupa ráfagas de cambios en una sola ejecución por cuadro. */
+  var NMO=W.MutationObserver;
+  if(NMO){
+    var raf=W.requestAnimationFrame?W.requestAnimationFrame.bind(W):function(f){return setTimeout(f,16)};
+    W.MutationObserver=function(cb){
+      var queue=[],scheduled=false,self;
+      var inner=new NMO(function(recs){
+        for(var i=0;i<recs.length;i++)queue.push(recs[i]);
+        if(scheduled)return;scheduled=true;
+        raf(function(){scheduled=false;var batch=queue;queue=[];if(!batch.length)return;try{cb.call(self,batch,self)}catch(e){console.error('FLECAP observer',e)}});
+      });
+      self={observe:function(t,o){return inner.observe(t,o)},disconnect:function(){queue=[];return inner.disconnect()},takeRecords:function(){var r=queue.concat(inner.takeRecords());queue=[];return r}};
+      return self;
+    };
+    W.MutationObserver.prototype=NMO.prototype;
+  }
+
+  /* 3) localStorage: evita reescribir valores idénticos (menos bloqueos con estados grandes). */
+  try{
+    var SP=W.Storage&&W.Storage.prototype,nSet=SP&&SP.setItem;
+    if(nSet)SP.setItem=function(k,v){v=String(v);try{if(v.length>256&&this.getItem(k)===v)return}catch(e){}return nSet.call(this,k,v)};
+  }catch(e){}
+
+  /* 4) Supabase: límite de espera para que nada quede "Sincronizando"/"Guardando" indefinidamente,
+        y unificación de lecturas idénticas simultáneas. */
+  var nFetch=W.fetch&&W.fetch.bind(W);
+  if(nFetch){
+    var inflight=new Map();
+    W.fetch=function(input,init){
+      var url=typeof input==='string'?input:(input&&input.url)||String(input);
+      if(url.indexOf('.supabase.co/')<0)return nFetch(input,init);
+      init=init||{};var method=String(init.method||(input&&input.method)||'GET').toUpperCase();
+      var isRest=url.indexOf('/rest/v1/')>=0,isStorage=url.indexOf('/storage/v1/')>=0;
+      var ms=isStorage?120000:(isRest&&method!=='GET'?60000:30000);
+      var run=function(){
+        var ctl=new AbortController(),outer=init.signal,t=setTimeout(function(){ctl.abort()},ms);
+        if(outer){if(outer.aborted)ctl.abort();else outer.addEventListener('abort',function(){ctl.abort()},{once:true})}
+        var opts={};for(var k in init)opts[k]=init[k];opts.signal=ctl.signal;
+        return nFetch(input,opts).finally(function(){clearTimeout(t)});
+      };
+      if(!(isRest&&method==='GET')||init.signal)return run();
+      var h=init.headers||{},auth='';try{auth=(h.get?h.get('Authorization'):(h.Authorization||h.authorization))||''}catch(e){}
+      var key=url+'|'+auth;
+      var p=inflight.get(key);
+      if(!p){p=run();inflight.set(key,p);var drop=function(){if(inflight.get(key)===p)inflight.delete(key)};p.then(drop,drop)}
+      return p.then(function(r){return r.clone()});
+    };
+  }
+})();
+</script>
+<link rel="preconnect" href="https://vbdfspjibkyjyailhraa.supabase.co" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#071019">
@@ -114,6 +188,23 @@ async function boot(){
         await enter(session.user.email,a.role);
         return;
       }
+    }
+    // Cambio de obra SIN sesión Supabase (usuarios de solo lectura ingresan a la
+    // app solo con correo): reingresar con el pase que dejó la app al pulsar "← OBRAS".
+    // Cambia únicamente la obra activa; la sesión del usuario no se cierra ni se toca.
+    if(vuelveDeObra){
+      try{
+        const h=JSON.parse(localStorage.getItem('flecap_portal_handoff')||'null');
+        if(h&&h.email&&(!h.ts||Date.now()-Number(h.ts)<12*60*60*1000)){
+          const a=await allowed(h.email);
+          if(a){
+            sessionStorage.setItem('flecap_portal_unlocked_v1','1');
+            history.replaceState(null,'','/portal-nuevo.html');
+            await enter(h.email,a.role);
+            return;
+          }
+        }
+      }catch(_h){}
     }
   }catch(e){console.warn('FLECAP portal: sesión no reutilizable',e)}
   $('login').classList.remove('hidden');
