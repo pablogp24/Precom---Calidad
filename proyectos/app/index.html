@@ -14555,13 +14555,27 @@ function renderInchesPanel(){
 /* ── Curva S real de producción de soldadura (PLAN vs REAL) ────────── */
 function planKey(){var p='legacy';try{p=localStorage.getItem('flecap_active_project_v1')||'legacy'}catch(e){}return 'flecap_scurve_weld_plan_v1::'+p}
 function readPlan(){
+  /* El plan compartido (remoto adoptado) tiene prioridad: un remoto válido
+     nunca queda pisado por una copia local anterior. localStorage es respaldo. */
+  try{
+    if(window.FLECAP_WELD_PLAN_SYNC&&window.FLECAP_WELD_PLAN_SYNC.isShared()){
+      var rp=window.FLECAP_WELD_PLAN_SYNC.getRemotePlan();
+      if(rp&&rp.start&&rp.end&&(rp.mode==='totalInches'||rp.mode==='pct')&&rp.points)return rp;
+    }
+  }catch(e){}
   try{
     var p=JSON.parse(localStorage.getItem(planKey())||'null');
     if(p&&p.start&&p.end&&(p.mode==='totalInches'||p.mode==='pct')&&p.points)return p;
   }catch(e){}
   return null;
 }
-function writePlan(p){try{localStorage.setItem(planKey(),JSON.stringify(p))}catch(e){}}
+function writePlan(p){
+  try{localStorage.setItem(planKey(),JSON.stringify(p))}catch(e){}
+  try{
+    if(p&&window.FLECAP_WELD_PLAN_SYNC)window.FLECAP_WELD_PLAN_SYNC.pushLocal(p);
+    else if(!p&&window.FLECAP_WELD_PLAN_SYNC)window.FLECAP_WELD_PLAN_SYNC.pushLocal(null);
+  }catch(e){}
+}
 function planPctAt(plan,d){
   var st=new Date(plan.start+'T00:00:00'),en=new Date(plan.end+'T00:00:00');
   if(isNaN(st)||isNaN(en)||en<=st)return null;
@@ -14579,6 +14593,8 @@ function ensureCurva(){
 }
 function renderCurva(){
   ensureCurva();var box=q('flecapWeldSCurve');if(!box)return;
+  var __edPrev=q('flecapWeldPlanEditor');
+  if(__edPrev&&__edPrev.style.display==='block')return; /* no reconstruir mientras el usuario edita el plan */
   var c=stats(),plan=readPlan();
   if(!c||!c.series.length){box.innerHTML='<div style="color:#8eabba;font-size:12px">La Curva S se dibuja con las fechas de soldadura reales de la trazabilidad. Todavía no hay registros con fecha.</div>';return}
   var W=1200,H=340,L=64,R=64,T=42,B=54,pw=W-L-R,ph=H-T-B;
@@ -14616,7 +14632,7 @@ function renderCurva(){
   box.innerHTML=
   '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:8px">'+
     '<div><b style="font-size:14px">CURVA S · PRODUCCIÓN DE SOLDADURA</b><div style="font-size:11px;color:#8eabba;margin-top:2px">Barras: pulgadas soldadas por día (datos reales) · Línea verde: acumulado REAL · Línea gris: PLAN'+planInfo+'</div></div>'+
-    '<button id="flecapWeldPlanEdit" type="button" style="min-height:34px;padding:7px 12px;border:1px solid #3b5a6d;border-radius:8px;background:#153a4f;color:#dceaf1;font-weight:800;cursor:pointer;font-size:11px">⚙ Plan de referencia</button>'+
+    '<button id="flecapWeldPlanEdit" type="button" style="min-height:34px;padding:7px 12px;border:1px solid #3b5a6d;border-radius:8px;background:#153a4f;color:#dceaf1;font-weight:800;cursor:pointer;font-size:11px">⚙ Plan de referencia</button><span id=\'flecapWeldPlanHint\' style=\'font-size:10px;color:#8eabba\'></span>'+
   '</div>'+
   '<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:auto" preserveAspectRatio="none">'+grid+bars+
     (planPath?'<path d="'+planPath+'" fill="none" stroke="#6c8fa2" stroke-width="2.5" stroke-dasharray="1 0"/>':'')+
@@ -14632,7 +14648,12 @@ function renderCurva(){
   '</div>'+
   '<div id="flecapWeldPlanEditor" style="display:none;margin-top:12px;padding:12px;border:1px dashed #31566b;border-radius:9px"></div>';
   var btn=q('flecapWeldPlanEdit');
-  if(btn)btn.onclick=function(){
+  var readOnly=String(window.PECOM_ROLE||'').toLowerCase()==='viewer';
+  if(btn&&readOnly){
+    btn.title='Solo Administrador y Edición pueden modificar el plan de referencia';
+    btn.style.opacity='.55';btn.style.cursor='not-allowed';
+    btn.onclick=function(){alert('Tu usuario tiene permiso de solo lectura: no puede modificar el plan de referencia.')};
+  }else if(btn)btn.onclick=function(){
     var ed=q('flecapWeldPlanEditor');if(!ed)return;
     ed.style.display=ed.style.display==='none'?'block':'none';
     if(ed.style.display==='block'){
@@ -14654,10 +14675,14 @@ function renderCurva(){
         if(new Date(e)<=new Date(s))return alert('El fin debe ser posterior al inicio.');
         var N=30,pts=[],i;
         for(i=0;i<=N;i++){var f=i/N;pts.push(Math.round((1-Math.cos(Math.PI*f))/2*1000)/10)}
-        writePlan({start:s,end:e,endAll:ea||'',mode:'totalInches',totalInches:ti,points:pts,updatedAt:new Date().toISOString()});
+        var __plan={start:s,end:e,endAll:ea||'',mode:'totalInches',totalInches:ti,points:pts,updatedAt:new Date().toISOString(),updatedBy:String(window.PECOM_CURRENT_EMAIL||'').trim().toLowerCase()};
+        writePlan(__plan);                                  /* caché local + subida a la obra (flecap_matrix_store / weld_plan) */
+        var __edSave=q('flecapWeldPlanEditor');if(__edSave)__edSave.style.display='none';
         renderCurva();
+        var __hint=q('flecapWeldPlanHint');
+        if(__hint)__hint.textContent='Plan guardado. Sincronizando con la obra…';
       };
-      q('fwpClear').onclick=function(){writePlan(null);renderCurva()};
+      q('fwpClear').onclick=function(){var __edClear=q('flecapWeldPlanEditor');if(__edClear)__edClear.style.display='none';writePlan(null);renderCurva()};
     }
   };
 }
@@ -14711,6 +14736,133 @@ document.addEventListener('flecap:remote-ready',scheduleRender,true);
 window.FLECAP_WELD_DASH_REFRESH=scheduleRender;
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(scheduleRender,600)},{once:true});
 else setTimeout(scheduleRender,400);
+})();
+</script>
+
+<script id="flecap-weld-plan-sync-v1">
+/* FLECAP · Sincronización del plan de referencia de la Curva S (por obra)
+   - Supabase (flecap_matrix_store, module='weld_plan') es la fuente autoritativa
+   - localStorage queda como respaldo/caché offline
+   - un remoto válido siempre pisa una copia local anterior
+   - borrado con marca (tombstone) para que no reviva una copia vieja
+   - Lectura puede verlo pero no modificarlo
+   - separado por project_id: cada obra tiene su propio plan */
+(function(){
+'use strict';
+function q(id){return document.getElementById(id)}
+function pid(){try{return localStorage.getItem('flecap_active_project_v1')||'legacy'}catch(e){return'legacy'}}
+function planKey(){try{return 'flecap_scurve_weld_plan_v1::'+pid()}catch(e){return 'flecap_scurve_weld_plan_v1::legacy'}}
+function canEditPlan(){
+  var r=String(window.PECOM_ROLE||'').toLowerCase();
+  return r==='admin'||r==='editor'||window.PECOM_CAN_EDIT===true;
+}
+function sbReady(){return !!window.PECOM_SUPABASE&&window.cloudReady!==false}
+function refreshDash(){try{window.FLECAP_WELD_DASH_REFRESH&&window.FLECAP_WELD_DASH_REFRESH()}catch(e){}}
+function hint(msg){var el=q('flecapWeldPlanHint');if(el)el.textContent=msg||''}
+
+var planCache=null;            /* plan remoto adoptado (o null si no hay) */
+var haveRemote=false;          /* ¿ya consultamos el remoto de esta obra? */
+var lastRemoteStamp='';        /* updatedAt del último plan remoto adoptado */
+var lastProject='';            /* obra para la que vale planCache */
+
+function remKeys(){
+  var a=[];
+  try{for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);if(/^flecap_scurve_weld_plan_v1::/.test(String(k||'')))a.push(k)}}catch(e){}
+  return a;
+}
+function pruneLocal(exceptPid){
+  /* respaldo: sólo queda el plan (o la marca) de la obra activa */
+  remKeys().forEach(function(k){
+    if(k===planKey())return;
+    var keep=exceptPid&&k==='flecap_scurve_weld_plan_v1::'+exceptPid;
+    if(!keep)try{localStorage.removeItem(k)}catch(e){}
+  });
+}
+
+async function pull(why){
+  if(!sbReady()){setTimeout(function(){pull(why)},4000);return}
+  var proj=pid();
+  if(proj!==lastProject){planCache=null;haveRemote=false;lastRemoteStamp='';lastProject=proj}
+  try{
+    var r=await window.PECOM_SUPABASE.from('flecap_matrix_store').select('payload,updated_at').eq('project_id',proj).eq('module','weld_plan').maybeSingle();
+    if(proj!==pid())return;                       /* cambió de obra durante la consulta */
+    if(r&&r.error){console.warn('FLECAP plan: error de lectura remota',r.error.message);hint('No se pudo leer el plan remoto');schedulePull(8000);return}
+    var payload=(r&&r.data&&r.data.payload)||null;
+    if(payload&&payload.deleted){
+      planCache=null;haveRemote=true;lastRemoteStamp=String(payload.updatedAt||'');
+      try{localStorage.removeItem(planKey())}catch(e){}
+      pruneLocal(proj);refreshDash();
+    }else if(payload&&payload.start&&payload.end&&Array.isArray(payload.points)&&payload.points.length){
+      var remoteStamp=String(payload.updatedAt||r.data.updated_at||'');
+      var local=null;try{local=JSON.parse(localStorage.getItem(planKey())||'null')}catch(e){}
+      /* prioridad del remoto válido: se adopta salvo que la copia local sea una
+         edición MÁS NUEVA aún no sincronizada (cambio pendiente) */
+      var localPending=!!(local&&local.updatedAt&&remoteStamp&&String(local.updatedAt)>remoteStamp);
+      if(!localPending){
+        planCache=payload;haveRemote=true;lastRemoteStamp=remoteStamp;
+        if(!local||String(local.updatedAt||'')!==remoteStamp){
+          try{localStorage.setItem(planKey(),JSON.stringify(payload))}catch(e){}
+          refreshDash();
+        }
+      }else{
+        planCache=payload;haveRemote=true;lastRemoteStamp=remoteStamp;
+        schedulePush(1500);                        /* sube la edición local más nueva */
+      }
+    }else{
+      /* remoto sin plan */
+      planCache=null;haveRemote=true;lastRemoteStamp='';
+      var local2=null;try{local2=JSON.parse(localStorage.getItem(planKey())||'null')}catch(e){}
+      if(local2&&canEditPlan())schedulePush(1200);  /* primera carga del plan local al cloud */
+      else if(local2&&!canEditPlan()){try{localStorage.removeItem(planKey())}catch(e){};refreshDash()}
+      else if(!local2)pruneLocal(proj);
+    }
+    hint(planCache?('Plan compartido de la obra · actualizado '+(lastRemoteStamp?new Date(lastRemoteStamp).toLocaleDateString('es-AR'):'')):'');
+  }catch(e){console.warn('FLECAP plan: sincronización no disponible',e);schedulePull(8000)}
+}
+var pullTimer=null;
+function schedulePull(ms){clearTimeout(pullTimer);pullTimer=setTimeout(function(){pull('retry')},ms||5000)}
+
+async function push(plan){
+  if(!canEditPlan())return;
+  if(!sbReady()){schedulePush(6000);return}
+  var proj=pid();
+  var payload=plan?JSON.parse(JSON.stringify(plan)):null;
+  try{
+    var body=payload||{deleted:true,updatedAt:new Date().toISOString(),updatedBy:String(window.PECOM_CURRENT_EMAIL||'').trim().toLowerCase()};
+    var w=await window.PECOM_SUPABASE.from('flecap_matrix_store').upsert({project_id:proj,module:'weld_plan',payload:body,updated_by:String(window.PECOM_CURRENT_EMAIL||'').trim().toLowerCase()},{onConflict:'project_id,module'});
+    if(proj!==pid())return;
+    if(w&&w.error){console.warn('FLECAP plan: error al guardar el plan',w.error.message);schedulePush(8000);return}
+    if(plan){planCache=plan;lastRemoteStamp=String(plan.updatedAt||'');hint('Plan guardado y compartido con la obra')}
+    else{planCache=null;lastRemoteStamp=String(body.updatedAt);hint('Plan quitado para todos los usuarios de la obra')}
+  }catch(e){console.warn('FLECAP plan: guardo pendiente (sin conexión)',e);schedulePush(8000)}
+}
+var pushTimer=null;
+function schedulePush(ms){clearTimeout(pushTimer);pushTimer=setTimeout(function(){
+  var p=null;try{p=JSON.parse(localStorage.getItem(planKey())||'null')}catch(e){}
+  push(p);
+},ms||3000)}
+
+window.FLECAP_WELD_PLAN_SYNC={
+  pull:pull,
+  pushLocal:function(p){if(!canEditPlan())return;schedulePush(1200)},
+  getRemotePlan:function(){return (haveRemote&&planCache)?JSON.parse(JSON.stringify(planCache)):null},
+  isShared:function(){return haveRemote&&!!planCache}
+};
+
+/* arranque */
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(function(){pull('boot')},2200)},{once:true});
+else setTimeout(function(){pull('boot')},2200);
+window.addEventListener('online',function(){schedulePush(1500);schedulePull(2500)});
+document.addEventListener('flecap:remote-ready',function(){schedulePull(1200)},true);
+/* adopción pasiva: si otro usuario guarda el plan mientras navego, se adopta al volver a la solapa */
+document.addEventListener('visibilitychange',function(){if(!document.hidden)schedulePull(800)});
+var seenPlan=null;
+setInterval(function(){
+  if(!haveRemote)return;
+  var cur=planCache?JSON.stringify(planCache):null;
+  if(seenPlan===null){seenPlan=cur;return}
+  if(cur!==seenPlan){seenPlan=cur;refreshDash()}
+},4000);
 })();
 </script>
 
