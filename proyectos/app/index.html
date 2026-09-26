@@ -8128,7 +8128,7 @@ html.pecom-light .reg.present{background:#f3f8fd!important}
 (function(){
  if(!('serviceWorker' in navigator))return;
  window.addEventListener('load',function(){
-  navigator.serviceWorker.register('./service-worker.js',{updateViaCache:'none'}).then(function(reg){return reg.update()}).catch(function(err){
+  navigator.serviceWorker.register('/service-worker.js',{updateViaCache:'none'}).then(function(reg){return reg.update()}).catch(function(err){
     console.warn('FLECAP: no se pudo activar el modo instalable',err);
   });
  });
