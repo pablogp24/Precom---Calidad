@@ -166,16 +166,56 @@ function render(list){
  const nc=$('newProjectCard');if(nc)nc.onclick=()=>{$('newProjectName').value='';$('newProjectMsg').textContent='';$('newProjectModal').classList.remove('hidden');$('newProjectName').focus()};
 }
 function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-async function enter(email,role){currentEmail=norm(email);currentRole=role||'viewer';$('userEmail').textContent=currentEmail;$('login').classList.add('hidden');$('projectGrid').innerHTML='<div class="empty">Cargando proyectos autorizados…</div>';try{render(await projectsFor(currentEmail,currentRole))}catch(e){$('projectGrid').innerHTML='<div class="empty">No se pudieron cargar los proyectos. '+esc(e.message||e)+'</div>'}}
+async function enter(email,role){
+  currentEmail=norm(email);currentRole=role||'viewer';
+  try{
+    localStorage.setItem('flecap_portal_identity_v1',JSON.stringify({email:currentEmail,ts:Date.now()}));
+    sessionStorage.setItem('flecap_portal_unlocked_v1','1');
+  }catch(_e){}
+  $('userEmail').textContent=currentEmail;
+  $('login').classList.add('hidden');
+  $('projectGrid').innerHTML='<div class="empty">Cargando proyectos autorizados…</div>';
+  try{render(await projectsFor(currentEmail,currentRole))}
+  catch(e){$('projectGrid').innerHTML='<div class="empty">No se pudieron cargar los proyectos. '+esc(e.message||e)+'</div>'}
+}
 async function boot(){
   $('login').classList.add('hidden');
   try{
     const q=new URLSearchParams(location.search);
     const vuelveDeObra=q.get('from')==='app';
+    const unlocked=sessionStorage.getItem('flecap_portal_unlocked_v1')==='1';
+    const {data,error}=await sb.auth.getSession();
+    if(error)throw error;
+    const session=data&&data.session;
 
-    // Al volver desde una obra, priorizar el pase de navegación. Así el cambio de
-    // obra no depende de que exista una sesión Supabase (Lectura puede no tenerla).
+    // Reutilizar la sesión únicamente si ya se autenticó en esta pestaña
+    // o si vuelve explícitamente desde una obra FLECAP.
+    if((unlocked||vuelveDeObra) && session&&session.user&&session.user.email){
+      const a=await allowed(session.user.email);
+      if(a){
+        sessionStorage.setItem('flecap_portal_unlocked_v1','1');
+        // Limpiar ?from=app sin recargar.
+        if(vuelveDeObra)history.replaceState(null,'','/portal-nuevo.html');
+        await enter(session.user.email,a.role);
+        return;
+      }
+    }
+    // Cambio de obra: no depender del botón interno de cada obra.
+    // El portal conserva la identidad del último acceso validado y la vuelve a
+    // comprobar contra usuarios autorizados antes de mostrar la selección de obras.
     if(vuelveDeObra){
+      try{
+        const ident=JSON.parse(localStorage.getItem('flecap_portal_identity_v1')||'null');
+        if(ident&&ident.email&&(!ident.ts||Date.now()-Number(ident.ts)<12*60*60*1000)){
+          const a=await allowed(ident.email);
+          if(a){
+            history.replaceState(null,'','/portal-nuevo.html');
+            await enter(ident.email,a.role);
+            return;
+          }
+        }
+      }catch(_identErr){console.warn('FLECAP portal identity',_identErr)}
+
       try{
         const h=JSON.parse(localStorage.getItem('flecap_portal_handoff')||'null');
         if(h&&h.email&&(!h.ts||Date.now()-Number(h.ts)<12*60*60*1000)){
@@ -188,20 +228,6 @@ async function boot(){
           }
         }
       }catch(_h){}
-    }
-
-    const unlocked=sessionStorage.getItem('flecap_portal_unlocked_v1')==='1';
-    const {data,error}=await sb.auth.getSession();
-    if(error)throw error;
-    const session=data&&data.session;
-    if((unlocked||vuelveDeObra) && session&&session.user&&session.user.email){
-      const a=await allowed(session.user.email);
-      if(a){
-        sessionStorage.setItem('flecap_portal_unlocked_v1','1');
-        if(vuelveDeObra)history.replaceState(null,'','/portal-nuevo.html');
-        await enter(session.user.email,a.role);
-        return;
-      }
     }
   }catch(e){console.warn('FLECAP portal: sesión no reutilizable',e)}
   $('login').classList.remove('hidden');
@@ -254,7 +280,7 @@ $('createProjectBtn').onclick=async()=>{
  finally{btn.disabled=false;btn.textContent='Crear obra'}
 };
 
-$('logoutBtn').onclick=async()=>{try{await sb.auth.signOut()}catch(e){}try{sessionStorage.removeItem('flecap_portal_unlocked_v1');localStorage.removeItem('flecap_portal_auth');localStorage.removeItem('flecap_portal_handoff')}catch(e){}currentEmail='';$('password').value='';$('login').classList.remove('hidden')};
+$('logoutBtn').onclick=async()=>{try{await sb.auth.signOut()}catch(e){}try{sessionStorage.removeItem('flecap_portal_unlocked_v1');localStorage.removeItem('flecap_portal_auth');localStorage.removeItem('flecap_portal_handoff');localStorage.removeItem('flecap_portal_identity_v1')}catch(e){}currentEmail='';$('password').value='';$('login').classList.remove('hidden')};
 boot().catch(e=>{$('msg').textContent=e.message||'No se pudo iniciar FLECAP.';$('login').classList.remove('hidden')});
 </script>
 </body></html>
