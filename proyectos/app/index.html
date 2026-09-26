@@ -12015,8 +12015,28 @@ html.pecom-light .fes-panel,html.pecom-light .fes-card,html.pecom-light .fes-top
  function isoToday(){var d=new Date(),m=String(d.getMonth()+1).padStart(2,'0'),x=String(d.getDate()).padStart(2,'0');return d.getFullYear()+'-'+m+'-'+x}
  function addMonths(iso,n){var a=iso.split('-').map(Number),d=new Date(Date.UTC(a[0],a[1]-1,a[2]));d.setUTCMonth(d.getUTCMonth()+n);return d.toISOString().slice(0,10)}
  function defaults(){var st=isoToday(),en=addMonths(st,12);return{start:st,constructionEnd:addMonths(st,10),end:en,points:[0,2,6,12,20,31,44,58,70,81,90,96,100]}}
- function cfg(){try{var x=JSON.parse(localStorage.getItem(key())||'null');if(x&&x.start&&x.end&&Array.isArray(x.points)){if(!x.constructionEnd)x.constructionEnd=x.end;return x}}catch(e){}return defaults()}
- function saveCfg(x){localStorage.setItem(key(),JSON.stringify(x))}
+ /* Plan compartido de la obra (Supabase). Si el remoto es más viejo que la
+    copia local —recién guardado— se muestra el local para no mostrar un valor viejo. */
+ function sharedPlan(){
+  try{
+   var s=window.FLECAP_WELD_PLAN_SYNC;if(!s||typeof s.getRemotePlan!=='function')return null;
+   var r=s.getRemotePlan();if(!r||!r.start||!r.end||!Array.isArray(r.points)||!r.points.length)return null;
+   var pid=(localStorage.getItem('flecap_active_project_v1')||'legacy');
+   var l=null;try{l=JSON.parse(localStorage.getItem('flecap_scurve_weld_plan_v1::'+pid)||'null')}catch(_e){}
+   if(l&&l.start&&l.end&&Array.isArray(l.points)&&l.updatedAt&&(!r.updatedAt||String(l.updatedAt)>String(r.updatedAt)))r=l;
+   return{start:r.start,constructionEnd:r.end,end:r.endAll||r.end,points:r.points.map(Number)};
+  }catch(e){return null}
+ }
+ function cfg(){var sh=sharedPlan();if(sh)return sh;try{var x=JSON.parse(localStorage.getItem(key())||'null');if(x&&x.start&&x.end&&Array.isArray(x.points)){if(!x.constructionEnd)x.constructionEnd=x.end;return x}}catch(e){}return defaults()}
+ function saveCfg(x){
+  localStorage.setItem(key(),JSON.stringify(x));
+  /* se publica además como plan compartido de la obra (weld_plan) */
+  try{
+   if(window.FLECAP_WELD_PLAN_SYNC&&typeof window.FLECAP_WELD_PLAN_SYNC.pushLocal==='function'){
+    window.FLECAP_WELD_PLAN_SYNC.pushLocal({start:x.start,end:x.constructionEnd||x.end,endAll:x.end||'',mode:'pct',points:x.points,updatedAt:new Date().toISOString(),updatedBy:String(window.PECOM_CURRENT_EMAIL||'').trim().toLowerCase()});
+   }
+  }catch(_sc){}
+ }
  function progress(){try{if(window.FLECAP_MODULE_PROGRESS){var q=window.FLECAP_MODULE_PROGRESS('quality'),p=window.FLECAP_MODULE_PROGRESS('precom');return {quality:Number(q.pct)||0,precom:Number(p.pct)||0,global:((Number(q.pct)||0)+(Number(p.pct)||0))/2}}}catch(e){}return{quality:0,precom:0,global:0}}
  function parseDate(x){var a=String(x||'').split('-').map(Number);return Date.UTC(a[0]||1970,(a[1]||1)-1,a[2]||1)}
  function fmt(x){if(!x)return'-';var a=x.split('-');return a[2]+'/'+a[1]+'/'+a[0]}
@@ -12024,10 +12044,13 @@ html.pecom-light .fes-panel,html.pecom-light .fes-card,html.pecom-light .fes-top
  function data(mode,n){var pr=progress(),current=mode==='quality'?pr.quality:mode==='precom'?pr.precom:pr.global,c=cfg(),st=parseDate(c.start),en=parseDate(c.end),now=Date.now(),cut=en>st?Math.max(0,Math.min(1,(now-st)/(en-st))):0,pts=[];for(var i=0;i<n;i++){var x=i/(n-1),actual=null;if(x<=cut){var y=cut?x/cut:0;actual=Math.max(0,Math.min(current,current*(.12*y+.88*(1-Math.cos(Math.PI*y))/2)))}pts.push({x:x,plan:Math.max(0,Math.min(100,planAt(c,x))),actual:actual})}return{pts:pts,current:current,cut:cut,cfg:c}}
  function renderCurve(){var box=document.getElementById('fesSCurvePanel');if(!box)return;var mode=box.dataset.mode||'global',d=data(mode,25),W=900,H=250,L=48,R=18,T=16,B=34,pw=W-L-R,ph=H-T-B,X=function(x){return L+x*pw},Y=function(y){return T+(100-y)*ph/100},path=function(arr,key){var q=[];arr.forEach(function(v){if(v[key]==null)return;q.push((q.length?'L':'M')+X(v.x).toFixed(1)+' '+Y(v[key]).toFixed(1))});return q.join(' ')},grid='',labels='';for(var y=0;y<=100;y+=20){grid+='<line class="fsc-grid" x1="'+L+'" y1="'+Y(y)+'" x2="'+(W-R)+'" y2="'+Y(y)+'"/><text class="fsc-axis" x="8" y="'+(Y(y)+3)+'">'+y+'%</text>'}var labs=[['Inicio',0],['25%',.25],['50%',.5],['75%',.75],['Fin',1]];labs.forEach(function(z){labels+='<text class="fsc-axis" text-anchor="middle" x="'+X(z[1])+'" y="'+(H-8)+'">'+z[0]+'</text>'});var actuals=d.pts.filter(function(v){return v.actual!=null}),dots=actuals.map(function(v,i,a){return '<circle class="fsc-point" data-v="'+v.actual.toFixed(1)+'" data-x="'+Math.round(v.x*100)+'" cx="'+X(v.x)+'" cy="'+Y(v.actual)+'" r="'+(i===a.length-1?6:3.5)+'"/>'}).join(''),last=actuals.length?actuals[actuals.length-1]:{x:0};box.querySelector('.fsc-wrap').innerHTML='<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none">'+grid+labels+'<path class="fsc-plan" d="'+path(d.pts,'plan')+'"/><path class="fsc-actual" d="'+path(d.pts,'actual')+'"/><line class="fsc-now" x1="'+X(last.x)+'" y1="'+T+'" x2="'+X(last.x)+'" y2="'+(H-B)+'"/>'+dots+'</svg><div class="fsc-tip"></div>';box.querySelector('.fsc-current').textContent=d.current.toFixed(1)+'%';var meta=box.querySelector('.fsc-dates');if(meta)meta.textContent='Inicio '+fmt(d.cfg.start)+' · Fin construcción '+fmt(d.cfg.constructionEnd||d.cfg.end)+' · Fin de obra '+fmt(d.cfg.end);var tip=box.querySelector('.fsc-tip');box.querySelectorAll('.fsc-point').forEach(function(pt){pt.onmouseenter=pt.onmousemove=function(ev){tip.style.display='block';tip.innerHTML='<b>Avance: '+pt.dataset.v+'%</b><br>Período: '+pt.dataset.x+'%';var r=box.querySelector('.fsc-wrap').getBoundingClientRect();tip.style.left=Math.min(r.width-130,Math.max(4,ev.clientX-r.left+10))+'px';tip.style.top=Math.max(4,ev.clientY-r.top-42)+'px'};pt.onmouseleave=function(){tip.style.display='none'}})}
  function editor(box){var old=box.querySelector('.fsc-editor');if(old){old.remove();return}var c=cfg(),e=document.createElement('div');e.className='fsc-editor';e.innerHTML='<div class="fsc-edit-grid fsc-edit-grid-3"><label>Fecha inicio de obra<input type="date" id="fscStart" value="'+c.start+'"></label><label>Fin de construcción<input type="date" id="fscConstructionEnd" value="'+(c.constructionEnd||c.end)+'"></label><label>Fecha final de obra<input type="date" id="fscEnd" value="'+c.end+'"></label></div><label class="fsc-plan-label">Plan de referencia (%)<small>Ingresá porcentajes acumulados de 0 a 100 separados por coma. FLECAP los distribuye entre la fecha de inicio y la fecha final de obra.</small><textarea id="fscPoints" rows="3">'+c.points.join(', ')+'</textarea></label><div class="fsc-edit-actions"><button type="button" data-fsc-save>Guardar y actualizar curva</button><button type="button" data-fsc-reset>Restablecer plan</button><span class="fsc-msg"></span></div>';box.querySelector('.fsc-head').insertAdjacentElement('afterend',e)}
- function saveEditor(box){var st=box.querySelector('#fscStart').value,ce=box.querySelector('#fscConstructionEnd').value,en=box.querySelector('#fscEnd').value,msg=box.querySelector('.fsc-msg'),pts=box.querySelector('#fscPoints').value.split(/[;,\s]+/).filter(Boolean).map(Number);if(!st||!ce||!en||parseDate(en)<=parseDate(st)){msg.textContent='Completá las tres fechas y verificá que el fin de obra sea posterior al inicio.';return}if(parseDate(ce)<parseDate(st)||parseDate(ce)>parseDate(en)){msg.textContent='El fin de construcción debe quedar entre el inicio y el fin de obra.';return}if(pts.length<2||pts.some(function(x){return !isFinite(x)||x<0||x>100})){msg.textContent='El plan debe tener al menos 2 valores entre 0 y 100.';return}for(var i=1;i<pts.length;i++){if(pts[i]<pts[i-1]){msg.textContent='El plan debe ser acumulativo: los porcentajes no pueden disminuir.';return}}saveCfg({start:st,constructionEnd:ce,end:en,points:pts});msg.textContent='Plan y fechas actualizados.';renderCurve()}
+ function saveEditor(box){var st=box.querySelector('#fscStart').value,ce=box.querySelector('#fscConstructionEnd').value,en=box.querySelector('#fscEnd').value,msg=box.querySelector('.fsc-msg'),pts=box.querySelector('#fscPoints').value.split(/[;,\s]+/).filter(Boolean).map(Number);if(!st||!ce||!en||parseDate(en)<=parseDate(st)){msg.textContent='Completá las tres fechas y verificá que el fin de obra sea posterior al inicio.';return}if(parseDate(ce)<parseDate(st)||parseDate(ce)>parseDate(en)){msg.textContent='El fin de construcción debe quedar entre el inicio y el fin de obra.';return}if(pts.length<2||pts.some(function(x){return !isFinite(x)||x<0||x>100})){msg.textContent='El plan debe tener al menos 2 valores entre 0 y 100.';return}for(var i=1;i<pts.length;i++){if(pts[i]<pts[i-1]){msg.textContent='El plan debe ser acumulativo: los porcentajes no pueden disminuir.';return}}saveCfg({start:st,constructionEnd:ce,end:en,points:pts});msg.textContent='Plan guardado. Compartiendo con la obra…';renderCurve()}
  function addCurve(){var root=document.getElementById('flecapExecutiveState');if(!root||document.getElementById('fesSCurvePanel'))return;var titles=root.querySelectorAll('.fes-title'),anchor=titles.length>1?titles[1]:null,p=document.createElement('div');p.id='fesSCurvePanel';p.className='fes-panel';p.dataset.mode='global';p.innerHTML='<div class="fsc-head"><div><h3>Curva S de avance</h3><div class="fsc-note">Plan de referencia editable vs. avance actual calculado por FLECAP.</div><div class="fsc-dates"></div></div><div class="fsc-controls"><button data-m="global" class="active">Global</button><button data-m="quality">Calidad</button><button data-m="precom">Precom</button><button data-fsc-edit>⚙ Plan de referencia</button><b class="fsc-current">0%</b></div></div><div class="fsc-wrap"></div><div class="fsc-legend"><span><i style="background:#6c8fa2"></i>Plan de referencia</span><span><i style="background:#21b77a"></i>Avance FLECAP</span><span><i style="background:#ef8a35"></i>Corte actual</span></div>';if(anchor)root.insertBefore(p,anchor);else root.appendChild(p);p.addEventListener('click',function(ev){var b=ev.target.closest('[data-m]');if(b){p.dataset.mode=b.dataset.m;p.querySelectorAll('[data-m]').forEach(function(x){x.classList.toggle('active',x===b)});renderCurve();return}if(ev.target.closest('[data-fsc-edit]')){editor(p);return}if(ev.target.closest('[data-fsc-save]')){saveEditor(p);return}if(ev.target.closest('[data-fsc-reset]')){saveCfg(defaults());var ed=p.querySelector('.fsc-editor');if(ed)ed.remove();renderCurve()}});renderCurve()}
  function syncSticky(){var nav=document.querySelector('#pipingQuality .fpq-table-nav');if(!nav)return;var top=document.getElementById('fxAppTopbar'),h=top?top.getBoundingClientRect().height:0;nav.style.top=Math.round(h)+'px';var nh=nav.getBoundingClientRect().height||47;document.querySelectorAll('#pipingQuality #fpqTable thead,#pipingQuality #fpqTable thead th').forEach(function(x){x.style.top=Math.round(h+nh)+'px'})}
- function boot(){addCurve();syncSticky();window.addEventListener('resize',syncSticky);var old=window.FLECAP_RENDER_EXECUTIVE_STATE;if(old&&!old.__scurve){var wrap=function(){var r=old.apply(this,arguments);setTimeout(function(){addCurve();renderCurve()},0);return r};wrap.__scurve=true;window.FLECAP_RENDER_EXECUTIVE_STATE=wrap}document.addEventListener('click',function(e){if(e.target.closest&&e.target.closest('[data-go="pipingQuality"],#flecapCompletionBtn'))setTimeout(function(){syncSticky();addCurve();renderCurve()},120)},true)}
+ var lastSharedSig=null;
+ function sharedSig(){try{var c=sharedPlan();return c?JSON.stringify([c.start,c.constructionEnd,c.end,c.points]):''}catch(e){return''}}
+ function watchShared(){setInterval(function(){var s=sharedSig();if(s!==lastSharedSig){lastSharedSig=s;renderCurve()}},5000)}
+ function boot(){addCurve();syncSticky();lastSharedSig=sharedSig();watchShared();window.addEventListener('resize',syncSticky);var old=window.FLECAP_RENDER_EXECUTIVE_STATE;if(old&&!old.__scurve){var wrap=function(){var r=old.apply(this,arguments);setTimeout(function(){addCurve();renderCurve()},0);return r};wrap.__scurve=true;window.FLECAP_RENDER_EXECUTIVE_STATE=wrap}document.addEventListener('click',function(e){if(e.target.closest&&e.target.closest('[data-go="pipingQuality"],#flecapCompletionBtn'))setTimeout(function(){syncSticky();addCurve();renderCurve()},120)},true)}
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
 </script>
@@ -14570,11 +14593,9 @@ function readPlan(){
   return null;
 }
 function writePlan(p){
-  try{localStorage.setItem(planKey(),JSON.stringify(p))}catch(e){}
-  try{
-    if(p&&window.FLECAP_WELD_PLAN_SYNC)window.FLECAP_WELD_PLAN_SYNC.pushLocal(p);
-    else if(!p&&window.FLECAP_WELD_PLAN_SYNC)window.FLECAP_WELD_PLAN_SYNC.pushLocal(null);
-  }catch(e){}
+  /* El plan se guarda primero como caché local y después se comparte con la obra. */
+  if(window.FLECAP_WELD_PLAN_SYNC){try{window.FLECAP_WELD_PLAN_SYNC.pushLocal(p)}catch(e){}}
+  else{try{localStorage.setItem(planKey(),JSON.stringify(p))}catch(e){}}
 }
 function planPctAt(plan,d){
   var st=new Date(plan.start+'T00:00:00'),en=new Date(plan.end+'T00:00:00');
@@ -14758,7 +14779,10 @@ function canEditPlan(){
 }
 function sbReady(){return !!window.PECOM_SUPABASE&&window.cloudReady!==false}
 function refreshDash(){try{window.FLECAP_WELD_DASH_REFRESH&&window.FLECAP_WELD_DASH_REFRESH()}catch(e){}}
-function hint(msg){var el=q('flecapWeldPlanHint');if(el)el.textContent=msg||''}
+function hint(msg){
+  var el=q('flecapWeldPlanHint');if(el)el.textContent=msg||'';
+  var f=document.querySelector('.fsc-msg');if(f)f.textContent=msg||'';
+}
 
 var planCache=null;            /* plan remoto adoptado (o null si no hay) */
 var haveRemote=false;          /* ¿ya consultamos el remoto de esta obra? */
@@ -14822,19 +14846,37 @@ async function pull(why){
 var pullTimer=null;
 function schedulePull(ms){clearTimeout(pullTimer);pullTimer=setTimeout(function(){pull('retry')},ms||5000)}
 
+var pushAttempts=0;
 async function push(plan){
   if(!canEditPlan())return;
-  if(!sbReady()){schedulePush(6000);return}
+  if(!sbReady()){retryPush('Sin conexión con la obra: el plan quedó sólo en este dispositivo.',6000);return}
   var proj=pid();
   var payload=plan?JSON.parse(JSON.stringify(plan)):null;
   try{
     var body=payload||{deleted:true,updatedAt:new Date().toISOString(),updatedBy:String(window.PECOM_CURRENT_EMAIL||'').trim().toLowerCase()};
     var w=await window.PECOM_SUPABASE.from('flecap_matrix_store').upsert({project_id:proj,module:'weld_plan',payload:body,updated_by:String(window.PECOM_CURRENT_EMAIL||'').trim().toLowerCase()},{onConflict:'project_id,module'});
     if(proj!==pid())return;
-    if(w&&w.error){console.warn('FLECAP plan: error al guardar el plan',w.error.message);schedulePush(8000);return}
+    if(w&&w.error){
+      console.warn('FLECAP plan: error al guardar el plan',w.error);
+      retryPush('No se pudo compartir el plan con la obra ('+(w.error.code||'error')+'): quedó sólo en este dispositivo.',8000);
+      return;
+    }
+    pushAttempts=0;
     if(plan){planCache=plan;lastRemoteStamp=String(plan.updatedAt||'');hint('Plan guardado y compartido con la obra')}
     else{planCache=null;lastRemoteStamp=String(body.updatedAt);hint('Plan quitado para todos los usuarios de la obra')}
-  }catch(e){console.warn('FLECAP plan: guardo pendiente (sin conexión)',e);schedulePush(8000)}
+  }catch(e){
+    console.warn('FLECAP plan: guardo pendiente (sin conexión)',e);
+    retryPush('Sin conexión: el plan quedó sólo en este dispositivo y se subirá al reconectar.',8000);
+  }
+}
+/* Si el guardado remoto falla, se dice en pantalla y se reintenta un número
+   acotado de veces: nunca queda reintentando en silencio para siempre. */
+function retryPush(msg,ms){
+  pushAttempts++;
+  window.__FLECAP_WELD_PLAN_LAST_ERROR=msg;
+  if(pushAttempts>3){hint(msg+' Se agotaron los reintentos: revisá la conexión y guardá de nuevo.');return}
+  hint(msg+' Reintento '+(pushAttempts+1)+'/4…');
+  schedulePush(ms);
 }
 var pushTimer=null;
 function schedulePush(ms){clearTimeout(pushTimer);pushTimer=setTimeout(function(){
@@ -14844,7 +14886,11 @@ function schedulePush(ms){clearTimeout(pushTimer);pushTimer=setTimeout(function(
 
 window.FLECAP_WELD_PLAN_SYNC={
   pull:pull,
-  pushLocal:function(p){if(!canEditPlan())return;schedulePush(1200)},
+  pushLocal:function(p){
+    if(!canEditPlan())return;                       /* Lectura puede ver, no escribir */
+    try{var k=planKey();if(p)localStorage.setItem(k,JSON.stringify(p));else localStorage.removeItem(k)}catch(e){}
+    schedulePush(1200);
+  },
   getRemotePlan:function(){return (haveRemote&&planCache)?JSON.parse(JSON.stringify(planCache)):null},
   isShared:function(){return haveRemote&&!!planCache}
 };
