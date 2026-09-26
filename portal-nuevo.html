@@ -172,26 +172,9 @@ async function boot(){
   try{
     const q=new URLSearchParams(location.search);
     const vuelveDeObra=q.get('from')==='app';
-    const unlocked=sessionStorage.getItem('flecap_portal_unlocked_v1')==='1';
-    const {data,error}=await sb.auth.getSession();
-    if(error)throw error;
-    const session=data&&data.session;
 
-    // Reutilizar la sesión únicamente si ya se autenticó en esta pestaña
-    // o si vuelve explícitamente desde una obra FLECAP.
-    if((unlocked||vuelveDeObra) && session&&session.user&&session.user.email){
-      const a=await allowed(session.user.email);
-      if(a){
-        sessionStorage.setItem('flecap_portal_unlocked_v1','1');
-        // Limpiar ?from=app sin recargar.
-        if(vuelveDeObra)history.replaceState(null,'','/portal-nuevo.html');
-        await enter(session.user.email,a.role);
-        return;
-      }
-    }
-    // Cambio de obra SIN sesión Supabase (usuarios de solo lectura ingresan a la
-    // app solo con correo): reingresar con el pase que dejó la app al pulsar "← OBRAS".
-    // Cambia únicamente la obra activa; la sesión del usuario no se cierra ni se toca.
+    // Al volver desde una obra, priorizar el pase de navegación. Así el cambio de
+    // obra no depende de que exista una sesión Supabase (Lectura puede no tenerla).
     if(vuelveDeObra){
       try{
         const h=JSON.parse(localStorage.getItem('flecap_portal_handoff')||'null');
@@ -205,6 +188,20 @@ async function boot(){
           }
         }
       }catch(_h){}
+    }
+
+    const unlocked=sessionStorage.getItem('flecap_portal_unlocked_v1')==='1';
+    const {data,error}=await sb.auth.getSession();
+    if(error)throw error;
+    const session=data&&data.session;
+    if((unlocked||vuelveDeObra) && session&&session.user&&session.user.email){
+      const a=await allowed(session.user.email);
+      if(a){
+        sessionStorage.setItem('flecap_portal_unlocked_v1','1');
+        if(vuelveDeObra)history.replaceState(null,'','/portal-nuevo.html');
+        await enter(session.user.email,a.role);
+        return;
+      }
     }
   }catch(e){console.warn('FLECAP portal: sesión no reutilizable',e)}
   $('login').classList.remove('hidden');
