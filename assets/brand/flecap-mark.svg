@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img" aria-label="FLECAP">
+<title>FLECAP</title>
+<defs>
+<linearGradient id="fmA" x1="0" y1="0" x2="1" y2="1">
+<stop offset="0" stop-color="#7fe6ff"/><stop offset=".38" stop-color="#25a9e6"/><stop offset="1" stop-color="#0a63b4"/>
+</linearGradient>
+<linearGradient id="fmB" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#ffffff"/><stop offset=".55" stop-color="#e8f4fb"/><stop offset="1" stop-color="#a9cee6"/>
+</linearGradient>
+<linearGradient id="fmS" x1="0" y1="0" x2="1" y2="1">
+<stop offset="0" stop-color="#3fc2f2"/><stop offset=".55" stop-color="#0f83cf"/><stop offset="1" stop-color="#074a8c"/>
+</linearGradient>
+</defs>
+<g>
+<g transform="translate(9,9)" opacity=".5">
+<path d="M66.6,18.0 L144.6,18.0 L112.0,222.0 L34.0,222.0 Z" fill="#072b4b"/><path d="M66.6,18.0 L228.6,18.0 L219.4,76.0 L57.4,76.0 Z" fill="#072b4b"/>
+</g>
+<path d="M66.6,18.0 L144.6,18.0 L112.0,222.0 L34.0,222.0 Z" fill="url(#fmS)"/>
+<path d="M66.6,18.0 L228.6,18.0 L219.4,76.0 L57.4,76.0 Z" fill="url(#fmA)"/>
+<path d="M52.9,104.0 L188.9,104.0 L181.5,150.0 L45.5,150.0 Z" fill="url(#fmB)"/>
+</g>
+</svg>
