@@ -1462,8 +1462,9 @@ function release(){
   if(released)return;
   released=true;
   root.classList.remove('flecap-awaiting-authoritative-data');
-  try{if(typeof renderAll==='function')renderAll()}catch(e){}
-  try{if(typeof renderHero==='function')renderHero()}catch(e){}
+  /* FLECAP perf: renderAll() ya termina con renderHero(); la llamada
+     aparte queda solo para el caso en que renderAll falle. */
+  try{if(typeof renderAll==='function')renderAll()}catch(e){try{if(typeof renderHero==='function')renderHero()}catch(e2){}}
   try{if(window.flecapDrawExactDashboard)window.flecapDrawExactDashboard()}catch(e){}
 }
 /* Online: el contenido queda oculto hasta que loadRemote() y MATRIX_DB.loadAll()
@@ -2403,9 +2404,18 @@ function norm(x){
 function esc(x){return String(x??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
 function recKey(tag,id){return tag+"|||"+id}
 function matrixStatus(tag,col){
- return window.__FLECAP_DC.ms(String(tag&&tag.tag)+"|"+String(col),function(){
-  return matrixStatusUncached(tag,col);
- });
+ const mat=tag&&tag.matriz;
+ if(!mat||!col)return null;
+ /* FLECAP perf: la clave era tag.tag+"|"+columna, es decir 300.000 cadenas
+    por render (una por cada TAG x Maestro con columna). Ahora se resuelve
+    por el propio objeto de matriz del TAG y, dentro de el, por columna:
+    mismo resultado, sin concatenar nada. El caché sigue muriendo con la
+    pasada, asi que no puede quedar viejo. */
+ const byCol=window.__FLECAP_DC.raw("mx",mat);
+ if(!byCol)return matrixStatusUncached(tag,col);
+ let v=byCol.get(col);
+ if(v===undefined){v=matrixStatusUncached(tag,col);byCol.set(col,v)}
+ return v;
 }
 function matrixStatusUncached(tag,col){
  if(!tag||!tag.matriz||!col)return null;
@@ -2425,10 +2435,15 @@ function matrixStatusUncached(tag,col){
 }
 function applicabilityOverrideKey(tag,m){return recKey(tag.tag,m.id)}
 function applicabilityOverride(tag,m){
- return window.__FLECAP_DC.ov(applicabilityOverrideKey(tag,m),function(){
-  const o=state.applicabilityOverrides?.[applicabilityOverrideKey(tag,m)];
-  return o?.mode||"";
- });
+ /* FLECAP perf: dentro de una pasada se.cacheaba por la clave
+    "tag|||maestro", o sea 300.000 cadenas y 300.000 entradas de Map por
+    render... y la entrada nunca volvia a leerse, porque applicable() se
+    llama una sola vez por cada par TAG x Maestro. El acceso directo al
+    diccionario da exactamente el mismo valor y no asigna nada. */
+ const ovs=state.applicabilityOverrides;
+ if(!ovs)return "";
+ const o=ovs[applicabilityOverrideKey(tag,m)];
+ return o?.mode||"";
 }
 function applicable(tag,m){
  // Los maestros históricos no siempre guardaban el campo activo. Solo un valor
@@ -2473,8 +2488,8 @@ function flecapEnsureMatrixMasters(tag){
    se tira al terminar: fuera de una pasada los helpers se comportan
    exactamente como antes, sin caché y sin riesgo de datos viejos. */
 window.__FLECAP_DC=(function(){
-  var c={depth:0,am:null,ins:null,ms:null,lbl:null,ov:null};
-  function fresh(){c.am=new Map();c.ins=new Map();c.ms=new Map();c.lbl=new Map();c.ov=new Map()}
+  var c={depth:0,am:null,ins:null,ms:null,lbl:null,ov:null,mx:null};
+  function fresh(){c.am=new Map();c.ins=new Map();c.ms=new Map();c.lbl=new Map();c.ov=new Map();c.mx=new WeakMap()}
   function get(map,key,fn){
     if(!c.depth||typeof key!=="string")return fn();
     let v=map.get(key);
@@ -2482,14 +2497,56 @@ window.__FLECAP_DC=(function(){
     return v;
   }
   return {
-    pass:function(fn){c.depth++;if(c.depth===1)fresh();try{return fn()}finally{c.depth--;if(c.depth<=0){c.depth=0;c.am=c.ins=c.ms=c.lbl=c.ov=null}}},
+    pass:function(fn){c.depth++;if(c.depth===1)fresh();try{return fn()}finally{c.depth--;if(c.depth<=0){c.depth=0;c.am=c.ins=c.ms=c.lbl=c.ov=null;c.mx=null}}},
     am:function(k,fn){return get(c.am,k,fn)},
     ins:function(k,fn){return get(c.ins,k,fn)},
     ms:function(k,fn){return get(c.ms,k,fn)},
     lbl:function(k,fn){return get(c.lbl,k,fn)},
-    ov:function(k,fn){return get(c.ov,k,fn)}
+    ov:function(k,fn){return get(c.ov,k,fn)},
+    /* FLECAP perf: ranuraWeakMap para cachear por el PROPIO objeto
+       (por ejemplo la matriz de un TAG) en vez de por una clave de texto
+       construida a mano. Sólo vive durante la pasada. */
+    raw:function(slot,obj){if(!c.depth||!obj||typeof obj!=="object")return null;var m=c[slot].get(obj);if(m===undefined){m=new Map();c[slot].set(obj,m)}return m}
   };
 })();
+/* FLECAP perf: escribir el mismo HTML en un elemento obliga al navegador a
+   volver a parsear el fragmento y a resolver los manejadores. Si el HTML es
+   identico al que ya esta ahi, no se reescribe nada. La firma se guarda por
+   id, asi que si otro bloque escribio despues, esta vuelve a pintar. */
+const __FLECAP_HTML_MEMO=Object.create(null);
+function flecapSetHTML(el,html){
+ if(!el)return false;
+ const id=el.id||"";
+ if(id&&__FLECAP_HTML_MEMO[id]===html&&el.childElementCount>0)return false;
+ if(id)__FLECAP_HTML_MEMO[id]=html;
+ el.innerHTML=html;
+ return true;
+}
+window.FLECAP_INVALIDATE_HTML_MEMO=function(id){if(id)delete __FLECAP_HTML_MEMO[id];else for(const k in __FLECAP_HTML_MEMO)delete __FLECAP_HTML_MEMO[k]};
+/* FLECAP perf: huella EXACTA (sin hash, sin colisiones) de todo lo que el
+   tablero y los indicadores leen del estado. Es la entrada del comparador
+   "este render produciria lo mismo que el anterior?". Cuesta una parte
+   pequena del render completo, asi que un render repetido sale gratis. */
+function flecapInputDigest(){
+ const st=(typeof state!=="undefined"&&state)||{};
+ const tags=st.tags||[],masters=st.masters||[],inst=st.instances||{},ov=st.applicabilityOverrides;
+ const d=[tags.length,"#",masters.length,"#"];
+ let i,t,m,col,k;
+ for(i=0;i<tags.length;i++){
+  t=tags[i];
+  d.push(t.tag,"#",t.sistema,"#",t.subsistema,"#",t.especialidad||t.disciplina,"#",t.descripcion,"#",t.desc_sistema,"#",t.desc_subsistema,"#");
+  if(t.matriz)for(col in t.matriz)d.push(col,t.matriz[col],",");
+  d.push(";");
+ }
+ for(i=0;i<masters.length;i++){
+  m=masters[i];
+  d.push(m.id,"#",m.activo===false?0:1,"#",m.origen_columna,"#",m.aplica_especialidad,"#",m.aplica_sistema,"#",m.aplica_subsistema,"#",m.aplica_texto_tag,"#",m.nombre,"#",m.disciplina,"#",m.procedimiento,"#",m.matrix_header,"#",m.nro_registro,";");
+ }
+ if(ov)for(k in ov)d.push(k,"#",ov[k]&&ov[k].mode,";");
+ for(k in inst){const v=inst[k];if(!v)continue;d.push(k,"#",v.estado,"#",v.fecha,"#",v.tiene_adjunto?1:0,";")}
+ return d.join("");
+}
+window.FLECAP_INPUT_DIGEST=flecapInputDigest;
 function applicableMasters(tag){
  return window.__FLECAP_DC.am(tag&&tag.tag,function(){
  /* FLECAP FIX 2026-09-20: los maestros MATRIX-RECOVERED sólo se generan durante
@@ -2673,7 +2730,7 @@ function populateFilters(){
  if(fd){
    const cur=fd.value;
    const disciplines=[...new Set((state.tags||[]).map(t=>canonicalDiscipline(t.especialidad||t.disciplina)).filter(Boolean))].sort();
-   fd.innerHTML='<option value="">Todas las disciplinas</option>'+disciplines.map(d=>`<option value="${esc(d)}">${esc(d)}</option>`).join("");
+   flecapSetHTML(fd,'<option value="">Todas las disciplinas</option>'+disciplines.map(d=>`<option value="${esc(d)}">${esc(d)}</option>`).join(""));
    if(disciplines.includes(cur))fd.value=cur;
  }
 
@@ -2686,10 +2743,10 @@ function populateFilters(){
    else if(!sysInfo[t.sistema].nombre && t.desc_sistema)sysInfo[t.sistema].nombre=t.desc_sistema;
  });
  const ss=Object.keys(sysInfo).sort();
- filterSys.innerHTML='<option value="">Todos los sistemas</option>'+ss.map(code=>{
+ flecapSetHTML(filterSys,'<option value="">Todos los sistemas</option>'+ss.map(code=>{
    const nombre=sysInfo[code]?.nombre||"";
    return `<option value="${esc(code)}">${esc(code)}${nombre?` · ${esc(nombre)}`:""}</option>`;
- }).join("");
+ }).join(""));
  if(ss.includes(os))filterSys.value=os;
 
  const subInfo={};
@@ -2701,10 +2758,10 @@ function populateFilters(){
      else if(!subInfo[t.subsistema].nombre && t.desc_subsistema)subInfo[t.subsistema].nombre=t.desc_subsistema;
    });
  const sb=Object.keys(subInfo).sort((a,b)=>String(a).localeCompare(String(b),undefined,{numeric:true}));
- filterSub.innerHTML='<option value="">Todos los subsistemas</option>'+sb.map(code=>{
+ flecapSetHTML(filterSub,'<option value="">Todos los subsistemas</option>'+sb.map(code=>{
    const nombre=subInfo[code]?.nombre||"";
    return `<option value="${esc(code)}">${esc(code)}${nombre?` · ${esc(nombre)}`:""}</option>`;
- }).join("");
+ }).join(""));
  if(sb.includes(ob))filterSub.value=ob;
 }
 
@@ -2739,16 +2796,16 @@ function renderSystemProgress(){
    </tr>`;
  }).join("");
 
- systemsProgress.innerHTML=`<table class="advance-table"><thead><tr><th>Sistema</th><th>TAG</th><th>Reg. completos</th><th>Avance</th></tr></thead><tbody>${sysRows||'<tr><td colspan="4">Sin sistemas asignados</td></tr>'}</tbody></table>`;
+ var wroteSys=flecapSetHTML(systemsProgress,`<table class="advance-table"><thead><tr><th>Sistema</th><th>TAG</th><th>Reg. completos</th><th>Avance</th></tr></thead><tbody>${sysRows||'<tr><td colspan="4">Sin sistemas asignados</td></tr>'}</tbody></table>`);
 
  if(window.systemsVisualProgress){
-   systemsVisualProgress.innerHTML=sysKeys.map(k=>{
+   wroteSys=flecapSetHTML(systemsVisualProgress,sysKeys.map(k=>{
      const tags=sysMap[k], a=progressForTags(tags), d=tags[0]?.desc_sistema||"";
      return `<button type="button" class="visual-adv-card" data-syscard="${esc(k)}" title="Filtrar por sistema ${esc(k)}">
        <span>Sistema ${esc(k)}${d?` · ${esc(d)}`:""}</span>
        <div class="system-chart-row"><div class="system-donut" style="--pct:${a.pct}%"><b>${a.pct}%</b></div><div class="system-chart-copy"><small>${a.done} de ${a.total} registros completados · ${tags.length} TAG</small><div class="mini-bar"><i style="width:${a.pct}%"></i></div></div></div>
      </button>`;
-   }).join("") || '<div class="notice">Sin sistemas asignados</div>';
+   }).join("") || '<div class="notice">Sin sistemas asignados</div>')||wroteSys;
  }
 
  const subMap={};
@@ -2765,16 +2822,16 @@ function renderSystemProgress(){
    </tr>`;
  }).join("");
 
- subsystemsProgress.innerHTML=`<table class="advance-table"><thead><tr><th>Sistema</th><th>Subsistema</th><th>TAG</th><th>Reg. completos</th><th>Avance</th></tr></thead><tbody>${subRows||'<tr><td colspan="5">Sin subsistemas asignados</td></tr>'}</tbody></table>`;
+ var wroteSub=flecapSetHTML(subsystemsProgress,`<table class="advance-table"><thead><tr><th>Sistema</th><th>Subsistema</th><th>TAG</th><th>Reg. completos</th><th>Avance</th></tr></thead><tbody>${subRows||'<tr><td colspan="5">Sin subsistemas asignados</td></tr>'}</tbody></table>`);
 
  if(window.subsystemsVisualProgress){
-   subsystemsVisualProgress.innerHTML=subKeys.map(k=>{
+   wroteSub=flecapSetHTML(subsystemsVisualProgress,subKeys.map(k=>{
      const tags=subMap[k], a=progressForTags(tags), t=tags[0], d=t?.desc_subsistema||"";
      return `<button type="button" class="visual-adv-card subsystem-card" data-subcard="${esc(t.sistema)}|||${esc(t.subsistema)}" title="Filtrar por subsistema ${esc(t.subsistema)}">
        <span>Subsistema ${esc(t.subsistema)} · Sistema ${esc(t.sistema)}</span>
        <div class="system-chart-row"><div class="system-donut" style="--pct:${a.pct}%"><b>${a.pct}%</b></div><div class="system-chart-copy"><small>${d?esc(d)+" · ":""}${a.done} de ${a.total} registros · ${tags.length} TAG</small><div class="mini-bar"><i style="width:${a.pct}%"></i></div></div></div>
      </button>`;
-   }).join("") || '<div class="notice">Sin subsistemas asignados</div>';
+   }).join("") || '<div class="notice">Sin subsistemas asignados</div>')||wroteSub;
  }
 
  const applySystemFilter=(sy)=>{
@@ -2786,14 +2843,18 @@ function renderSystemProgress(){
    tagBoard.scrollIntoView({behavior:"smooth",block:"start"});
  };
 
+ /* FLECAP perf: si ninguna tabla se reescribio, los manejadores que puso
+    el render anterior siguen en su lugar y no hay nada que reenlazar. */
+ if(wroteSys||wroteSub){
  document.querySelectorAll("[data-sysrow]").forEach(r=>r.onclick=()=>applySystemFilter(r.dataset.sysrow));
  document.querySelectorAll("[data-syscard]").forEach(r=>r.onclick=()=>applySystemFilter(r.dataset.syscard));
- document.querySelectorAll("[data-subrow]").forEach(r=>r.onclick=()=>{
+ document.querySelectorAll("[data-subrow]").forEach(r=>r=>r.onclick=()=>{
    const [sy,su]=r.dataset.subrow.split("|||"); applySubsystemFilter(sy,su);
  });
- document.querySelectorAll("[data-subcard]").forEach(r=>r.onclick=()=>{
+ document.querySelectorAll("[data-subcard]").forEach(r=>r=>r.onclick=()=>{
    const [sy,su]=r.dataset.subcard.split("|||"); applySubsystemFilter(sy,su);
  });
+ }
 }
 
 (function setupAdvanceToggle(){
@@ -5604,7 +5665,6 @@ importExcelFile.onchange=async()=>{
       window.FLECAP_PERF.remoteOps.appStateUpsert=1;
       const _fpR0=performance.now();
       renderAll();
-      if(typeof renderHero==="function")renderHero();
       if(window.PECOM_ROLE) setTimeout(()=>applyPecomRole(window.PECOM_ROLE),0);
       window.FLECAP_PERF.renderMs=Math.round(performance.now()-_fpR0);
       window.FLECAP_PERF.totalMs=Math.round(performance.now()-window.FLECAP_PERF.t0);
@@ -7852,7 +7912,7 @@ function refreshOnlineAdminUi(){
 <script id="pecomInspectorTagAndThemeFinalFixJs">
 (function(){
  function canEdit(){if(!window.cloudReady)return true;return window.PECOM_ROLE==="admin"||window.PECOM_ROLE==="editor"||window.PECOM_CAN_EDIT===true;}
- function bindTagNewButtons(){document.querySelectorAll("[data-new-record]").forEach(function(b){b.disabled=!canEdit();b.style.display=canEdit()?"inline-flex":"none";b.onclick=function(e){e.preventDefault();e.stopPropagation();if(!canEdit()){console.info('FLECAP: operación de escritura omitida — usuario solo lectura');return;}var tagName=b.dataset.newRecord||"";var t=state.tags.find(function(x){return x.tag===tagName;});if(!t){alert("No se encontró el TAG.");return;}window.pecomPendingNewRecordTag=tagName;var disc=document.getElementById("npdfDisc");if(disc&&!disc.value)disc.value=t.especialidad||t.disciplina||"";var sys=document.getElementById("npdfSystem"),sub=document.getElementById("npdfSubsystem");if(sys)sys.value="";if(sub)sub.value="";var dlg=document.getElementById("newPdfRecordModal");if(dlg&&dlg.parentElement!==document.body)document.body.appendChild(dlg);if(typeof modal==="function")modal("newPdfRecordModal",true);else if(dlg){dlg.classList.add("show");dlg.style.display="flex";}};});}
+ function bindTagNewButtons(){if(!window.__FLECAP_TAG_BODY)return;document.querySelectorAll("[data-new-record]").forEach(function(b){b.disabled=!canEdit();b.style.display=canEdit()?"inline-flex":"none";b.onclick=function(e){e.preventDefault();e.stopPropagation();if(!canEdit()){console.info('FLECAP: operación de escritura omitida — usuario solo lectura');return;}var tagName=b.dataset.newRecord||"";var t=state.tags.find(function(x){return x.tag===tagName;});if(!t){alert("No se encontró el TAG.");return;}window.pecomPendingNewRecordTag=tagName;var disc=document.getElementById("npdfDisc");if(disc&&!disc.value)disc.value=t.especialidad||t.disciplina||"";var sys=document.getElementById("npdfSystem"),sub=document.getElementById("npdfSubsystem");if(sys)sys.value="";if(sub)sub.value="";var dlg=document.getElementById("newPdfRecordModal");if(dlg&&dlg.parentElement!==document.body)document.body.appendChild(dlg);if(typeof modal==="function")modal("newPdfRecordModal",true);else if(dlg){dlg.classList.add("show");dlg.style.display="flex";}};});}
  var themeBtn=document.getElementById("pecomThemeToggle");
  function getMode(){try{return localStorage.getItem("pecom_theme_mode_final_unified")==="light"?"light":"dark"}catch(e){return "dark"}}
  function applyTheme(mode){var light=mode==="light";document.documentElement.classList.toggle("pecom-light",light);document.body.classList.toggle("pecom-light",light);document.documentElement.style.setProperty("background-color",light?"#ffffff":"#091018","important");document.body.style.setProperty("background-color",light?"#ffffff":"#091018","important");document.body.style.setProperty("color",light?"#111827":"#e8eef3","important");if(themeBtn){themeBtn.textContent=light?"🌙":"☀️";themeBtn.title=light?"Cambiar a modo noche":"Cambiar a modo día";}}
@@ -7930,6 +7990,7 @@ function refreshOnlineAdminUi(){
      manejador a cada elemento. */
   var __FLECAP_CARD_TAGS={};
   var __FLECAP_LAST_BOARD='';
+  var __FLECAP_CTRL_KEY='';
   var __FLECAP_MATERIALIZED=0;
   var __FLECAP_DELEGATED=false;
   function flecapTagByName(name){
@@ -7937,11 +7998,11 @@ function refreshOnlineAdminUi(){
     for(var i=0;i<list.length;i++)if(list[i]&&list[i].tag===name)return list[i];
     return null;
   }
-  function cardParts(t,idx){
+  function cardParts(t,idx,conCuerpo){
     return window.__FLECAP_DC.pass(function(){
       var ms=applicableMasters(t),items=ms.map(m=>({m:m,i:inst(t,m)})),p=pct(items.map(x=>({instance:x.i}))), pending=items.filter(x=>x.i.estado==='PENDIENTE').length, done=items.filter(x=>x.i.estado==='REALIZADO').length, presented=items.filter(x=>x.i.estado==='PRESENTADO').length, obs=items.filter(x=>x.i.estado==='OBSERVADO').length, st=statusFor(items), total=items.length||1;
       var de=numPct(done,total), pe=de+numPct(presented,total), pne=pe+numPct(pending,total), oe=Math.min(100,pne+numPct(obs,total));
-      var regs=items.map(function(x){var ss=x.i.estado,cl=ss==='REALIZADO'?'done':ss==='PRESENTADO'?'present':ss==='OBSERVADO'?'obs':'pending';return '<div class="reg '+cl+'" tabindex="0" data-record="'+e(t.tag)+'|||'+e(x.m.id)+'"><button type="button" class="tag-reg-remove" data-remove-record="'+e(t.tag)+'|||'+e(x.m.id)+'" title="Marcar este registro como No aplica para este TAG">−</button><b>'+e(flecapRecordLabel(x.m).name)+'</b><small><strong>'+e(flecapRecordLabel(x.m).disc)+'</strong> · Col. '+e(flecapRecordLabel(x.m).col)+(applicabilityOverride(t,x.m)==='IN'?' · AGREGADO POR INSPECCIÓN':'')+'</small>'+(flecapRecordLabel(x.m).ref?'<small class="reg-ref">'+e(flecapRecordLabel(x.m).ref)+'</small>':'')+'<div class="state">'+ss+(x.i.tiene_adjunto?' · 📎':'')+'</div><div class="reg-date">📅 '+(x.i.fecha?x.i.fecha.split('-').reverse().join('/'):'Sin fecha')+'</div><button type="button" class="btn record-open-btn">✏ Abrir / completar</button></div>'}).join('')||'<div class="empty">No hay registros aplicables.</div>';;
+      var regs=conCuerpo===false?'':(items.map(function(x){var ss=x.i.estado,cl=ss==='REALIZADO'?'done':ss==='PRESENTADO'?'present':ss==='OBSERVADO'?'obs':'pending';return '<div class="reg '+cl+'" tabindex="0" data-record="'+e(t.tag)+'|||'+e(x.m.id)+'"><button type="button" class="tag-reg-remove" data-remove-record="'+e(t.tag)+'|||'+e(x.m.id)+'" title="Marcar este registro como No aplica para este TAG">−</button><b>'+e(flecapRecordLabel(x.m).name)+'</b><small><strong>'+e(flecapRecordLabel(x.m).disc)+'</strong> · Col. '+e(flecapRecordLabel(x.m).col)+(applicabilityOverride(t,x.m)==='IN'?' · AGREGADO POR INSPECCIÓN':'')+'</small>'+(flecapRecordLabel(x.m).ref?'<small class="reg-ref">'+e(flecapRecordLabel(x.m).ref)+'</small>':'')+'<div class="state">'+ss+(x.i.tiene_adjunto?' · 📎':'')+'</div><div class="reg-date">📅 '+(x.i.fecha?x.i.fecha.split('-').reverse().join('/'):'Sin fecha')+'</div><button type="button" class="btn record-open-btn">✏ Abrir / completar</button></div>'}).join('')||'<div class="empty">No hay registros aplicables.</div>');
       return {head:'<div class="tag-card" id="tc'+idx+'"><div class="tag-head" data-open="tc'+idx+'" tabindex="0" role="button" aria-label="Abrir o cerrar registros del TAG"><div class="tag-description"><b class="tag-code">'+e(t.tag)+'</b><div style="color:var(--muted);font-size:10px">'+e(t.descripcion||'Sin descripción')+'</div></div><div><small>Sistema</small><br><b>'+e(t.sistema||'-')+'</b></div><div><small>Subsistema</small><br><b>'+e(t.subsistema||'-')+'</b></div><div><b>'+p+'%</b><div class="modern-bar"><i style="width:'+p+'%"></i></div></div><div><span class="tag-overall-status '+st.cl+'">'+st.text+'</span></div></div>', body:'<div class="tag-body"><div class="tag-modern-body"><div class="tag-panel"><div class="tag-record-head"><h3>Registros del TAG ('+items.length+')</h3><div class="tag-record-tools"><button type="button" class="btn tag-new-record" data-new-record="'+e(t.tag)+'">＋ Nuevo</button><button type="button" class="btn tag-add-record" data-add-record="'+e(t.tag)+'">＋ Desde Maestro</button></div></div><div class="regs modern-regs">'+regs+'</div></div><div class="tag-panel tag-info-panel"><h3>Información del TAG</h3><dl class="tag-info-list"><dt>Descripción</dt><dd>'+e(t.descripcion||'-')+'</dd><dt>Sistema</dt><dd>'+e(t.sistema||'-')+(t.desc_sistema?' · '+e(t.desc_sistema):'')+'</dd><dt>Subsistema</dt><dd>'+e(t.subsistema||'-')+(t.desc_subsistema?' · '+e(t.desc_subsistema):'')+'</dd><dt>Total registros aplicables</dt><dd>'+items.length+'</dd><dt>Última actualización</dt><dd class="last-update">'+latestDate(items)+'</dd></dl></div></div></div></div>', items:items};
     });
   }
@@ -7956,7 +8017,10 @@ function refreshOnlineAdminUi(){
     var name=__FLECAP_CARD_TAGS[card.id];
     var t=name?flecapTagByName(name):null;
     if(!t)return false;
-    card.insertAdjacentHTML('beforeend',cardParts(t,0).body);
+    card.insertAdjacentHTML('beforeend',cardParts(t,0,true).body);
+    /* FLECAP perf: recien existe un boton "Nuevo registro" en el documento;
+       hasta entonces bindTagNewButtons no tiene nada que recorrer. */
+    window.__FLECAP_TAG_BODY=true;
     bindCardBody(card);
     __FLECAP_MATERIALIZED++;
     return true;
@@ -7977,8 +8041,28 @@ function refreshOnlineAdminUi(){
       if(add){ev.preventDefault();ev.stopPropagation();(window.pecomOpenMasterPicker||openAddRecordToTag)(add.dataset.addRecord);return}
     });
   }
+  /* FLECAP perf: el arranque encadena varios renderAll() seguidos y casi
+     todos pintan exactamente lo mismo. Esta es la huella de TODO lo que el
+     render lee: datos, filtros, busqueda, orden, limite, permisos y el
+     estado del tablero. Si no cambio, no se vuelve a hacer el trabajo. */
+  function controlInputKey(){
+    return [flecapInputDigest(),
+      (document.getElementById('filterDisc')||{}).value||'',
+      (typeof searchTag!=='undefined'?searchTag.value:''),
+      (typeof filterSys!=='undefined'?filterSys.value:''),
+      (typeof filterSub!=='undefined'?filterSub.value:''),
+      (document.getElementById('sortControlRecords')||{}).value||'',
+      typeof quick==='undefined'?'':quick,
+      String(window.FLECAP_CONTROL_LIMIT||0),
+      String(!!window.cloudReady),String(window.PECOM_ROLE||''),String(!!window.PECOM_CAN_EDIT),
+      String(window.FLECAP_IMPORT_IN_PROGRESS===true)].join('\u0001');
+  }
   function modernRenderControl(){
-    return window.__FLECAP_DC.pass(function(){
+    var key=controlInputKey();
+    if(key===__FLECAP_CTRL_KEY&&__FLECAP_LAST_BOARD&&!__FLECAP_MATERIALIZED&&tagBoard.childElementCount>0){
+      ensureModernShell();ensureDelegation();return;
+    }
+    var r=window.__FLECAP_DC.pass(function(){
     ensureModernShell();
     populateFilters();
     var disc=(document.getElementById('filterDisc')?.value||'');
@@ -7996,7 +8080,7 @@ function refreshOnlineAdminUi(){
        entre cabecera (siempre) y cuerpo (al abrir la tarjeta). */
     __FLECAP_CARD_TAGS={};
     var heads=visibleTags.map(function(t,idx){
-      var c=cardParts(t,idx);
+      var c=cardParts(t,idx,false);
       __FLECAP_CARD_TAGS['tc'+idx]=t.tag;
       return c.head;
     }).join('')||'<div class="empty">No hay TAGs para este filtro.</div>';
@@ -8009,12 +8093,15 @@ function refreshOnlineAdminUi(){
     if(html!==__FLECAP_LAST_BOARD||__FLECAP_MATERIALIZED>0){
       __FLECAP_LAST_BOARD=html;__FLECAP_MATERIALIZED=0;
       tagBoard.innerHTML=html;
+      window.__FLECAP_TAG_BODY=false;
       var more=document.getElementById('flecapLoadMoreTags');
       if(more)more.onclick=function(){window.FLECAP_CONTROL_LIMIT=controlLimit+300;modernRenderControl()};
     }
     ensureDelegation();
     renderKpis();
     });
+    __FLECAP_CTRL_KEY=key;
+    return r;
   }
   window.pecomModernRenderControl=modernRenderControl;
   try{renderControl=modernRenderControl}catch(err){window.renderControl=modernRenderControl}
@@ -9318,9 +9405,11 @@ html:not(.pecom-light) .flecap-disc-dialog{background:#121e29;color:#e8eef3;bord
   }, true);
   function prepareHeads(){
     document.querySelectorAll('.tag-head').forEach(function(head){
+      /* FLECAP perf: el MutationObserver dispara en cada render y las cabeceras
+         ya traen estos atributos en el HTML. Solo se escribe lo que falte. */
       if(!head.hasAttribute('tabindex')) head.setAttribute('tabindex','0');
-      head.setAttribute('role','button');
-      head.setAttribute('aria-label','Abrir o cerrar registros del TAG');
+      if(head.getAttribute('role')!=='button') head.setAttribute('role','button');
+      if(head.getAttribute('aria-label')!=='Abrir o cerrar registros del TAG') head.setAttribute('aria-label','Abrir o cerrar registros del TAG');
     });
   }
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', prepareHeads, {once:true}); else prepareHeads();
@@ -10391,8 +10480,17 @@ html:not(.pecom-light) #modernTitle .modern-title-row h2{color:#eef5fa!important
 (function(){
  function pct(n,d){return d?Math.round(n*1000/d)/10:0}
  function esc2(v){return String(v==null?'':v).replace(/[&<>\"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]})}
+ var __DRAW_KEY=null;
  function draw(){
-  if(typeof state==='undefined'||!state||!document.getElementById('modernTitle')||typeof applicableMasters!=='function'||typeof inst!=='function')return;
+    if(typeof state==='undefined'||!state||!document.getElementById('modernTitle')||typeof applicableMasters!=='function'||typeof inst!=='function')return;
+  /* FLECAP perf: este tablero ejecutivo recorre los 2.000 TAG y reescribe
+     dos bloques grandes de HTML. Lo llamaban varios bloques al terminar
+     el arranque y en cada render, siempre con el mismo resultado. */
+  var _pc=Array.isArray(state.punches)?state.punches:(Array.isArray(state.punch)?state.punch:null);
+  var _col="";try{_col=localStorage.getItem('flecap_systems_progress_collapsed')||""}catch(_ce){}
+  var _key=flecapInputDigest()+"\u0001"+_col+"\u0001"+(_pc?_pc.length:0)+(_pc?("\u0001"+_pc.map(function(p){return (p.categoria||p.category||p.tipo||"")+"/"+(p.estado||p.status||"")}).join(",")):"");
+  if(_key===__DRAW_KEY&&document.getElementById('flecapExecutiveReference'))return;
+  __DRAW_KEY=_key;
   var tags=state.tags||[],all=[],disc={},systems={};
   tags.forEach(function(t){var ms=applicableMasters(t),dn=(typeof canonicalDiscipline==='function'?canonicalDiscipline(t.especialidad||t.disciplina):t.especialidad||t.disciplina)||'Sin disciplina',d=disc[dn]||(disc[dn]={total:0,done:0,realized:0,presented:0,pending:0}),sk=t.sistema||'-',s=systems[sk]||(systems[sk]={name:t.desc_sistema||'',disc:dn,total:0,done:0});ms.forEach(function(m){var i=inst(t,m),ok=i.estado==='REALIZADO'||i.estado==='PRESENTADO';all.push(i);d.total++;s.total++;if(i.estado==='REALIZADO')d.realized++;else if(i.estado==='PRESENTADO')d.presented++;else d.pending++;if(ok){d.done++;s.done++}})});
   var total=all.length,real=all.filter(function(i){return i.estado==='REALIZADO'}).length,pres=all.filter(function(i){return i.estado==='PRESENTADO'}).length,pend=all.filter(function(i){return i.estado==='PENDIENTE'}).length;
@@ -10549,7 +10647,7 @@ html.pecom-light .fpc-title h2{color:#102a43}html.pecom-light .fpc-title p{color
   if(!ensureModuleData())return false;
   var box=state.flecapModuleData[m];if(!box){box={tags:m==='precom'?seedPrecomTags((state.flecapModuleData.quality||{}).tags):[],masters:[],instances:{},punches:[],applicabilityOverrides:{},subsystemDeliveries:{}};state.flecapModuleData[m]=box}if(m==='precom'&&window.FLECAP_mergePrecomMasterSeed)window.FLECAP_mergePrecomMasterSeed(box);
   moduleFields.forEach(function(k){state[k]=copy(box[k]||(k==='instances'||k==='applicabilityOverrides'||k==='subsystemDeliveries'?{}:[]))});state.flecapDataModule=m;
-  try{if(typeof renderAll==='function')renderAll()}catch(e){}try{if(typeof window.flecapDrawExactDashboard==='function')window.flecapDrawExactDashboard()}catch(e){}
+  try{window.__FLECAP_MODULE_RENDERS=(window.__FLECAP_MODULE_RENDERS||0)+1;if(typeof renderAll==='function')renderAll()}catch(e){}try{if(typeof window.flecapDrawExactDashboard==='function')window.flecapDrawExactDashboard()}catch(e){}
   applyModuleAccess(m);return true;
  }
  window.FLECAP_ensureActiveModuleData=function(target){
@@ -10722,8 +10820,11 @@ html.pecom-light .fpc-title h2{color:#102a43}html.pecom-light .fpc-title p{color
     state=window.FLECAP_expandStateFromLocalStorage?window.FLECAP_expandStateFromLocalStorage(saved,projectId):saved;
     if(typeof mergeFlecapAdditionalMasters==='function')mergeFlecapAdditionalMasters(state);
     var mod=localStorage.getItem('flecap_active_module::'+projectId)||state.flecapDataModule||'quality';
+    /* FLECAP perf: al cambiar de modulo, ensureActiveModuleData ya repinta
+       (loadModuleData llama a renderAll). Solo se repinta si no lo hizo. */
+    var _modRenders=window.__FLECAP_MODULE_RENDERS||0;
     if(window.FLECAP_ensureActiveModuleData)window.FLECAP_ensureActiveModuleData(mod);
-    if(typeof renderAll==='function')renderAll();
+    if((window.__FLECAP_MODULE_RENDERS||0)===_modRenders&&typeof renderAll==='function')renderAll();
     if(typeof window.flecapDrawExactDashboard==='function')window.flecapDrawExactDashboard();
    }else{
     var current=window.FLECAP_compactStateForLocalStorage?window.FLECAP_compactStateForLocalStorage(state):state;
@@ -14343,7 +14444,7 @@ state.flecapDataModule=active;try{if(window.FLECAP_LARGE_STATE)await window.FLEC
      unica vez, ya con state.sync_epoch tomado de la fila (saveModule lo
      copia desde state): antes de este bloque se guardaba con el epoch
      todavia vacio. */
-  for(var hi=0;hi<healed.length;hi++){try{await saveModule(healed[hi])}catch(_hSave){console.warn('FLECAP: Maestro de la matriz central',_hSave)}}}try{if(typeof renderAll==='function')renderAll();if(typeof renderHero==='function')renderHero();if(window.flecapDrawExactDashboard)window.flecapDrawExactDashboard()}catch(e){}}return changed;}
+  for(var hi=0;hi<healed.length;hi++){try{await saveModule(healed[hi])}catch(_hSave){console.warn('FLECAP: Maestro de la matriz central',_hSave)}}}try{if(typeof renderAll==='function')renderAll();if(window.flecapDrawExactDashboard)window.flecapDrawExactDashboard()}catch(e){}}return changed;}
 window.FLECAP_MATRIX_DB={saveModule:saveModule,loadAll:loadAll,prefetch:prefetch};
 })();
 </script>
