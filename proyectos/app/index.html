@@ -7170,8 +7170,15 @@ function refreshOnlineAdminUi(){
               if(incomingStamp>=currentStamp){
                 state=incoming;
                 if(typeof mergeFlecapAdditionalMasters==='function')mergeFlecapAdditionalMasters(state);
-                storeProjectLocal(activeProjectId(),state);
-                try{if(window.FLECAP_LARGE_STATE)window.FLECAP_LARGE_STATE.save(activeProjectId(),window.FLECAP_compactStateForLocalStorage?window.FLECAP_compactStateForLocalStorage(state):state)}catch(_rtIdb){}
+                /* FLECAP perf 2026-09-27: storeProjectLocal serializaba el estado
+                   completo dos veces en localStorage y, a continuacion, el put de
+                   IndexedDB sobreescribia una de ellas con el stub y borra la
+                   otra. Eran dos serializaciones enteras para nada. Queda el
+                   respaldo para cuando no hay IndexedDB. */
+                try{
+                  if(window.FLECAP_LARGE_STATE)window.FLECAP_LARGE_STATE.save(activeProjectId(),window.FLECAP_compactStateForLocalStorage?window.FLECAP_compactStateForLocalStorage(state):state);
+                  else storeProjectLocal(activeProjectId(),state);
+                }catch(_rtIdb){}
                 setTimeout(()=>{renderAll();refreshOnlineAdminUi();status("☁ Actualizado");},0);
               }
             }
@@ -9176,7 +9183,43 @@ html.pecom-light .reg.present{background:#f3f8fd!important}
    badge('Pendiente · '+detail.slice(0,48),'pending');
   }finally{syncing=false}
  }
- async function receive(op){if(op.client_id===clientId)return;var k=decodeEntityKey(op.entity_key);if(k===null)return;op=Object.assign({},op,{entity_key:k});state=applyOne(state,op);if(typeof mergeFlecapAdditionalMasters==='function')mergeFlecapAdditionalMasters(state);try{localStorage.setItem(KEY,JSON.stringify(window.FLECAP_compactStateForLocalStorage?window.FLECAP_compactStateForLocalStorage(state):state));localStorage.setItem('flecap_project_state::'+activeProjectId(),JSON.stringify(window.FLECAP_compactStateForLocalStorage?window.FLECAP_compactStateForLocalStorage(state):state))}catch(e){}lastLocal=deepCopy(state);if(typeof renderAll==='function')renderAll();try{if(typeof renderPermissionPanel==='function')renderPermissionPanel()}catch(e){}badge('Actualizado por otro usuario','ok')}
+ async function receive(op){if(op.client_id===clientId)return;var k=decodeEntityKey(op.entity_key);if(k===null)return;op=Object.assign({},op,{entity_key:k});state=applyOne(state,op);
+   /* FLECAP perf 2026-09-27: la linea base del diff se actualiza con el mismo
+      cambio en vez de clonar el estado entero en cada evento. La base es
+      estructuralmente igual al estado (la caja del modulo o la ultima copia
+      sincronizada), asi que aplicarle el mismo cambio la deja al dia y el
+      proximo cambio propio se sigue detectando exactamente igual. Sigue siendo
+      sincrono: no queda ninguna ventana en la que un guardado propio se diffee
+      contra una base vieja. El valor se copia porque applyOne guarda la misma
+      referencia en los dos: si la base apuntara al mismo registro que la vista,
+      una edicion propia mutaria la base y no se detectaria nunca. */
+   try{if(lastLocal)lastLocal=applyOne(lastLocal,Object.assign({},op,{value:(op.deleted||!op.value)?null:deepCopy(op.value)}))}catch(_bl){}
+   /* El Maestro oficial se sanea en el estado y tambien en la linea base, para
+      que refinarlo no aparezca despues como un cambio propio pendiente. */
+   if(typeof mergeFlecapAdditionalMasters==='function'){mergeFlecapAdditionalMasters(state);try{if(lastLocal)mergeFlecapAdditionalMasters(lastLocal)}catch(_bm){}}
+   /* Guardar y repintar se hacen UNA vez por tanda. Cuando otro usuario guarda
+      veinte registros, el canal entrega veinte INSERT seguidos: antes se
+      guardaba y pintaba la obra entera veinte veces. */
+   if(!receiveTail)receiveTail=setTimeout(flecapReceiveFlush,0);
+ }
+ /* FLECAP perf 2026-09-27: persistencia de lo que llega de otro usuario. Antes
+    se armaba el compacto dos veces y se escribia dos veces en localStorage,
+    con dos serializaciones de la obra completa que siempre terminaban en
+    QuotaExceeded. Ahora es una sola escritura: el estado va a IndexedDB y
+    localStorage conserva el stub por obra, igual que en persist(). El respaldo
+    para el caso de que no haya IndexedDB es el mismo de siempre. */
+ var receiveTail=0;
+ function flecapReceiveFlush(){
+   receiveTail=0;
+   try{
+     var compact=window.FLECAP_compactStateForLocalStorage?window.FLECAP_compactStateForLocalStorage(state):state;
+     if(window.FLECAP_LARGE_STATE)window.FLECAP_LARGE_STATE.save(activeProjectId(),compact);
+     else localStorage.setItem('flecap_project_state::'+activeProjectId(),JSON.stringify(compact));
+   }catch(_ls){}
+   if(typeof renderAll==='function')renderAll();
+   try{if(typeof renderPermissionPanel==='function')renderPermissionPanel()}catch(e){}
+   badge('Actualizado por otro usuario','ok')
+ }
  var eventsPrefetch=null;
  // FLECAP perf: la lectura de sync_changes no depende de app_state. Se pide
  // antes y se aplica exactamente en el mismo punto que antes.
