@@ -6761,7 +6761,11 @@ function refreshOnlineAdminUi(){
      if(typeof mergeFlecapAdditionalMasters==='function')mergeFlecapAdditionalMasters(state);
      /* FLECAP perf: saveRemote vuelve a llamar storeProjectLocal con el mismo
         estado, así que la primera escritura era redundante. */
-     await saveRemote(state,projectId);
+     /* FLECAP perf: sólo se sube a app_state cuando la copia local es REALMENTE
+        más nueva que la del servidor. Con la vista cargada y sin cambios propios
+        no se escribe, y así tampoco se genera la entrada ACTUALIZACION_ESTADO
+        en audit_log ni una apertura sin cambios deja rastro. */
+     if(localStamp>remoteStamp)await saveRemote(state,projectId);
      lastRemoteStamp=data?.updated_at||"";
      needsRender=true;
    }else{
@@ -10634,6 +10638,10 @@ body[data-flecap-module="quality"] #flecapPipingQualityBtn{display:flex!importan
 <script id="flecap-piping-quality-stable-js">
 (function(){
  var rows=[],editing=null,columnFilters={},remotePipingLoaded=false;
+ /* FLECAP perf: ultima firma de Piping guardada en local y ultima firma
+    efectivamente subida a flecap_matrix_store. Permiten que el reposo no
+    escriba nada y que el upsert ocurra solo si el contenido cambio. */
+ var __lastSavedSig=null,__lastPushedSig=null;
  function q(id){return document.getElementById(id)}
  function n(v){return Math.max(0,Number(v)||0)}
  function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
@@ -10676,8 +10684,17 @@ body[data-flecap-module="quality"] #flecapPipingQualityBtn{display:flex!importan
    try{
      var sb=window.PECOM_SUPABASE;if(!sb||!window.PECOM_CURRENT_EMAIL)return false;
      var dispatch={};try{dispatch=JSON.parse(localStorage.getItem(dispatchKey())||'{}')}catch(_e){}
-     var r=await sb.from('flecap_matrix_store').upsert({project_id:pid(),module:'piping_quality',payload:{updatedAt:changedAt||new Date().toISOString(),rows:JSON.parse(JSON.stringify(rows)),dispatch:dispatch},updated_by:String(window.PECOM_CURRENT_EMAIL||'').trim().toLowerCase()},{onConflict:'project_id,module'});
-     if(r.error)throw r.error;return true;
+     var body={rows:JSON.parse(JSON.stringify(rows)),dispatch:dispatch};
+     /* FLECAP perf: este es el UNICO upsert de flecap_matrix_store del modulo
+        Piping. Solo se ejecuta si el contenido a subir es distinto del ultimo
+        que se subio con exito. */
+     var sig;try{sig=JSON.stringify(body)}catch(_se){sig=null}
+     if(sig!==null&&sig===__lastPushedSig)return false;
+     body.updatedAt=changedAt||new Date().toISOString();
+     var r=await sb.from('flecap_matrix_store').upsert({project_id:pid(),module:'piping_quality',payload:body,updated_by:String(window.PECOM_CURRENT_EMAIL||'').trim().toLowerCase()},{onConflict:'project_id,module'});
+     if(r.error)throw r.error;
+     if(sig!==null)__lastPushedSig=sig;
+     return true;
    }catch(e){console.warn('FLECAP: no se pudo guardar Piping compartido',e);return false}
  }
  async function sharedPipingLoad(){
@@ -10772,7 +10789,13 @@ body[data-flecap-module="quality"] #flecapPipingQualityBtn{display:flex!importan
  }
 
  function save(){
+   /* FLECAP perf: en reposo no se escribe nada. Si el contenido de Piping es
+      identico al ultimo guardado se sale sin tocar timestamp, sin estado, sin
+      persist(), sin cloudSaveState, sin IndexedDB y sin Supabase. */
+   var __sig;try{__sig=JSON.stringify(Array.isArray(rows)?rows:[])}catch(_se){__sig=null}
+   if(__sig!==null&&__sig===__lastSavedSig)return false;
    var changedAt=new Date().toISOString();
+   __lastSavedSig=__sig;
    saveDispatch();
    try{localStorage.setItem(key(),JSON.stringify(rows));localStorage.setItem(stampKey(),changedAt)}catch(e){alert('No se pudo guardar Seguimiento Piping en este equipo.')}
    try{if(window.FLECAP_PIPING_IDB_SAVE)window.FLECAP_PIPING_IDB_SAVE(rows,changedAt)}catch(_idb){}
@@ -10790,6 +10813,7 @@ body[data-flecap-module="quality"] #flecapPipingQualityBtn{display:flex!importan
      }
    }catch(e){console.warn('FLECAP: seguimiento piping pendiente de sincronizar',e)}
    sharedPipingSave(changedAt);
+   return true;
  }
 
  function stateOf(r){
@@ -11310,17 +11334,33 @@ body[data-flecap-module="quality"] #flecapPipingQualityBtn{display:flex!importan
    /* La carga remota termina después del arranque. Reconciliar permite que tablet y celular
       muestren el mismo seguimiento guardado en la obra central. */
    var migratedToCloud=false;
+   /* FLECAP perf: este temporizador antes comparaba, mutaba y guardaba en cada
+      vuelta, y por eso escribia en flecap_matrix_store cada ~2 s aunque no
+      hubiera ningun cambio. Ahora sólo escribe si el contenido reconciliado
+      difiere realmente del que ya está en la obra. */
+   function pipingSig(list){try{return JSON.stringify(Array.isArray(list)?list:[])}catch(_e){return ''}}
    function reconcilePipingFromCloud(ev){
      if(remotePipingLoaded)return;
      var forceRemote=!!(ev&&ev.type==='flecap:remote-ready');
      var latest=cloudRows();
     if(!forceRemote&&!migratedToCloud&&window.cloudReady&&!Array.isArray(latest)&&rows.length&&window.PECOM_CAN_EDIT){migratedToCloud=true;save();return}
-     if(Array.isArray(latest)&&JSON.stringify(latest)!==JSON.stringify(rows)){
-       rows=JSON.parse(JSON.stringify(latest));hydrateDispatch(rows);var seedChanged=applyTraceSpoolSeed();try{localStorage.setItem(key(),JSON.stringify(rows));if(cloudStamp())localStorage.setItem(stampKey(),cloudStamp())}catch(e){}if(seedChanged)save();render();
+     if(Array.isArray(latest)&&pipingSig(latest)!==pipingSig(rows)){
+       rows=JSON.parse(JSON.stringify(latest));hydrateDispatch(rows);var seedChanged=applyTraceSpoolSeed();
+       var despues=pipingSig(rows);
+       /* Sólo se sube si el resultado difiere de lo que ya está en la obra. */
+       if(seedChanged&&despues!==pipingSig(latest))save();
+       try{localStorage.setItem(key(),JSON.stringify(rows));if(cloudStamp())localStorage.setItem(stampKey(),cloudStamp())}catch(e){}
+       render();
      }
    }
    document.addEventListener('flecap:remote-ready',reconcilePipingFromCloud);
-   var syncTimer=setInterval(reconcilePipingFromCloud,2000);
+   document.addEventListener('visibilitychange',function(){if(!document.hidden)reconcilePipingFromCloud()});
+   /* FLECAP perf: cloudRows() lee el estado local, no consulta Supabase, así
+      que este temporizador no sincroniza nada con otros equipos. Se acota a la
+      ventana de arranque; la sincronización real sigue por flecap:remote-ready,
+      visibilitychange y los eventos de estado. */
+   var __ticks=0;
+   var syncTimer=setInterval(function(){if(++__ticks>30)return clearInterval(syncTimer);reconcilePipingFromCloud()},2000);
    window.addEventListener('beforeunload',function(){clearInterval(syncTimer);document.removeEventListener('flecap:remote-ready',reconcilePipingFromCloud)},{once:true});
    new MutationObserver(syncVisibility).observe(document.body,{attributes:true,attributeFilter:['data-flecap-module']});
  }
@@ -13379,7 +13419,10 @@ html.pecom-light .fsc-note,html.pecom-light .fsc-dates,html.pecom-light .fsc-leg
  function meaningfulSignature(){
    try{
      return JSON.stringify(typeof state!=='undefined'?state:{},function(k,v){
+       /* Campos derivados o de marca de tiempo: un render nunca debe cuenta
+          como cambio funcional del usuario. */
        if(k==='_flecap_saved_at'||k==='_flecap_saved_project'||k==='_flecapMeta')return undefined;
+       if(k==='flecapPipingQualityUpdatedAt'||k==='flecapPipingTraceSummary')return undefined;
        return v;
      });
    }catch(e){return ''}
@@ -13593,9 +13636,15 @@ function renderKpis(){
   rows.forEach(function(r){var jc=jointClass(r),done=validWeldDate(weldDate(r)),dia=diaNum(r);if(jc==='FW'||jc==='FFW')return;if(!weldable(r))return;gJoints++;gTotalIn+=dia;if(done){gSoldJoints++;gSoldIn+=dia}});
   var gPct=gTotalIn?Math.round(gSoldIn*1000/gTotalIn)/10:(gJoints?Math.round(gSoldJoints*1000/gJoints)/10:0);
   var prev={};try{prev=JSON.parse(localStorage.getItem('flecap_piping_trace_summary::'+pid())||'null')||{}}catch(_e){}
-  prev.total={toBuild:Math.round(gTotalIn*10)/10,built:Math.round(gSoldIn*10)/10,pct:gPct};prev.updatedAt=new Date().toISOString();prev.source='traceability_rows_sw';
-  localStorage.setItem('flecap_piping_trace_summary::'+pid(),JSON.stringify(prev));
-  try{if(typeof state!=='undefined'&&state)state.flecapPipingTraceSummary=prev}catch(_e){}
+  /* FLECAP perf: antes se reescribia updatedAt en CADA render, lo que hacia
+     que state cambiara y un persist() posterior dejara pasar la firma. Ahora
+     el resumen solo se toca cuando los valores calculados cambian. */
+  var __same=!!(prev.total&&Number(prev.total.toBuild)===Math.round(gTotalIn*10)/10&&Number(prev.total.built)===Math.round(gSoldIn*10)/10&&Number(prev.total.pct)===gPct&&prev.source==='traceability_rows_sw');
+  if(!__same){
+    prev.total={toBuild:Math.round(gTotalIn*10)/10,built:Math.round(gSoldIn*10)/10,pct:gPct};prev.updatedAt=new Date().toISOString();prev.source='traceability_rows_sw';
+    localStorage.setItem('flecap_piping_trace_summary::'+pid(),JSON.stringify(prev));
+    try{if(typeof state!=='undefined'&&state)state.flecapPipingTraceSummary=prev}catch(_e){}
+  }
  }catch(_sumErr){console.warn('FLECAP: no se pudo actualizar resumen de pulgadas',_sumErr)}
  var lineSet=new Set(),joints=0,totalIn=0,soldIn=0,weldableJoints=0,soldJoints=0,fwTotal=0,fwSold=0,ffwTotal=0,ffwSold=0,lineProgress=new Map();
  filtered.forEach(function(r){var line=val(r,'line');if(line)lineSet.add(line);if(val(r,'joint'))joints++;var jc=jointClass(r),w=weldable(r),done=validWeldDate(weldDate(r)),dia=diaNum(r);if(w){weldableJoints++;totalIn+=dia;if(done){soldJoints++;soldIn+=dia}if(line){var z=lineProgress.get(line)||{total:0,sold:0};z.total++;if(done)z.sold++;lineProgress.set(line,z)}}if(jc==='FW'){fwTotal++;if(done)fwSold++}else if(jc==='FFW'){ffwTotal++;if(done)ffwSold++}});
