@@ -6701,6 +6701,11 @@ function refreshOnlineAdminUi(){
  }
 
  function activeProjectId(){return localStorage.getItem("flecap_active_project_v1")||"legacy"}
+ /* FLECAP perf: prepareForUser (accessibleProjects) ya descarga la fila
+    completa de cada obra accesible. Esa misma fila se comparte con
+    loadRemote() para no bajar dos veces el estado de la misma obra. */
+ window.FLECAP_SHARE_PROJECT_ROW=function(row){try{if(!row||row.id==null)return;window.__FLECAP_PROJECT_ROWS__=window.__FLECAP_PROJECT_ROWS__||{};window.__FLECAP_PROJECT_ROWS__[String(row.id)]={payload:(row.payload===undefined?null:row.payload),updated_at:row.updated_at||""}}catch(e){}};
+ function takeProjectRow(projectId){try{var m=window.__FLECAP_PROJECT_ROWS__;if(!m)return null;var r=m[String(projectId)];delete m[String(projectId)];return r||null}catch(e){return null}}
  function storeProjectLocal(projectId,payload){
    try{
      localStorage.setItem('flecap_project_state::'+projectId,JSON.stringify(payload));
@@ -6716,7 +6721,17 @@ function refreshOnlineAdminUi(){
       siempre: la red se solapa sin cambiar qué datos se aplican ni cuándo. */
    try{if(window.FLECAP_MATRIX_DB&&window.FLECAP_MATRIX_DB.prefetch)window.FLECAP_MATRIX_DB.prefetch(projectId)}catch(_pfx){}
    try{if(window.FLECAP_SYNC_ENGINE&&window.FLECAP_SYNC_ENGINE.warmup)window.FLECAP_SYNC_ENGINE.warmup(projectId)}catch(_wmu){}
-   const {data,error}=await sb.from("app_state").select("payload,updated_at").eq("id",projectId).maybeSingle();
+   /* FLECAP perf: se reutiliza la fila que accessibleProjects acaba de traer
+      (mismo id, mismo instante) en vez de descargar otra vez el estado de
+      la obra. Mientras la descarga está en curso se marca la obra, para que
+      el refresco de permisos la espere en lugar de bajarla por duplicado. */
+   let data=null,error=null;
+   try{
+     try{window.__FLECAP_LOADING_PROJECT__=String(projectId)}catch(_lp){}
+     const sharedRow=takeProjectRow(projectId);
+     if(sharedRow)data={payload:sharedRow.payload,updated_at:sharedRow.updated_at};
+     else{const r=await sb.from("app_state").select("payload,updated_at").eq("id",projectId).maybeSingle();data=r.data;error=r.error}
+   }finally{try{window.__FLECAP_LOADING_PROJECT__=null}catch(_lp2){}}
    if(error)throw error;
    /* Se conserva la respuesta ya traída para el refresco de permisos de módulo,
       que de otro modo repite la misma consulta un instante después. */
@@ -6745,16 +6760,21 @@ function refreshOnlineAdminUi(){
    const localEpoch=String((localProject&&localProject.sync_epoch)||'');
    const remoteEpoch=String((remotePayload&&remotePayload.sync_epoch)||'');
    const generationDiff=!!localEpoch&&localEpoch!==remoteEpoch;
-   let needsRender=false;
+   let needsRender=false,healRemoteCopy=false;
   if(remoteOk){
      state=window.FLECAP_expandStateFromLocalStorage?window.FLECAP_expandStateFromLocalStorage(remotePayload,projectId):remotePayload;
-     const addedMasters=typeof mergeFlecapAdditionalMasters==='function'?mergeFlecapAdditionalMasters(state):0;
+     if(typeof mergeFlecapAdditionalMasters==='function')mergeFlecapAdditionalMasters(state);
      /* FLECAP perf: sin storeProjectLocal. FLECAP_LARGE_STATE.save borra
         odv_alvs_state_v7 y sobreescribe flecap_project_state::<id> con un
         stub, así que esas dos escrituras se descartaban de inmediato. */
      try{if(window.FLECAP_LARGE_STATE)await window.FLECAP_LARGE_STATE.save(projectId,window.FLECAP_compactStateForLocalStorage?window.FLECAP_compactStateForLocalStorage(state):state)}catch(_saveIdb){}
      lastRemoteStamp=data.updated_at||"";
-     if(addedMasters)await saveRemote(state,projectId);
+     /* FLECAP perf: la decisión de subir la obra se toma DESPUÉS de adoptar
+        la matriz central (loadAll), que es la copia que queda en memoria.
+        Antes se comparaba antes de loadAll(): loadAll devolvía la copia sin
+        sanear, el diff reaparecía en cada apertura y se escribían app_state
+        y audit_log sin que el usuario hubiera modificado nada. */
+     healRemoteCopy=true;
      needsRender=true;
    }else if(localOk && window.PECOM_CAN_EDIT){
      state=localProject;
@@ -6778,6 +6798,10 @@ function refreshOnlineAdminUi(){
    }
    let matrixChanged=false;
    try{if(window.FLECAP_MATRIX_DB)matrixChanged=!!(await window.FLECAP_MATRIX_DB.loadAll())}catch(matrixLoadError){console.warn('FLECAP: carga matriz central',matrixLoadError)}
+   /* FLECAP perf: con la matriz central ya adoptada, el Maestro saneado no
+      vuelve a diferir y no hay nada que subir. Abrir la obra sin modificar no
+      escribe en app_state ni deja entrada en audit_log. */
+   if(healRemoteCopy&&typeof mergeFlecapAdditionalMasters==='function'&&mergeFlecapAdditionalMasters(state)>0)await saveRemote(state,projectId);
    /* FLECAP perf: un solo render. loadAll ya repinta cuando la matriz central
       cambió; si no cambió, se repinta acá con el estado ya definitivo. */
    if(needsRender&&!matrixChanged)renderAll();
@@ -7715,8 +7739,8 @@ function refreshOnlineAdminUi(){
    // una consulta secuencial por obra que además descargaba el payload entero.
    let perms=null;
    try{
-    const st=await sb.from('app_state').select('id,payload').in('id',list.map(function(p){return String(p.id)}));
-    if(!st.error&&Array.isArray(st.data)){perms={};st.data.forEach(function(row){perms[String(row.id)]=(row.payload&&row.payload.flecapModulePermissions&&row.payload.flecapModulePermissions[email])||null})}
+    const st=await sb.from('app_state').select('id,payload,updated_at').in('id',list.map(function(p){return String(p.id)}));
+    if(!st.error&&Array.isArray(st.data)){perms={};const __active=String(localStorage.getItem('flecap_active_project_v1')||'legacy');st.data.forEach(function(row){try{if(window.FLECAP_SHARE_PROJECT_ROW&&String(row.id)===__active)window.FLECAP_SHARE_PROJECT_ROW(row)}catch(_shr){}perms[String(row.id)]=(row.payload&&row.payload.flecapModulePermissions&&row.payload.flecapModulePermissions[email])||null})}
    }catch(_batchErr){perms=null}
    if(perms){
     for(const p of list){const mp=perms[String(p.id)];if(mp&&((mp.quality&&mp.quality!=='none')||(mp.precom&&mp.precom!=='none')))out.push(p)}
@@ -10483,6 +10507,17 @@ html.pecom-light .fpc-title h2{color:#102a43}html.pecom-light .fpc-title p{color
        repetir la consulta. Se consume una sola vez. */
     var boot=window.__FLECAP_BOOT_STATE__,r=null;
     if(boot&&String(boot.projectId)===String(projectId)&&boot.payload){r={data:{payload:boot.payload},error:null};window.__FLECAP_BOOT_STATE__=null}
+    else if(String(window.__FLECAP_LOADING_PROJECT__||'')===String(projectId)){
+     /* FLECAP perf: la obra se esta descargando ahora mismo (loadRemote). Se
+        espera esa descarga y se reutiliza su respuesta en vez de bajar otra
+        copia completa del estado. Fuera del arranque no hay descarga en curso,
+        asi que el refetch de selectModule() sigue consultando por su cuenta
+        para respetar los permisos multiusuario. */
+     for(var w=0;w<40&&String(window.__FLECAP_LOADING_PROJECT__||'')===String(projectId);w++)await new Promise(function(z){setTimeout(z,50)});
+     var waited=window.__FLECAP_BOOT_STATE__;
+     if(waited&&String(waited.projectId)===String(projectId)&&waited.payload){r={data:{payload:waited.payload},error:null};window.__FLECAP_BOOT_STATE__=null}
+     else{r=await cloud.from('app_state').select('payload').eq('id',projectId).maybeSingle()}
+    }
     else{r=await cloud.from('app_state').select('payload').eq('id',projectId).maybeSingle()}
     if(r.error)throw r.error;
     var remotePerms=r.data&&r.data.payload&&r.data.payload.flecapModulePermissions;
@@ -14168,11 +14203,20 @@ var prefetchedMatrixRows=null;
 // FLECAP perf: la lectura de la matriz central es independiente de app_state.
 // Se puede pedir antes y consumir en el mismo punto, sin cambiar el orden.
 function prefetch(projectId){try{var s=window.PECOM_SUPABASE;if(!s)return null;var pid=String(projectId||project());prefetchedMatrixRows={projectId:pid,promise:s.from('flecap_matrix_store').select('module,payload,updated_at').eq('project_id',pid)};return prefetchedMatrixRows.promise}catch(_e){prefetchedMatrixRows=null;return null}}
-async function loadAll(){var sb=window.PECOM_SUPABASE;if(!sb||typeof state==='undefined'||!state)return false;var r=null;if(prefetchedMatrixRows&&prefetchedMatrixRows.projectId===String(project())){try{r=await prefetchedMatrixRows.promise}catch(_pfErr){r=null}prefetchedMatrixRows=null}if(!r)r=await sb.from('flecap_matrix_store').select('module,payload,updated_at').eq('project_id',project());if(r.error){console.warn('FLECAP matriz central:',r.error);return false}if(!state.flecapModuleData)state.flecapModuleData={quality:{},precom:{}};var changed=false;(r.data||[]).forEach(function(row){var m=row.module==='precom'?'precom':'quality',x=row.payload||{};if(!Array.isArray(x.tags)||!Array.isArray(x.masters))return;state.flecapModuleData[m]={tags:clone(x.tags),masters:clone(x.masters),instances:clone(x.instances||{}),punches:clone(x.punches||[]),applicabilityOverrides:clone(x.applicabilityOverrides||{}),subsystemDeliveries:clone(x.subsystemDeliveries||{})};changed=true});if(changed){var active=mod(),b=state.flecapModuleData[active]||{};['tags','masters','instances','punches','applicabilityOverrides','subsystemDeliveries'].forEach(function(k){var def=(k==='instances'||k==='applicabilityOverrides'||k==='subsystemDeliveries')?{}:[];state[k]=clone(b[k]||def)});var activeRow=(r.data||[]).find(function(row){return (row.module==='precom'?'precom':'quality')===active;});
+async function loadAll(){var sb=window.PECOM_SUPABASE;if(!sb||typeof state==='undefined'||!state)return false;var r=null;if(prefetchedMatrixRows&&prefetchedMatrixRows.projectId===String(project())){try{r=await prefetchedMatrixRows.promise}catch(_pfErr){r=null}prefetchedMatrixRows=null}if(!r)r=await sb.from('flecap_matrix_store').select('module,payload,updated_at').eq('project_id',project());if(r.error){console.warn('FLECAP matriz central:',r.error);return false}if(!state.flecapModuleData)state.flecapModuleData={quality:{},precom:{}};var changed=false,healed=[];(r.data||[]).forEach(function(row){var m=row.module==='precom'?'precom':'quality',x=row.payload||{};if(!Array.isArray(x.tags)||!Array.isArray(x.masters))return;state.flecapModuleData[m]={tags:clone(x.tags),masters:clone(x.masters),instances:clone(x.instances||{}),punches:clone(x.punches||[]),applicabilityOverrides:clone(x.applicabilityOverrides||{}),subsystemDeliveries:clone(x.subsystemDeliveries||{})};changed=true;
+  /* FLECAP perf: esta fila es la que queda en memoria, asi que el Maestro se
+     sanea aca. Antes se saneaba la copia de app_state y loadAll devolvia
+     esta, sin sanear: el diff reaparecia en cada apertura. */
+  try{if(typeof mergeFlecapAdditionalMasters==='function'&&mergeFlecapAdditionalMasters(state.flecapModuleData[m])>0&&String(window.PECOM_ROLE||'viewer').toLowerCase()!=='viewer')healed.push(m)}catch(_hm){}});if(changed){var active=mod(),b=state.flecapModuleData[active]||{};['tags','masters','instances','punches','applicabilityOverrides','subsystemDeliveries'].forEach(function(k){var def=(k==='instances'||k==='applicabilityOverrides'||k==='subsystemDeliveries')?{}:[];state[k]=clone(b[k]||def)});var activeRow=(r.data||[]).find(function(row){return (row.module==='precom'?'precom':'quality')===active;});
 if(activeRow&&activeRow.payload&&activeRow.payload.sync_epoch){
   state.sync_epoch=String(activeRow.payload.sync_epoch);
 }
-state.flecapDataModule=active;try{if(window.FLECAP_LARGE_STATE)await window.FLECAP_LARGE_STATE.save(project(),window.FLECAP_compactStateForLocalStorage?window.FLECAP_compactStateForLocalStorage(state):state)}catch(e){}try{if(typeof renderAll==='function')renderAll();if(typeof renderHero==='function')renderHero();if(window.flecapDrawExactDashboard)window.flecapDrawExactDashboard()}catch(e){}}return changed;}
+state.flecapDataModule=active;try{if(window.FLECAP_LARGE_STATE)await window.FLECAP_LARGE_STATE.save(project(),window.FLECAP_compactStateForLocalStorage?window.FLECAP_compactStateForLocalStorage(state):state)}catch(e){}if(healed.length){
+  /* FLECAP perf: el Maestro se sanea en la fila que gana y se persiste una
+     unica vez, ya con state.sync_epoch tomado de la fila (saveModule lo
+     copia desde state): antes de este bloque se guardaba con el epoch
+     todavia vacio. */
+  for(var hi=0;hi<healed.length;hi++){try{await saveModule(healed[hi])}catch(_hSave){console.warn('FLECAP: Maestro de la matriz central',_hSave)}}}try{if(typeof renderAll==='function')renderAll();if(typeof renderHero==='function')renderHero();if(window.flecapDrawExactDashboard)window.flecapDrawExactDashboard()}catch(e){}}return changed;}
 window.FLECAP_MATRIX_DB={saveModule:saveModule,loadAll:loadAll,prefetch:prefetch};
 })();
 </script>
@@ -14972,8 +15016,20 @@ function pruneLocal(exceptPid){
   });
 }
 
+/* FLECAP perf 2026-09-27: el reintento de LECTURA del plan deja de ser
+   infinito. Antes un fallo de red reintentaba cada 8 s para siempre, y una
+   conexion todavia no lista reintentaba cada 4 s para siempre: de ahi las
+   lecturas de flecap_matrix_store (module=weld_plan) que seguian apareciendo
+   decadas de segundos despues de abrir la obra. Ahora: maximo 3 reintentos,
+   nada con la pestana oculta y nada en bucle si !sbReady(). Las lecturas
+   legitimas (arranque, online, visibilitychange, flecap:remote-ready) se
+   conservan y reinician el contador. No cambia el formato, el almacenamiento
+   ni la sincronizacion del plan. */
+var pullAttempts=0;
 async function pull(why){
-  if(!sbReady()){setTimeout(function(){pull(why)},4000);return}
+  if(why!=='retry')pullAttempts=0;
+  if(why==='retry'&&document.hidden)return;
+  if(!sbReady()){if(pullAttempts<3)schedulePull(4000);return}
   var proj=pid();
   if(proj!==lastProject){planCache=null;haveRemote=false;lastRemoteStamp='';lastProject=proj}
   try{
@@ -15013,7 +15069,12 @@ async function pull(why){
   }catch(e){console.warn('FLECAP plan: sincronización no disponible',e);schedulePull(8000)}
 }
 var pullTimer=null;
-function schedulePull(ms){clearTimeout(pullTimer);pullTimer=setTimeout(function(){pull('retry')},ms||5000)}
+function schedulePull(ms){clearTimeout(pullTimer);pullTimer=setTimeout(function(){
+  if(pullAttempts>=3){pullTimer=null;hint('Plan de obra: no se pudo leer del servidor. Se reintenta al volver a la obra.');return}
+  pullAttempts++;pull('retry')},ms||5000)}
+/* Un disparo legitimo (arranque, online, visibilitychange, remote-ready)
+   reinicia el contador: no hereda los reintentos de un fallo anterior. */
+function armPull(ms){pullAttempts=0;schedulePull(ms)}
 
 var pushAttempts=0;
 async function push(plan){
@@ -15067,10 +15128,10 @@ window.FLECAP_WELD_PLAN_SYNC={
 /* arranque */
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(function(){pull('boot')},2200)},{once:true});
 else setTimeout(function(){pull('boot')},2200);
-window.addEventListener('online',function(){schedulePush(1500);schedulePull(2500)});
-document.addEventListener('flecap:remote-ready',function(){schedulePull(1200)},true);
+window.addEventListener('online',function(){schedulePush(1500);armPull(2500)});
+document.addEventListener('flecap:remote-ready',function(){armPull(1200)},true);
 /* adopción pasiva: si otro usuario guarda el plan mientras navego, se adopta al volver a la solapa */
-document.addEventListener('visibilitychange',function(){if(!document.hidden)schedulePull(800)});
+document.addEventListener('visibilitychange',function(){if(!document.hidden)armPull(800)});
 var seenPlan=null;
 setInterval(function(){
   if(!haveRemote)return;
