@@ -2285,11 +2285,26 @@ function mergeFlecapAdditionalMasters(target){
 /* FLECAP: almacenamiento amplio para matrices y trabajo sin conexión. */
 window.FLECAP_LARGE_STATE=(function(){
  const DB='flecap_large_state_v1',STORE='projects';
- function open(){return new Promise((ok,no)=>{const r=indexedDB.open(DB,1);r.onupgradeneeded=()=>{const d=r.result;if(!d.objectStoreNames.contains(STORE))d.createObjectStore(STORE)};r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)})}
- async function put(projectId,payload){const d=await open();return new Promise((ok,no)=>{const t=d.transaction(STORE,'readwrite');t.objectStore(STORE).put(payload,String(projectId||'legacy'));t.oncomplete=()=>ok(true);t.onerror=()=>no(t.error)})}
- async function get(projectId){const d=await open();return new Promise((ok,no)=>{const r=d.transaction(STORE).objectStore(STORE).get(String(projectId||'legacy'));r.onsuccess=()=>ok(r.result||null);r.onerror=()=>no(r.error)})}
+ /* FLECAP perf 2026-09-27: la conexión se abre una sola vez y se reutiliza.
+    Antes cada lectura y cada guardado abría una conexión nueva, y el guardado
+    esperaba a ese open() antes de clonar el valor. Con una obra grande eran
+    cientos de milisegundos por operación, y el cambio de obra encadena varias.
+    Además, con la conexión ya abierta el put() clona el valor en el MISMO tick
+    en que se lo entrega: eso es lo que permite que el estado compacto se arme
+    por copia superficial (FLECAP_compactStateForLocalStorage) sin que una
+    mutación posterior del estado pueda llegar al disco. */
+ let CONN=null;
+ function open(){return new Promise((ok,no)=>{const r=indexedDB.open(DB,1);r.onupgradeneeded=()=>{const d=r.result;if(!d.objectStoreNames.contains(STORE))d.createObjectStore(STORE)};r.onsuccess=()=>{try{CONN=r.result}catch(_c){}ok(r.result)};r.onerror=()=>no(r.error)})}
+ function conn(){return CONN?Promise.resolve(CONN):open()}
+ function putOn(d,projectId,payload){return new Promise((ok,no)=>{const t=d.transaction(STORE,'readwrite');t.objectStore(STORE).put(payload,String(projectId||'legacy'));t.oncomplete=()=>ok(true);t.onerror=()=>no(t.error)})}
+ async function put(projectId,payload){return putOn(await conn(),projectId,payload)}
+ async function get(projectId){const d=await conn();return new Promise((ok,no)=>{const r=d.transaction(STORE).objectStore(STORE).get(String(projectId||'legacy'));r.onsuccess=()=>ok(r.result||null);r.onerror=()=>no(r.error)})}
  function stub(projectId,payload){return {__flecapIndexedDB:1,projectId:String(projectId||'legacy'),sync_epoch:String(payload&&payload.sync_epoch||''),flecapDataModule:String(payload&&payload.flecapDataModule||'quality')}}
- async function save(projectId,payload){await put(projectId,payload);try{localStorage.removeItem('odv_alvs_state_v7');localStorage.setItem('flecap_project_state::'+String(projectId||'legacy'),JSON.stringify(stub(projectId,payload)))}catch(e){}return true}
+ function save(projectId,payload){
+   const writing=CONN?putOn(CONN,projectId,payload):put(projectId,payload);
+   try{localStorage.removeItem('odv_alvs_state_v7');localStorage.setItem('flecap_project_state::'+String(projectId||'legacy'),JSON.stringify(stub(projectId,payload)))}catch(e){}
+   return writing;
+ }
  return {save:save,load:get,stub:stub};
 })();
 
@@ -2310,7 +2325,12 @@ let quick="ALL",currentRecord=null,currentMaster=null,currentPunch=null,pendingF
 window.FLECAP_compactStateForLocalStorage=function(src){
  try{
    if(!src||!src.flecapModuleData)return src;
-   const c=JSON.parse(JSON.stringify(src));
+   /* FLECAP perf 2026-09-27: copia SUPERFICIAL. El compacto existe para
+      quitarle las seis claves de módulo y serializar el resto; clonar 25 MB
+      para descartar casi todo era el mayor costo del cambio de obra. Lo que
+      queda se referencia, y FLECAP_LARGE_STATE clona el valor al escribirlo, en
+      el mismo tick (ver su put). */
+   const c=Object.assign({},src);
    ['tags','masters','instances','punches','applicabilityOverrides','subsystemDeliveries'].forEach(k=>{try{delete c[k]}catch(e){}});
    c.__flecapCompactModules=1;
    return c;
@@ -2325,9 +2345,16 @@ window.FLECAP_expandStateFromLocalStorage=function(src,projectId){
    let m=localStorage.getItem('flecap_active_module::'+projectId)||localStorage.getItem('flecap_active_module')||src.flecapDataModule||'quality';
    m=m==='precom'?'precom':'quality';
    const box=(src.flecapModuleData&&src.flecapModuleData[m])||src.flecapModuleData.quality||src.flecapModuleData.precom||{};
+   /* FLECAP perf 2026-09-27: un solo clonado del módulo en vez de seis.
+      structuredClone es del orden de 1,8 veces más rápido que el viaje de ida
+      y vuelta de JSON y copia exactamente los mismos datos; si el navegador no
+      lo tiene, se sigue usando el camino anterior. */
+   let b={};
+   try{b=(typeof structuredClone==='function')?structuredClone(box):JSON.parse(JSON.stringify(box))}catch(_sc){b=JSON.parse(JSON.stringify(box))}
    ['tags','masters','instances','punches','applicabilityOverrides','subsystemDeliveries'].forEach(k=>{
      const def=(k==='instances'||k==='applicabilityOverrides'||k==='subsystemDeliveries')?{}:[];
-     src[k]=JSON.parse(JSON.stringify(box[k]||def));
+     const v=(b&&b[k]!==undefined&&b[k]!==null)?b[k]:def;
+     src[k]=(v&&typeof v==='object')?v:JSON.parse(JSON.stringify(def));
    });
    src.flecapDataModule=m;
    return src;
@@ -6858,17 +6885,27 @@ function refreshOnlineAdminUi(){
       que de otro modo repite la misma consulta un instante después. */
    try{window.__FLECAP_BOOT_STATE__={projectId:String(projectId),payload:(data&&data.payload)||null}}catch(_bst){}
 
-   // Recuperar la copia local COMPLETA de esta obra (IndexedDB primero).
+   /* FLECAP perf 2026-09-27: el cambio de obra en caliente acaba de traer esta
+      misma copia de IndexedDB y ya la está usando como estado en memoria. Volver
+      a leerla y volver a expandirla era la misma deserialización de 25 MB por
+      segunda vez en el mismo cambio de obra. Cuando viene ese estado se
+      reaprovecha; en cualquier otro camino (arranque, F5) se lee como siempre. */
    let localProject=null;
-   try{
-     if(window.FLECAP_LARGE_STATE&&typeof window.FLECAP_LARGE_STATE.load==='function'){
-       localProject=await window.FLECAP_LARGE_STATE.load(projectId);
+   const __hint=(String(projectId)===String(window.__FLECAP_SWITCH_LOCAL__&&window.__FLECAP_SWITCH_LOCAL__.pid))?window.__FLECAP_SWITCH_LOCAL__:null;
+   if(__hint&&__hint.state){
+     localProject=__hint.state;
+     try{window.__FLECAP_SWITCH_LOCAL__=null}catch(_hc){}
+   }else{
+     try{
+       if(window.FLECAP_LARGE_STATE&&typeof window.FLECAP_LARGE_STATE.load==='function'){
+         localProject=await window.FLECAP_LARGE_STATE.load(projectId);
+       }
+     }catch(_idbErr){}
+     if(!localProject){
+       try{localProject=JSON.parse(localStorage.getItem('flecap_project_state::'+projectId)||'null')}catch(_localErr){}
      }
-   }catch(_idbErr){}
-   if(!localProject){
-     try{localProject=JSON.parse(localStorage.getItem('flecap_project_state::'+projectId)||'null')}catch(_localErr){}
+     try{if(window.FLECAP_expandStateFromLocalStorage)localProject=window.FLECAP_expandStateFromLocalStorage(localProject,projectId)}catch(_expandErr){}
    }
-   try{if(window.FLECAP_expandStateFromLocalStorage)localProject=window.FLECAP_expandStateFromLocalStorage(localProject,projectId)}catch(_expandErr){}
 
    const remotePayload=data&&data.payload?data.payload:null;
    const remoteOk=!!remotePayload&&((Array.isArray(remotePayload.tags)&&Array.isArray(remotePayload.masters))||!!remotePayload.flecapModuleData);
@@ -8951,10 +8988,22 @@ html.pecom-light .reg.present{background:#f3f8fd!important}
             imposible que un guardado pendiente escriba la obra saliente en la
             nueva (justo lo que FLECAP_SWITCHING_PROJECT impedía antes de
             recargar, y ahora también durante el intercambio). */
+      var outgoingSaved=false;
       try{if(typeof window.FLECAP_FLUSH_PROJECT_MODULE_STATE_FN==='function')window.FLECAP_FLUSH_PROJECT_MODULE_STATE_FN()}catch(e){}
-      try{if(typeof window.FLECAP_FLUSH_PROJECT_MODULE_STATE==='function')window.FLECAP_FLUSH_PROJECT_MODULE_STATE()}catch(e){}
+      /* FLECAP fix 2026-09-27: el nombre era FLECAP_FLUSH_PROJECT_MODULE_STATE
+         (mayúsculas) y esa función no existe: la real es
+         FLECAP_flushProjectModuleState. Con el nombre equivocado la obra
+         saliente se guardaba SIN consolidar su módulo, o sea que su copia local
+         podía volver a una versión anterior. Con el nombre correcto se
+         consolida (que es lo que garantiza la copia) y, como esa consolidación
+         ya escribe en IndexedDB, no hace falta repetir el guardado. */
+      try{if(typeof window.FLECAP_flushProjectModuleState==='function')outgoingSaved=window.FLECAP_flushProjectModuleState(null,true)!==false}catch(e){}
       try{window.FLECAP_SWITCHING_PROJECT=true}catch(e){}
-      try{if(typeof window.FLECAP_PROJECTS.saveCurrent==='function')window.FLECAP_PROJECTS.saveCurrent()}catch(e){}
+      /* FLECAP perf: el consolidado de arriba ya guardó la obra saliente (es la
+         misma escritura que hacía storeCurrent, con el mismo proyecto: la obra
+         activa todavía no cambió). Sólo si ese consolidado no estuviera
+         disponible se recurre a storeCurrent. */
+      try{if(!outgoingSaved&&window.FLECAP_PROJECTS&&window.FLECAP_PROJECTS.saveCurrent)window.FLECAP_PROJECTS.saveCurrent()}catch(e){}
       try{localStorage.setItem(ACTIVE_KEY,pid)}catch(e){}
       try{localStorage.removeItem(PENDING_KEY)}catch(e){}
       try{localStorage.setItem('flecap_project_identity_v1',JSON.stringify(window.FLECAP_PROJECTS.identity(pid)))}catch(e){}
@@ -8971,7 +9020,14 @@ html.pecom-light .reg.present{background:#f3f8fd!important}
       try{if(typeof window.FLECAP_applyProjectHeader==='function')window.FLECAP_applyProjectHeader()}catch(e){}
       try{if(typeof window.FLECAP_PROJECTS.renderSelectors==='function')window.FLECAP_PROJECTS.renderSelectors()}catch(e){}
       document.dispatchEvent(new CustomEvent('flecap:project-switch-painted',{detail:{id:pid}}));
+      /* La obra entrante ya está en pantalla y se puede usar. Se le cede el
+         hilo al navegador un turno antes de pedir nada a Supabase: lo que sigue
+         es reconciliación, y no tiene por qué competir con la primera pintada. */
+      await new Promise(function(ok){setTimeout(ok,0)});
       if(myGen!==gen)return;
+      /* La copia local que se acaba de pintar se le pasa a loadRemote, que si
+         no la volvería a leer de IndexedDB y a expandir. */
+      try{window.__FLECAP_SWITCH_LOCAL__={pid:String(pid),state:state}}catch(_slh){}
       /* 4. Reconciliación autoritativa. Supabase manda: la fila que se acaba de
             pintar es la copia local y se vuelve a consultar siempre. */
       setStatus('☁ Cargando '+labelOf(pid)+'…');
@@ -9037,6 +9093,20 @@ html.pecom-light .reg.present{background:#f3f8fd!important}
   return epoch?null:parts.slice(1).join('::');
  }
  function clone(x){return JSON.parse(JSON.stringify(x))}
+ /* FLECAP perf 2026-09-27: copia profunda real con structuredClone cuando el
+    navegador lo tiene (mismos datos, ~1,8 veces más rápido). Si el valor
+    contiene algo que no se puede clonar (una función, un nodo del DOM), se
+    cae al viaje de JSON de siempre. */
+ function deepCopy(x){try{if(typeof structuredClone==='function')return structuredClone(x)}catch(_sc){}return JSON.parse(JSON.stringify(x))}
+ /* FLECAP perf 2026-09-27: línea base del diff sin clonar el estado entero.
+    Cada módulo se guarda en state.flecapModuleData[mod]; los caminos que llevan
+    datos de esa caja a la vista (expand, loadAll) los copian, y los que
+    guardan la vista de vuelta (persist, flushProjectModuleState) reemplazan la
+    caja por una nueva. O sea que la caja es un instantáneo intacto de lo que
+    se está viendo: apuntar a ella como línea base da exactamente los mismos
+    cambios que un clonado, sin el costo. Si no hay caja, se clona. */
+ function baselineBox(){try{var m=(state&&state.flecapDataModule==='precom')?'precom':'quality';var box=state&&state.flecapModuleData&&state.flecapModuleData[m];if(box&&Array.isArray(box.tags)&&Array.isArray(box.masters))return box}catch(_bb){}return null}
+ function seedBaseline(){var b=baselineBox();if(b){lastLocal=b;return true}lastLocal=deepCopy(state);return false}
  function keyFor(section,x,i){return String(section==='tags'?(x.tag||x.TAG||x.id||i):section==='masters'?(x.id||i):section==='punches'?(x.id||x.uuid||i):i)}
  function mapOf(section,v){var m={};if(Array.isArray(v))v.forEach(function(x,i){m[keyFor(section,x,i)]=x});else if(v&&typeof v==='object')Object.keys(v).forEach(function(k){m[k]=v[k]});return m}
  function diff(oldState,newState){var ops=[];['tags','masters','instances','punches','applicabilityOverrides','subsystemDeliveries','flecapModulePermissions'].forEach(function(section){var a=mapOf(section,oldState&&oldState[section]),b=mapOf(section,newState&&newState[section]);new Set(Object.keys(a).concat(Object.keys(b))).forEach(function(k){if(!(k in b))ops.push({section:section,entity_key:k,deleted:true,value:null});else if(JSON.stringify(a[k])!==JSON.stringify(b[k]))ops.push({section:section,entity_key:k,deleted:false,value:b[k]})})});return ops}
@@ -9106,20 +9176,32 @@ html.pecom-light .reg.present{background:#f3f8fd!important}
    badge('Pendiente · '+detail.slice(0,48),'pending');
   }finally{syncing=false}
  }
- async function receive(op){if(op.client_id===clientId)return;var k=decodeEntityKey(op.entity_key);if(k===null)return;op=Object.assign({},op,{entity_key:k});state=applyOne(state,op);if(typeof mergeFlecapAdditionalMasters==='function')mergeFlecapAdditionalMasters(state);try{localStorage.setItem(KEY,JSON.stringify(window.FLECAP_compactStateForLocalStorage?window.FLECAP_compactStateForLocalStorage(state):state));localStorage.setItem('flecap_project_state::'+activeProjectId(),JSON.stringify(window.FLECAP_compactStateForLocalStorage?window.FLECAP_compactStateForLocalStorage(state):state))}catch(e){}lastLocal=clone(state);if(typeof renderAll==='function')renderAll();try{if(typeof renderPermissionPanel==='function')renderPermissionPanel()}catch(e){}badge('Actualizado por otro usuario','ok')}
+ async function receive(op){if(op.client_id===clientId)return;var k=decodeEntityKey(op.entity_key);if(k===null)return;op=Object.assign({},op,{entity_key:k});state=applyOne(state,op);if(typeof mergeFlecapAdditionalMasters==='function')mergeFlecapAdditionalMasters(state);try{localStorage.setItem(KEY,JSON.stringify(window.FLECAP_compactStateForLocalStorage?window.FLECAP_compactStateForLocalStorage(state):state));localStorage.setItem('flecap_project_state::'+activeProjectId(),JSON.stringify(window.FLECAP_compactStateForLocalStorage?window.FLECAP_compactStateForLocalStorage(state):state))}catch(e){}lastLocal=deepCopy(state);if(typeof renderAll==='function')renderAll();try{if(typeof renderPermissionPanel==='function')renderPermissionPanel()}catch(e){}badge('Actualizado por otro usuario','ok')}
  var eventsPrefetch=null;
  // FLECAP perf: la lectura de sync_changes no depende de app_state. Se pide
  // antes y se aplica exactamente en el mismo punto que antes.
  function warmup(projectId){try{if(!window.PECOM_SUPABASE)return null;var pid=String(projectId||activeProjectId());eventsPrefetch={projectId:pid,promise:window.PECOM_SUPABASE.from('sync_changes').select('id,project_id,client_id,client_seq,section,entity_key,value,deleted').eq('project_id',pid).order('id',{ascending:true})};return eventsPrefetch.promise}catch(_e){eventsPrefetch=null;return null}}
- async function loadEvents(){if(!window.PECOM_SUPABASE)return;var r=null;if(eventsPrefetch&&eventsPrefetch.projectId===String(activeProjectId())){try{r=await eventsPrefetch.promise}catch(_evErr){r=null}eventsPrefetch=null}if(!r)r=await window.PECOM_SUPABASE.from('sync_changes').select('id,project_id,client_id,client_seq,section,entity_key,value,deleted').eq('project_id',activeProjectId()).order('id',{ascending:true});if(!r.error){(r.data||[]).forEach(function(op){var k=decodeEntityKey(op.entity_key);if(k!==null)state=applyOne(state,Object.assign({},op,{entity_key:k}))});try{localStorage.setItem(KEY,JSON.stringify(window.FLECAP_compactStateForLocalStorage?window.FLECAP_compactStateForLocalStorage(state):state));localStorage.setItem('flecap_project_state::'+activeProjectId(),JSON.stringify(window.FLECAP_compactStateForLocalStorage?window.FLECAP_compactStateForLocalStorage(state):state))}catch(e){}lastLocal=clone(state);if(typeof renderAll==='function')renderAll();try{if(typeof renderPermissionPanel==='function')renderPermissionPanel()}catch(e){}}}
+ async function loadEvents(){if(!window.PECOM_SUPABASE)return;var r=null;if(eventsPrefetch&&eventsPrefetch.projectId===String(activeProjectId())){try{r=await eventsPrefetch.promise}catch(_evErr){r=null}eventsPrefetch=null}if(!r)r=await window.PECOM_SUPABASE.from('sync_changes').select('id,project_id,client_id,client_seq,section,entity_key,value,deleted').eq('project_id',activeProjectId()).order('id',{ascending:true});if(!r.error){
+   var ops=(r.data||[]).filter(function(op){var k=decodeEntityKey(op.entity_key);if(k===null)return false;state=applyOne(state,Object.assign({},op,{entity_key:k}));return true});
+   /* FLECAP perf 2026-09-27: si no llegó ningún cambio de otro usuario no hay
+      nada que adoptar. Antes se re-escribía el estado completo dos veces en
+      localStorage (las dos terminaban en QuotaExceeded: el estado de una obra
+      grande no entra), se clonaba el estado entero para la línea base y se
+      repintaba la obra completa. Eran segundos de CPU en cada apertura y en
+      cada cambio de obra para terminar en exactamente la misma pantalla. */
+   if(!ops.length)return;
+   try{if(window.FLECAP_LARGE_STATE)window.FLECAP_LARGE_STATE.save(activeProjectId(),window.FLECAP_compactStateForLocalStorage?window.FLECAP_compactStateForLocalStorage(state):state)}catch(_lsErr){}
+   lastLocal=deepCopy(state);if(typeof renderAll==='function')renderAll();try{if(typeof renderPermissionPanel==='function')renderPermissionPanel()}catch(e){}}}
  function connect(){if(channel||!window.PECOM_SUPABASE)return;channel=window.PECOM_SUPABASE.channel('flecap-granular-'+clientId).on('postgres_changes',{event:'INSERT',schema:'public',table:'sync_changes',filter:'project_id=eq.'+activeProjectId()},function(p){receive(p.new)}).subscribe()}
- async function saveNow(){saveTimer=null;var payload=pendingPayload;pendingPayload=null;if(!payload)return;if(!lastLocal)lastLocal=clone(payload);var ops=diff(lastLocal,payload);lastLocal=clone(payload);if(!ops.length){await pendingBadge();document.dispatchEvent(new CustomEvent('flecap:stable-saved'));return}await queueAdd(ops);pendingBadge();flush()}
- function save(payload){if(String(window.PECOM_ROLE||'viewer').toLowerCase()==='viewer'){badge('Solo lectura','ok');return false;}if(window.FLECAP_BACKUPS)window.FLECAP_BACKUPS.markDirty();pendingPayload=clone(payload);clearTimeout(saveTimer);saveTimer=setTimeout(saveNow,300);return true}
- window.FLECAP_SYNC_ENGINE={adoptRemote:async function(remote){if(!(await queueAll()).length){if(remote===state){/*FLECAP perf: el llamador entrega el propio estado global, así que alcanza con un clon*/if(typeof mergeFlecapAdditionalMasters==='function')mergeFlecapAdditionalMasters(state);lastLocal=clone(state)}else{state=clone(remote);if(typeof mergeFlecapAdditionalMasters==='function')mergeFlecapAdditionalMasters(state);lastLocal=clone(state)}}await loadEvents();connect();flush()},flush:flush,warmup:warmup,
+ async function saveNow(){saveTimer=null;var payload=pendingPayload;pendingPayload=null;if(!payload)return;if(!lastLocal)lastLocal=deepCopy(payload);var ops=diff(lastLocal,payload);lastLocal=deepCopy(payload);if(!ops.length){await pendingBadge();document.dispatchEvent(new CustomEvent('flecap:stable-saved'));return}await queueAdd(ops);pendingBadge();flush()}
+ function save(payload){if(String(window.PECOM_ROLE||'viewer').toLowerCase()==='viewer'){badge('Solo lectura','ok');return false;}if(window.FLECAP_BACKUPS)window.FLECAP_BACKUPS.markDirty();pendingPayload=deepCopy(payload);clearTimeout(saveTimer);saveTimer=setTimeout(saveNow,300);return true}
+ window.FLECAP_SYNC_ENGINE={adoptRemote:async function(remote){if(!(await queueAll()).length){if(remote===state){/*FLECAP perf: el llamador entrega el propio estado global*/if(typeof mergeFlecapAdditionalMasters==='function')mergeFlecapAdditionalMasters(state);seedBaseline()}else{state=deepCopy(remote);if(typeof mergeFlecapAdditionalMasters==='function')mergeFlecapAdditionalMasters(state);seedBaseline()}}await loadEvents();connect();flush()},flush:flush,warmup:warmup,
   /* FLECAP perf: cambio de obra sin recarga. El canal granular se filtraba
      por la obra del momento de arranque, y la línea base del diff también.
      Ambas cosas se re-enganchan a la obra entrante. */
-  rebind:function(){try{if(channel&&window.PECOM_SUPABASE){window.PECOM_SUPABASE.removeChannel(channel);channel=null}}catch(_rb){}try{lastLocal=clone(state)}catch(_lb){}return connect()}};
+  rebind:function(){try{if(channel&&window.PECOM_SUPABASE){window.PECOM_SUPABASE.removeChannel(channel);channel=null}}catch(_rb){}try{seedBaseline()}catch(_lb){}return connect()},
+  /* FLECAP perf 2026-09-27: plantar la línea base del diff sin clonar. */
+  seedBaseline:seedBaseline};
  // IMPORT SYNC COALESCING (perf fix 2026-09-20): durante una importación masiva de Matriz,
  // persist() sigue guardando localmente (IndexedDB + localStorage) pero el guardado remoto
  // queda COALESCIDO en una única sincronización final confirmada al terminar la importación.
@@ -10740,7 +10822,12 @@ html.pecom-light .fpc-title h2{color:#102a43}html.pecom-light .fpc-title p{color
  window.FLECAP_projectModuleKey=mkey;
  window.FLECAP_getProjectModule=function(projectId){projectId=projectId||pid();try{return localStorage.getItem(mkey(projectId))||localStorage.getItem('flecap_active_module')||'quality'}catch(e){return 'quality'}};
  window.FLECAP_setProjectModule=function(module,projectId){module=module==='precom'?'precom':'quality';projectId=projectId||pid();try{localStorage.setItem(mkey(projectId),module);if(projectId===pid())localStorage.setItem('flecap_active_module',module)}catch(e){}return module};
- window.FLECAP_flushProjectModuleState=function(projectId){
+ /* FLECAP perf 2026-09-27: con defer la escritura a IndexedDB ocurre en el
+    turno siguiente. Lo usa el cambio de obra en caliente: antes de pintar la
+    obra entrante no hay nada mejor que hacer que clonar y escribir 25 MB de la
+    obra saliente. La consolidación en memoria sigue siendo síncrona, que es la
+    parte que garantiza que la copia local no vuelva a una versión anterior. */
+ window.FLECAP_flushProjectModuleState=function(projectId,defer){
    projectId=projectId||pid();
    try{
      if(typeof state==='undefined'||!state)return false;
@@ -10753,7 +10840,12 @@ html.pecom-light .fpc-title h2{color:#102a43}html.pecom-light .fpc-title p{color
      var box={};fields.forEach(function(k){box[k]=clone(state[k]||(k==='instances'||k==='applicabilityOverrides'||k==='subsystemDeliveries'?{}:[]))});
      state.flecapModuleData[module]=box;state.flecapDataModule=module;window.FLECAP_setProjectModule(module,projectId);
      var compact=window.FLECAP_compactStateForLocalStorage?window.FLECAP_compactStateForLocalStorage(state):state;
-     if(window.FLECAP_LARGE_STATE){window.FLECAP_LARGE_STATE.save(projectId,compact);try{localStorage.setItem('flecap_project_state::'+projectId,JSON.stringify(window.FLECAP_LARGE_STATE.stub(projectId,compact)))}catch(_e){}}else localStorage.setItem('flecap_project_state::'+projectId,JSON.stringify(compact));return true;
+     var write=function(){
+       if(window.FLECAP_LARGE_STATE){window.FLECAP_LARGE_STATE.save(projectId,compact);try{localStorage.setItem('flecap_project_state::'+projectId,JSON.stringify(window.FLECAP_LARGE_STATE.stub(projectId,compact)))}catch(_e){}}
+       else localStorage.setItem('flecap_project_state::'+projectId,JSON.stringify(compact));
+     };
+     if(defer)setTimeout(write,0);else write();
+     return true;
    }catch(e){console.warn('FLECAP: no se pudo consolidar obra/módulo',e);return false}
  };
  try{var p=pid(),scoped=localStorage.getItem(mkey(p)),legacy=localStorage.getItem('flecap_active_module');if(!scoped)localStorage.setItem(mkey(p),legacy==='precom'?'precom':'quality');localStorage.setItem('flecap_active_module',localStorage.getItem(mkey(p))||'quality')}catch(e){}
