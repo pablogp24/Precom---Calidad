@@ -341,6 +341,9 @@ html.pecom-light #flecapModuleSwitch:hover{background:#e7f1f7!important;color:#0
    try{if(typeof state!=='undefined')localStorage.setItem('flecap_project_state::'+active(),JSON.stringify(window.FLECAP_compactStateForLocalStorage?window.FLECAP_compactStateForLocalStorage(state):state))}catch(e){}
    localStorage.setItem('flecap_active_project_v1',pid);
    if(identity)localStorage.setItem('flecap_project_identity_v1',JSON.stringify({company:identity.company,project:identity.project}));
+   /* La página se recarga: dejar escrita la sesión y el handoff para que
+      la obra siguiente no vuelva a pedir usuario y contraseña. */
+   try{window.FLECAP_AUTH_HANDOFF&&window.FLECAP_AUTH_HANDOFF.storeHandoff()}catch(_e){}
    location.reload();
  }
  function refreshProjectUi(){
@@ -6636,6 +6639,54 @@ function refreshOnlineAdminUi(){
  window.PECOM_CURRENT_EMAIL="";
  let bootPromise=null, bootEmail="", realtimeStarted=false;
 
+ /* FLECAP · Traspaso explícito de la sesión entre el portal y cada obra.
+    Al cambiar de obra la app se recarga o se renavega y el cliente de Supabase
+    puede no devolver la sesión en ese contexto. Antes la única restauración
+    estaba atada a ?from=portal y a 10 minutos, así que el cambio de obra
+    terminaba en la pantalla de usuario y contraseña pese a la sesión válida.
+    Esto NO relaja la autenticación: los tokens se validan contra Supabase
+    (setSession) y el correo se revalida contra allowed_users en bootSession.
+    Sin tokens válidos, o sin usuario autorizado, el login aparece igual. */
+ const H_AUTH='flecap_portal_auth', H_HANDOFF='flecap_portal_handoff', H_TAB='flecap_portal_handoff_tab';
+ function pecomWriteJSON(store,key,value){try{store.setItem(key,JSON.stringify(value));return true}catch(e){return false}}
+ function pecomReadJSON(store,key){try{return JSON.parse(store.getItem(key)||'null')}catch(e){return null}}
+ function pecomStoreSession(session){
+   const s=session&&session.access_token?session:null;
+   if(!s)return;
+   const body={access_token:s.access_token,refresh_token:s.refresh_token,ts:Date.now()};
+   pecomWriteJSON(localStorage,H_AUTH,body);
+   pecomWriteJSON(sessionStorage,H_AUTH,body);
+ }
+ function pecomStoreHandoff(){
+   let email=String(window.PECOM_CURRENT_EMAIL||'').trim().toLowerCase();
+   if(!email){
+     const prev=pecomReadJSON(localStorage,H_HANDOFF)||pecomReadJSON(sessionStorage,H_TAB);
+     if(prev&&prev.email)email=String(prev.email).trim().toLowerCase();
+   }
+   if(!email)return null;
+   const role=String(window.PECOM_ROLE||localStorage.getItem('flecap_last_role')||'viewer').trim().toLowerCase();
+   const body={email:email,role:role,project:String(localStorage.getItem('flecap_active_project_v1')||''),ts:Date.now()};
+   pecomWriteJSON(localStorage,H_HANDOFF,body);   /* sobrevive a la recarga */
+   pecomWriteJSON(sessionStorage,H_TAB,body);      /* llega al portal aunque localStorage esté lleno o bloqueado */
+   return body;
+ }
+ async function pecomRestoreSession(client){
+   if(!client||!client.auth)return null;
+   let cur=null;
+   try{cur=await client.auth.getSession();cur=cur&&cur.data?cur.data.session:null}catch(e){}
+   if(cur&&cur.user&&cur.user.email)return cur;
+   const pa=pecomReadJSON(localStorage,H_AUTH)||pecomReadJSON(sessionStorage,H_AUTH);
+   if(!(pa&&pa.access_token&&pa.refresh_token))return null;
+   try{
+     const r=await client.auth.setSession({access_token:pa.access_token,refresh_token:pa.refresh_token});
+     if(!r||r.error)return null;                   /* tokens inválidos: NO hay sesión */
+     const s=r.data&&r.data.session?r.data.session:null;
+     if(s)pecomStoreSession(s);
+     return s;
+   }catch(e){return null}
+ }
+ window.FLECAP_AUTH_HANDOFF={storeSession:pecomStoreSession,storeHandoff:pecomStoreHandoff,restoreSession:pecomRestoreSession};
+
  function status(txt){const e=statusEl();if(e)e.textContent=txt}
  function configured(){return cfg.supabaseUrl && cfg.supabaseAnonKey && !String(cfg.supabaseUrl).includes("PEGAR_") && !String(cfg.supabaseAnonKey).includes("PEGAR_")}
  function isAdmin(){
@@ -6799,7 +6850,7 @@ function refreshOnlineAdminUi(){
        var __fresh=!!(__h&&__h.email&&(!__h.ts||Date.now()-Number(__h.ts)<10*60*1000));
        if(__email&&__fresh){
          session={user:{email:__email}};
-         try{localStorage.setItem('flecap_portal_handoff',JSON.stringify({email:__email,role:String((window.PECOM_ROLE||(__h&&__h.role)||'viewer')).toLowerCase(),project:activeProjectId(),ts:Date.now()}))}catch(_vhTs){}
+         try{const __hb=JSON.stringify({email:__email,role:String((window.PECOM_ROLE||(__h&&__h.role)||'viewer')).toLowerCase(),project:activeProjectId(),ts:Date.now()});localStorage.setItem('flecap_portal_handoff',__hb);sessionStorage.setItem('flecap_portal_handoff_tab',__hb)}catch(_vhTs){}
          status("☁ Solo lectura · portal");
        }
      }catch(_vhErr){}
@@ -6859,6 +6910,9 @@ function refreshOnlineAdminUi(){
        status("☁ Sincronizado");
        loginEl().style.display="none";
        msgEl().textContent="";
+       /* Sesión y handoff al día: permiten volver al selector y abrir
+          otra obra sin volver a pedir usuario y contraseña. */
+       try{pecomStoreSession(session);pecomStoreHandoff()}catch(_hErr){}
        try{window.__bootSessionDone=true}catch(_fErr){}
      }catch(e){
        console.error("Error abriendo PECOM:",e);
@@ -6938,8 +6992,8 @@ function refreshOnlineAdminUi(){
    sb=window.supabase.createClient(cfg.supabaseUrl,cfg.supabaseAnonKey);
    window.PECOM_SUPABASE=sb;
 
-   // Entrada desde el portal: restaurar explícitamente la MISMA sesión antes
-   // de que el login interno decida si debe mostrarse. No recarga ni hace switchTo.
+   // Entrada desde el portal: fijar la obra activa antes de resolver la sesión.
+   // No recarga ni hace switchTo.
    try{
      const q=new URLSearchParams(location.search);
      if(q.get('from')==='portal'){
@@ -6948,19 +7002,23 @@ function refreshOnlineAdminUi(){
          localStorage.setItem('flecap_active_project_v1',pid);
          localStorage.removeItem('flecap_project_switch_pending_v1');
        }
-       const raw=localStorage.getItem('flecap_portal_auth');
-       const pa=raw?JSON.parse(raw):null;
-       if(pa && pa.access_token && pa.refresh_token && (!pa.ts || Date.now()-Number(pa.ts)<10*60*1000)){
-         const restored=await sb.auth.setSession({access_token:pa.access_token,refresh_token:pa.refresh_token});
-         if(restored && restored.error)console.warn('No se pudo restaurar la sesión del portal',restored.error);
-       }
      }
    }catch(e){console.warn('FLECAP portal session bootstrap',e)}
 
-   const {data:{session}}=await sb.auth.getSession();
+   /* FLECAP: la sesión válida se recupera en CUALQUIER entrada a la obra
+      (primer ingreso, cambio de obra, recarga, atrás/adelante), no sólo cuando
+      la URL trae ?from=portal. Antes sólo se restauraba en ese caso y con 10
+      minutos de vigencia, así que al cambiar de obra se perdía y volvía a
+      aparecer el login. Si no hay tokens válidos, el login sigue apareciendo. */
+   const session=await pecomRestoreSession(sb);
    await bootSession(session);
 
  sb.auth.onAuthStateChange(async(event,session)=>{
+   /* Mantener el traspaso al día y limpiarlo al cerrar sesión. */
+   try{
+     if(event==="SIGNED_OUT"){localStorage.removeItem(H_AUTH);sessionStorage.removeItem(H_AUTH)}
+     else if(session){pecomStoreSession(session)}
+   }catch(_sessErr){}
    if(event==="PASSWORD_RECOVERY"){
      const newPass=prompt("Ingresá una nueva contraseña (mínimo 8 caracteres):");
      if(newPass && newPass.length>=8){
@@ -8927,7 +8985,7 @@ html.pecom-light #flecapFixedProjectName{border-left-color:#d7e0e7;color:#173b62
      box=document.createElement('div');box.id='flecapFixedProjectSwitcher';
      box.innerHTML='<button type="button" id="flecapPortalBackBtn" aria-label="Volver a obras">← OBRAS</button><div id="flecapFixedProjectName" aria-label="Obra activa"></div>';
      header.appendChild(box);
-     var portalBtn=box.querySelector('#flecapPortalBackBtn');if(portalBtn)portalBtn.addEventListener('click',function(){try{var __email=String(window.PECOM_CURRENT_EMAIL||'').trim().toLowerCase();var __role=String(window.PECOM_ROLE||localStorage.getItem('flecap_last_role')||'viewer').trim().toLowerCase();if(!__email){try{var __prev=JSON.parse(localStorage.getItem('flecap_portal_handoff')||'null');if(__prev&&__prev.email)__email=String(__prev.email).trim().toLowerCase()}catch(__x){}}if(__email)localStorage.setItem('flecap_portal_handoff',JSON.stringify({email:__email,role:__role,project:localStorage.getItem('flecap_active_project_v1')||'',ts:Date.now()}))}catch(__e){}location.href='/portal-nuevo.html?from=app'});
+     var portalBtn=box.querySelector('#flecapPortalBackBtn');if(portalBtn)portalBtn.addEventListener('click',function(){try{window.FLECAP_AUTH_HANDOFF&&window.FLECAP_AUTH_HANDOFF.storeHandoff()}catch(__e){}location.href='/portal-nuevo.html?from=app'});
    }
    var name=document.getElementById('flecapFixedProjectName'),items=list(),pid=active();
    var p=items.find(function(x){return String(x.id)===String(pid)});
@@ -13031,7 +13089,7 @@ html.pecom-light .fx-stat{background:#fff;border-color:#c7d9e2;box-shadow:0 6px 
  function activeProject(){try{var x=JSON.parse(localStorage.getItem('flecap_project_identity_v1')||'{}');return x.project||'Obra activa'}catch(e){return'Obra activa'}}
  function moduleName(){return document.body.getAttribute('data-flecap-module')==='precom'?'Precom':'Calidad'}
  function go(id){if(id==='flecapExecutiveState'&&window.FLECAP_OPEN_EXECUTIVE_STATE)return window.FLECAP_OPEN_EXECUTIVE_STATE();if(id==='pipingQuality'&&window.FLECAP_OPEN_PIPING_QUALITY)return window.FLECAP_OPEN_PIPING_QUALITY();if(id==='flecapPrecomHome'&&window.FLECAP_OPEN_PRECOM_HOME)return window.FLECAP_OPEN_PRECOM_HOME();var b=document.querySelector('#nav [data-page="'+id+'"],#flecapModernSidebar [data-go="'+id+'"]');if(b)b.click()}
- function topbar(){if(document.getElementById('fxAppTopbar'))return;var bar=document.createElement('div');bar.id='fxAppTopbar';bar.innerHTML='<div class="fx-brand"><span class="fx-brand-mark">▥</span><div><b>FLECAP</b><small>Industrial Completion</small></div></div><nav class="fx-topnav" aria-label="Navegación rápida">'+nav.map(function(x){return'<button type="button" data-fx-go="'+x[0]+'">'+x[1]+'</button>'}).join('')+'</nav><div class="fx-toptools"><button type="button" class="fx-obras-btn" id="flecapBackToProjects">← Obras</button><span class="fx-live"><i></i>Datos operativos</span></div>';var h=document.querySelector('header');if(h)h.parentNode.insertBefore(bar,h);else document.body.prepend(bar);var tools=bar.querySelector('.fx-toptools'),theme=document.getElementById('pecomThemeToggle');var back=bar.querySelector('#flecapBackToProjects');if(back)back.addEventListener('click',function(){try{var __email=String(window.PECOM_CURRENT_EMAIL||'').trim().toLowerCase();var __role=String(window.PECOM_ROLE||localStorage.getItem('flecap_last_role')||'viewer').trim().toLowerCase();if(!__email){try{var __prev=JSON.parse(localStorage.getItem('flecap_portal_handoff')||'null');if(__prev&&__prev.email)__email=String(__prev.email).trim().toLowerCase()}catch(__x){}}if(__email)localStorage.setItem('flecap_portal_handoff',JSON.stringify({email:__email,role:__role,project:localStorage.getItem('flecap_active_project_v1')||'',ts:Date.now()}))}catch(__e){}location.href='/portal-nuevo.html?from=app'});/* Tema queda en el header clásico visible. */bar.addEventListener('click',function(e){var b=e.target.closest('[data-fx-go]');if(b)go(b.dataset.fxGo)})}
+ function topbar(){if(document.getElementById('fxAppTopbar'))return;var bar=document.createElement('div');bar.id='fxAppTopbar';bar.innerHTML='<div class="fx-brand"><span class="fx-brand-mark">▥</span><div><b>FLECAP</b><small>Industrial Completion</small></div></div><nav class="fx-topnav" aria-label="Navegación rápida">'+nav.map(function(x){return'<button type="button" data-fx-go="'+x[0]+'">'+x[1]+'</button>'}).join('')+'</nav><div class="fx-toptools"><button type="button" class="fx-obras-btn" id="flecapBackToProjects">← Obras</button><span class="fx-live"><i></i>Datos operativos</span></div>';var h=document.querySelector('header');if(h)h.parentNode.insertBefore(bar,h);else document.body.prepend(bar);var tools=bar.querySelector('.fx-toptools'),theme=document.getElementById('pecomThemeToggle');var back=bar.querySelector('#flecapBackToProjects');if(back)back.addEventListener('click',function(){try{window.FLECAP_AUTH_HANDOFF&&window.FLECAP_AUTH_HANDOFF.storeHandoff()}catch(__e){}location.href='/portal-nuevo.html?from=app'});/* Tema queda en el header clásico visible. */bar.addEventListener('click',function(e){var b=e.target.closest('[data-fx-go]');if(b)go(b.dataset.fxGo)})}
  function projectBar(){var p=document.getElementById('flecapFixedProjectBar'),tools=document.querySelector('#fxAppTopbar .fx-toptools');if(p&&tools&&!p.classList.contains('fx-project-in-topbar')){p.classList.add('fx-project-in-topbar');tools.insertBefore(p,tools.firstChild)}}
  function head(page,id,data){if(page.querySelector(':scope > .fx-screen-head'))return;var h=document.createElement('div');h.className='fx-screen-head';h.innerHTML='<div><div class="fx-crumb"><span>FLECAP</span><span>›</span><b>'+data[2]+'</b></div><h2>'+data[0]+'</h2><p>'+data[1]+'</p></div><div class="fx-screen-meta"><div class="fx-meta-chip"><span>Obra</span><b data-fx-project>'+activeProject()+'</b></div><div class="fx-meta-chip"><span>Área activa</span><b data-fx-module>'+moduleName()+'</b></div><div class="fx-meta-chip"><span>Última modificación</span><b data-fx-time>'+((typeof state!=="undefined"&&state&&state._flecap_saved_at)?new Date(state._flecap_saved_at).toLocaleString("es-AR"):"Sin cambios")+'</b></div></div>';page.insertBefore(h,page.firstChild)}
  function strip(page,id){if(page.querySelector(':scope > .fx-stat-strip'))return;var defs={

@@ -155,6 +155,7 @@ function render(list){
       localStorage.setItem('flecap_project_identity_v1',JSON.stringify({company:entry.company,project:entry.project}));
     }catch(_catalogErr){}
     localStorage.setItem('flecap_portal_handoff',JSON.stringify({email:currentEmail,role:currentRole,project:p.id,ts:Date.now()}));
+    try{sessionStorage.setItem('flecap_portal_handoff_tab',JSON.stringify({email:currentEmail,role:currentRole,project:p.id,ts:Date.now()}))}catch(_hm){}
     try{
       // Guardar la sesión (si existe) para que la obra la reutilice al abrirse.
       const sr=await sb.auth.getSession();
@@ -179,6 +180,17 @@ async function enter(email,role){
     localStorage.setItem('flecap_portal_identity_v1',JSON.stringify({email:currentEmail,ts:Date.now()}));
     sessionStorage.setItem('flecap_portal_unlocked_v1','1');
   }catch(_e){}
+  /* Guardar la sesión viva: la obra la reutiliza al abrirse y al cambiar
+     de obra, sin volver a pedir usuario y contraseña. */
+  try{
+    const sr=await sb.auth.getSession();
+    const s=sr&&sr.data&&sr.data.session;
+    if(s&&s.access_token&&s.refresh_token){
+      const body=JSON.stringify({access_token:s.access_token,refresh_token:s.refresh_token,ts:Date.now()});
+      localStorage.setItem('flecap_portal_auth',body);
+      sessionStorage.setItem('flecap_portal_auth',body);
+    }
+  }catch(_sessErr){}
   $('userEmail').textContent=currentEmail;
   $('login').classList.add('hidden');
   $('projectGrid').innerHTML='<div class="empty">Cargando proyectos autorizados…</div>';
@@ -222,12 +234,24 @@ async function boot(){
   let session=null;
   try{const r=await sb.auth.getSession();session=r&&r.data&&r.data.session?r.data.session:null}
   catch(_e){console.warn('FLECAP portal: getSession no disponible; se continúa con identidad persistida',_e)}
-  // 0) Vuelta desde una obra: NO volver a pedir login. El handoff fue creado
-  //    por la app al pulsar "OBRAS" y se acepta localmente si sigue vigente.
+  // 1) Sesión Supabase viva: fuente de identidad prioritaria sobre el handoff.
+  if(session&&session.user&&session.user.email){
+    const a=await allowed(session.user.email);
+    if(a){
+      sessionStorage.setItem('flecap_portal_unlocked_v1','1');
+      if(vuelveDeObra)history.replaceState(null,'','/portal-nuevo.html');
+      await enter(session.user.email,a.role);
+      return;
+    }
+  }
+
+  // 0) Vuelta desde una obra SIN sesión viva en este contexto: se usa el handoff
+  //    que dejó la app al pulsar "OBRAS" y se acepta si sigue vigente.
   //    La obra vuelve a validar permisos al abrirse.
   if(vuelveDeObra){
     let backHandoff=null;
     try{backHandoff=JSON.parse(localStorage.getItem('flecap_portal_handoff')||'null')}catch(_e){}
+    if(!backHandoff)try{backHandoff=JSON.parse(sessionStorage.getItem('flecap_portal_handoff_tab')||'null')}catch(_e2){}
     const fresh=backHandoff&&backHandoff.email&&(!backHandoff.ts||Date.now()-Number(backHandoff.ts)<12*60*60*1000);
     if(fresh){
       sessionStorage.setItem('flecap_portal_unlocked_v1','1');
@@ -257,16 +281,6 @@ async function boot(){
         $('projectGrid').innerHTML='<div class="empty">No se pudo actualizar el catálogo de obras. Reintentá en unos segundos.</div>';
         return;
       }
-    }
-  }
-  // 1) Sesión Supabase viva.
-  if(session&&session.user&&session.user.email){
-    const a=await allowed(session.user.email);
-    if(a){
-      sessionStorage.setItem('flecap_portal_unlocked_v1','1');
-      if(vuelveDeObra)history.replaceState(null,'','/portal-nuevo.html');
-      await enter(session.user.email,a.role);
-      return;
     }
   }
   // 2) Identidad validada previamente (12 h) o handoff de la obra: sirve aunque
@@ -345,7 +359,7 @@ $('createProjectBtn').onclick=async()=>{
  finally{btn.disabled=false;btn.textContent='Crear obra'}
 };
 
-$('logoutBtn').onclick=async()=>{try{await sb.auth.signOut()}catch(e){}try{sessionStorage.removeItem('flecap_portal_unlocked_v1');localStorage.removeItem('flecap_portal_auth');localStorage.removeItem('flecap_portal_handoff');localStorage.removeItem('flecap_portal_identity_v1')}catch(e){}currentEmail='';$('password').value='';$('login').classList.remove('hidden')};
+$('logoutBtn').onclick=async()=>{try{await sb.auth.signOut()}catch(e){}try{sessionStorage.removeItem('flecap_portal_unlocked_v1');sessionStorage.removeItem('flecap_portal_auth');sessionStorage.removeItem('flecap_portal_handoff_tab');localStorage.removeItem('flecap_portal_auth');localStorage.removeItem('flecap_portal_handoff');localStorage.removeItem('flecap_portal_identity_v1');localStorage.removeItem('flecap_portal_catalog_v1')}catch(e){}currentEmail='';$('password').value='';$('login').classList.remove('hidden')};
 boot().catch(e=>{$('msg').textContent=e.message||'No se pudo iniciar FLECAP.';$('login').classList.remove('hidden')});
 </script>
 </body></html>
