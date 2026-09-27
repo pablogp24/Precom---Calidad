@@ -2384,10 +2384,30 @@ function persist(){
    return false;
  }
 }
-function norm(x){return String(x||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"")}
+/* FLECAP perf: norm() es pura y se llama millones de veces por render (una
+   vez por cada Maestro y TAG, y otra por cada regla de aplicabilidad). Se
+   memoiza: el resultado depende sólo del texto, así que no puede quedar
+   viejo. El caché se acota y se reinicia solo si crece demasiado. */
+const __FLECAP_NORM_CACHE=new Map();
+function norm(x){
+  let k=x||"";
+  if(typeof k!=="string")k=String(k);
+  let v=__FLECAP_NORM_CACHE.get(k);
+  if(v===undefined){
+    v=k.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+    if(__FLECAP_NORM_CACHE.size>=20000)__FLECAP_NORM_CACHE.clear();
+    __FLECAP_NORM_CACHE.set(k,v);
+  }
+  return v;
+}
 function esc(x){return String(x??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
 function recKey(tag,id){return tag+"|||"+id}
 function matrixStatus(tag,col){
+ return window.__FLECAP_DC.ms(String(tag&&tag.tag)+"|"+String(col),function(){
+  return matrixStatusUncached(tag,col);
+ });
+}
+function matrixStatusUncached(tag,col){
  if(!tag||!tag.matriz||!col)return null;
  let raw=tag.matriz[col];
  // Compatibilidad con matrices importadas que conservan espacios o diferencias
@@ -2405,8 +2425,10 @@ function matrixStatus(tag,col){
 }
 function applicabilityOverrideKey(tag,m){return recKey(tag.tag,m.id)}
 function applicabilityOverride(tag,m){
- const o=state.applicabilityOverrides?.[applicabilityOverrideKey(tag,m)];
- return o?.mode||"";
+ return window.__FLECAP_DC.ov(applicabilityOverrideKey(tag,m),function(){
+  const o=state.applicabilityOverrides?.[applicabilityOverrideKey(tag,m)];
+  return o?.mode||"";
+ });
 }
 function applicable(tag,m){
  // Los maestros históricos no siempre guardaban el campo activo. Solo un valor
@@ -2444,7 +2466,32 @@ function flecapEnsureMatrixMasters(tag){
   state.masters.push({id:"MATRIX-RECOVERED-"+c,origen_columna:c,matrix_header:"Registro matriz "+c,nombre:"Registro matriz "+c,tipo:"FORMULARIO",disciplina:"Matriz",procedimiento:"",nro_registro:c,checklist:[],activo:true,etapa:"PRECOM",aplica_especialidad:"",aplica_sistema:"",aplica_subsistema:"",aplica_texto_tag:""});
  });
 }
+/* FLECAP perf: applicableMasters/inst/matrixStatus/flecapRecordLabel se
+   calculan varias veces por el mismo TAG en un mismo render (filtro, orden,
+   KPIs, pintada) y cada cálculo recorre todos los Maestros. Este caché
+   existe únicamente mientras dura una pasada síncrona de render (dcPass) y
+   se tira al terminar: fuera de una pasada los helpers se comportan
+   exactamente como antes, sin caché y sin riesgo de datos viejos. */
+window.__FLECAP_DC=(function(){
+  var c={depth:0,am:null,ins:null,ms:null,lbl:null,ov:null};
+  function fresh(){c.am=new Map();c.ins=new Map();c.ms=new Map();c.lbl=new Map();c.ov=new Map()}
+  function get(map,key,fn){
+    if(!c.depth||typeof key!=="string")return fn();
+    let v=map.get(key);
+    if(v===undefined){v=fn();map.set(key,v)}
+    return v;
+  }
+  return {
+    pass:function(fn){c.depth++;if(c.depth===1)fresh();try{return fn()}finally{c.depth--;if(c.depth<=0){c.depth=0;c.am=c.ins=c.ms=c.lbl=c.ov=null}}},
+    am:function(k,fn){return get(c.am,k,fn)},
+    ins:function(k,fn){return get(c.ins,k,fn)},
+    ms:function(k,fn){return get(c.ms,k,fn)},
+    lbl:function(k,fn){return get(c.lbl,k,fn)},
+    ov:function(k,fn){return get(c.ov,k,fn)}
+  };
+})();
 function applicableMasters(tag){
+ return window.__FLECAP_DC.am(tag&&tag.tag,function(){
  /* FLECAP FIX 2026-09-20: los maestros MATRIX-RECOVERED sólo se generan durante
     una importación de matriz del proyecto/módulo activo (ventana de importación),
     no en cada render. Así los datos viejos de la partición no re-crean maestros
@@ -2458,19 +2505,24 @@ function applicableMasters(tag){
    if(seen.has(col))return false;
    seen.add(col);return true;
  });
+ });
 }
 function flecapRecordLabel(m){
- const raw=String((m&&m.matrix_header)||'').trim();
- const lines=raw.split(/\n+/).map(s=>s.trim()).filter(Boolean);
- const name=String((m&&m.nombre)||'').trim() || lines[0] || ('Registro '+String((m&&m.origen_columna)||''));
- const ref=String((m&&m.procedimiento)||'').trim() || lines.slice(1).join(' / ');
- return {name:name,ref:ref,disc:String((m&&m.disciplina)||'Sin disciplina').trim(),col:String((m&&m.origen_columna)||'Nuevo').trim()};
+ return window.__FLECAP_DC.lbl(m&&m.id,function(){
+  const raw=String((m&&m.matrix_header)||'').trim();
+  const lines=raw.split(/\n+/).map(s=>s.trim()).filter(Boolean);
+  const name=String((m&&m.nombre)||'').trim() || lines[0] || ('Registro '+String((m&&m.origen_columna)||''));
+  const ref=String((m&&m.procedimiento)||'').trim() || lines.slice(1).join(' / ');
+  return {name:name,ref:ref,disc:String((m&&m.disciplina)||'Sin disciplina').trim(),col:String((m&&m.origen_columna)||'Nuevo').trim()};
+ });
 }
 function inst(tag,m){
  const k=recKey(tag.tag,m.id);
  if(state.instances[k])return state.instances[k];
- const ms=matrixStatus(tag,m.origen_columna);
- return {tag:tag.tag,master_id:m.id,estado:ms===1?"REALIZADO":ms==="1P"?"PRESENTADO":"PENDIENTE",responsable:"",fecha:"",documento:"",observacion:"",checklist:{},tiene_adjunto:false,nombre_adjunto:""};
+ return window.__FLECAP_DC.ins(k,function(){
+  const ms=matrixStatus(tag,m.origen_columna);
+  return {tag:tag.tag,master_id:m.id,estado:ms===1?"REALIZADO":ms==="1P"?"PRESENTADO":"PENDIENTE",responsable:"",fecha:"",documento:"",observacion:"",checklist:{},tiene_adjunto:false,nombre_adjunto:""};
+ });
 }
 function allApplicableInstances(){
  const out=[];
@@ -5624,7 +5676,7 @@ function renderHero(){
  if(e("heroB2"))e("heroB2").textContent=op.filter(p=>p.categoria==="B").length;
  if(e("heroC2"))e("heroC2").textContent=op.filter(p=>p.categoria==="C").length;
 }
-function renderAll(){renderControl();renderMasters();renderPunch();renderHero()}
+function renderAll(){window.__FLECAP_DC.pass(function(){renderControl();renderMasters();renderPunch();renderHero()})}
 renderAll();
 setupMasterToggle();
 
@@ -7809,6 +7861,7 @@ function refreshOnlineAdminUi(){
  document.querySelectorAll('[data-close="newPdfRecordModal"]').forEach(function(b){b.addEventListener("click",function(){window.pecomPendingNewRecordTag="";});});
  var oldRenderAll=window.renderAll;if(typeof oldRenderAll==="function"){window.renderAll=function(){var r=oldRenderAll.apply(this,arguments);setTimeout(bindTagNewButtons,0);return r;};}
  bindTagNewButtons();setTimeout(bindTagNewButtons,500);setTimeout(bindTagNewButtons,1500);
+ window.FLECAP_BIND_TAG_NEW_BUTTONS=bindTagNewButtons;
 })();
 </script>
 <script id="pecomModernDashboardRuntime">
@@ -7842,12 +7895,18 @@ function refreshOnlineAdminUi(){
   }
   function renderKpis(){
     var box=document.getElementById('modernKpis'); if(!box)return;
-    var tags=state.tags||[], stats=tags.map(function(t){var ms=applicableMasters(t),its=ms.map(m=>({m:m,i:inst(t,m)})),p=pct(its.map(x=>({instance:x.i})));return {its:its,p:p,st:statusFor(its)}});
+    /* FLECAP perf: los KPIs y el tablero comparten cálculo. Antes se recorrían
+       los TAG dos veces (stats y allRecords) y cada una recalculaba Maestro
+       por TAG; ahora es una sola pasada con los mismos resultados. */
+    var tags=state.tags||[], stats=[], allRecords=[];
+    tags.forEach(function(t){
+      var ms=applicableMasters(t),its=ms.map(m=>({m:m,i:inst(t,m)}));
+      for(var i=0;i<its.length;i++)allRecords.push(its[i].i);
+      stats.push({its:its,p:pct(its.map(x=>({instance:x.i}))),st:statusFor(its)});
+    });
     var totalTags=tags.length;
     var completedTags=stats.filter(function(x){return x.its.length>0&&x.its.every(function(y){return y.i.estado==='REALIZADO'||y.i.estado==='PRESENTADO'})}).length;
     var tagProgress=numPct(completedTags,totalTags);
-    var allRecords=[];
-    tags.forEach(function(t){applicableMasters(t).forEach(function(m){allRecords.push(inst(t,m));});});
     var totalRecords=allRecords.length;
     var realized=allRecords.filter(function(i){return i.estado==='REALIZADO'}).length;
     var presented=allRecords.filter(function(i){return i.estado==='PRESENTADO'}).length;
@@ -7862,7 +7921,64 @@ function refreshOnlineAdminUi(){
     box.innerHTML=k('advance','Avance general',recordProgress+'%',recordProgress,completed.toLocaleString('es-AR')+' de '+totalRecords.toLocaleString('es-AR')+' registros')+k('done','Registros realizados',realized,numPct(realized,totalRecords),'Estado 1')+k('pending','Registros pendientes',pending,numPct(pending,totalRecords),'Estado 0')+k('presented','Registros presentados',presented,numPct(presented,totalRecords),'Estado 1P');
     if(typeof window.flecapRenderExecutiveReference==='function')window.flecapRenderExecutiveReference(tags,allRecords,totalRecords,completed,pending,presented);
   }
+  /* FLECAP perf: el cuerpo de cada tarjeta (.tag-body) está oculto por CSS
+     (.tag-body{display:none}) hasta que se abre el TAG. Antes se construía
+     igual, completo, para las 300 tarjetas visibles: decenas de miles de
+     nodos ocultos. Ahora se pintan sólo las cabeceras y el cuerpo se arma la
+     primera vez que se abre cada tarjeta, con el MISMO HTML de siempre. Los
+     clics se atienden por delegación en el tablero en vez de asignar un
+     manejador a cada elemento. */
+  var __FLECAP_CARD_TAGS={};
+  var __FLECAP_LAST_BOARD='';
+  var __FLECAP_MATERIALIZED=0;
+  var __FLECAP_DELEGATED=false;
+  function flecapTagByName(name){
+    var list=(typeof state!=='undefined'&&state&&state.tags)||[];
+    for(var i=0;i<list.length;i++)if(list[i]&&list[i].tag===name)return list[i];
+    return null;
+  }
+  function cardParts(t,idx){
+    return window.__FLECAP_DC.pass(function(){
+      var ms=applicableMasters(t),items=ms.map(m=>({m:m,i:inst(t,m)})),p=pct(items.map(x=>({instance:x.i}))), pending=items.filter(x=>x.i.estado==='PENDIENTE').length, done=items.filter(x=>x.i.estado==='REALIZADO').length, presented=items.filter(x=>x.i.estado==='PRESENTADO').length, obs=items.filter(x=>x.i.estado==='OBSERVADO').length, st=statusFor(items), total=items.length||1;
+      var de=numPct(done,total), pe=de+numPct(presented,total), pne=pe+numPct(pending,total), oe=Math.min(100,pne+numPct(obs,total));
+      var regs=items.map(function(x){var ss=x.i.estado,cl=ss==='REALIZADO'?'done':ss==='PRESENTADO'?'present':ss==='OBSERVADO'?'obs':'pending';return '<div class="reg '+cl+'" tabindex="0" data-record="'+e(t.tag)+'|||'+e(x.m.id)+'"><button type="button" class="tag-reg-remove" data-remove-record="'+e(t.tag)+'|||'+e(x.m.id)+'" title="Marcar este registro como No aplica para este TAG">−</button><b>'+e(flecapRecordLabel(x.m).name)+'</b><small><strong>'+e(flecapRecordLabel(x.m).disc)+'</strong> · Col. '+e(flecapRecordLabel(x.m).col)+(applicabilityOverride(t,x.m)==='IN'?' · AGREGADO POR INSPECCIÓN':'')+'</small>'+(flecapRecordLabel(x.m).ref?'<small class="reg-ref">'+e(flecapRecordLabel(x.m).ref)+'</small>':'')+'<div class="state">'+ss+(x.i.tiene_adjunto?' · 📎':'')+'</div><div class="reg-date">📅 '+(x.i.fecha?x.i.fecha.split('-').reverse().join('/'):'Sin fecha')+'</div><button type="button" class="btn record-open-btn">✏ Abrir / completar</button></div>'}).join('')||'<div class="empty">No hay registros aplicables.</div>';;
+      return {head:'<div class="tag-card" id="tc'+idx+'"><div class="tag-head" data-open="tc'+idx+'" tabindex="0" role="button" aria-label="Abrir o cerrar registros del TAG"><div class="tag-description"><b class="tag-code">'+e(t.tag)+'</b><div style="color:var(--muted);font-size:10px">'+e(t.descripcion||'Sin descripción')+'</div></div><div><small>Sistema</small><br><b>'+e(t.sistema||'-')+'</b></div><div><small>Subsistema</small><br><b>'+e(t.subsistema||'-')+'</b></div><div><b>'+p+'%</b><div class="modern-bar"><i style="width:'+p+'%"></i></div></div><div><span class="tag-overall-status '+st.cl+'">'+st.text+'</span></div></div>', body:'<div class="tag-body"><div class="tag-modern-body"><div class="tag-panel"><div class="tag-record-head"><h3>Registros del TAG ('+items.length+')</h3><div class="tag-record-tools"><button type="button" class="btn tag-new-record" data-new-record="'+e(t.tag)+'">＋ Nuevo</button><button type="button" class="btn tag-add-record" data-add-record="'+e(t.tag)+'">＋ Desde Maestro</button></div></div><div class="regs modern-regs">'+regs+'</div></div><div class="tag-panel tag-info-panel"><h3>Información del TAG</h3><dl class="tag-info-list"><dt>Descripción</dt><dd>'+e(t.descripcion||'-')+'</dd><dt>Sistema</dt><dd>'+e(t.sistema||'-')+(t.desc_sistema?' · '+e(t.desc_sistema):'')+'</dd><dt>Subsistema</dt><dd>'+e(t.subsistema||'-')+(t.desc_subsistema?' · '+e(t.desc_subsistema):'')+'</dd><dt>Total registros aplicables</dt><dd>'+items.length+'</dd><dt>Última actualización</dt><dd class="last-update">'+latestDate(items)+'</dd></dl></div></div></div></div>', items:items};
+    });
+  }
+  function bindCardBody(card){
+    var can=canAdjustTagRecords();
+    card.querySelectorAll('[data-add-record]').forEach(function(b){b.style.display=can?'inline-flex':'none';b.onclick=function(ev){ev.preventDefault();ev.stopPropagation();(window.pecomOpenMasterPicker||openAddRecordToTag)(b.dataset.addRecord)}});
+    card.querySelectorAll('[data-remove-record]').forEach(function(b){b.style.display=can?'inline-flex':'none';b.onclick=function(ev){ev.preventDefault();ev.stopPropagation();var a=b.dataset.removeRecord.split('|||');removeRecordFromTag(a[0],a[1])}});
+    if(typeof window.FLECAP_BIND_TAG_NEW_BUTTONS==='function')try{window.FLECAP_BIND_TAG_NEW_BUTTONS()}catch(_bn){}
+  }
+  function buildCardBody(card){
+    if(!card||card.querySelector('.tag-body'))return false;
+    var name=__FLECAP_CARD_TAGS[card.id];
+    var t=name?flecapTagByName(name):null;
+    if(!t)return false;
+    card.insertAdjacentHTML('beforeend',cardParts(t,0).body);
+    bindCardBody(card);
+    __FLECAP_MATERIALIZED++;
+    return true;
+  }
+  /* Lo llama el bloque que abre y cierra la tarjeta al hacer clic. */
+  window.FLECAP_MATERIALIZE_TAG_CARD=function(card){
+    try{if(card&&card.classList&&card.classList.contains('open'))buildCardBody(card)}catch(e){console.warn('FLECAP: no se pudo abrir el detalle del TAG',e)}
+  };
+  function ensureDelegation(){
+    if(__FLECAP_DELEGATED)return;
+    __FLECAP_DELEGATED=true;
+    tagBoard.addEventListener('click',function(ev){
+      var t=ev.target;
+      if(!t||!t.closest)return;
+      var rm=t.closest('[data-remove-record]');
+      if(rm){ev.preventDefault();ev.stopPropagation();var a=rm.dataset.removeRecord.split('|||');removeRecordFromTag(a[0],a[1]);return}
+      var add=t.closest('[data-add-record]');
+      if(add){ev.preventDefault();ev.stopPropagation();(window.pecomOpenMasterPicker||openAddRecordToTag)(add.dataset.addRecord);return}
+    });
+  }
   function modernRenderControl(){
+    return window.__FLECAP_DC.pass(function(){
     ensureModernShell();
     populateFilters();
     var disc=(document.getElementById('filterDisc')?.value||'');
@@ -7876,22 +7992,29 @@ function refreshOnlineAdminUi(){
     if(sortMode!=='ORIGINAL'){var advanceOf=t=>{var ms=applicableMasters(t);if(!ms.length)return 0;return ms.filter(m=>['REALIZADO','PRESENTADO'].includes(inst(t,m).estado)).length/ms.length};tags=tags.slice().sort((a,b)=>{var av=advanceOf(a),bv=advanceOf(b);if(av===bv)return String(a.tag||'').localeCompare(String(b.tag||''));return sortMode==='DESC'?bv-av:av-bv})}
     var controlLimit=Math.max(300,Number(window.FLECAP_CONTROL_LIMIT||300));
     var visibleTags=tags.slice(0,controlLimit);
-    tagBoard.innerHTML=visibleTags.map(function(t,idx){
-      var ms=applicableMasters(t),items=ms.map(m=>({m:m,i:inst(t,m)})),p=pct(items.map(x=>({instance:x.i}))), pending=items.filter(x=>x.i.estado==='PENDIENTE').length, done=items.filter(x=>x.i.estado==='REALIZADO').length, presented=items.filter(x=>x.i.estado==='PRESENTADO').length, obs=items.filter(x=>x.i.estado==='OBSERVADO').length, st=statusFor(items), total=items.length||1;
-      var de=numPct(done,total), pe=de+numPct(presented,total), pne=pe+numPct(pending,total), oe=Math.min(100,pne+numPct(obs,total));
-      var regs=items.map(function(x){var ss=x.i.estado,cl=ss==='REALIZADO'?'done':ss==='PRESENTADO'?'present':ss==='OBSERVADO'?'obs':'pending';return '<div class="reg '+cl+'" data-record="'+e(t.tag)+'|||'+e(x.m.id)+'"><button type="button" class="tag-reg-remove" data-remove-record="'+e(t.tag)+'|||'+e(x.m.id)+'" title="Marcar este registro como No aplica para este TAG">−</button><b>'+e(flecapRecordLabel(x.m).name)+'</b><small><strong>'+e(flecapRecordLabel(x.m).disc)+'</strong> · Col. '+e(flecapRecordLabel(x.m).col)+(applicabilityOverride(t,x.m)==='IN'?' · AGREGADO POR INSPECCIÓN':'')+'</small>'+(flecapRecordLabel(x.m).ref?'<small class="reg-ref">'+e(flecapRecordLabel(x.m).ref)+'</small>':'')+'<div class="state">'+ss+(x.i.tiene_adjunto?' · 📎':'')+'</div><div class="reg-date">📅 '+(x.i.fecha?x.i.fecha.split('-').reverse().join('/'):'Sin fecha')+'</div><button type="button" class="btn record-open-btn">✏ Abrir / completar</button></div>'}).join('')||'<div class="empty">No hay registros aplicables.</div>';
-      return '<div class="tag-card" id="tc'+idx+'"><div class="tag-head" data-open="tc'+idx+'"><div class="tag-description"><b class="tag-code">'+e(t.tag)+'</b><div style="color:var(--muted);font-size:10px">'+e(t.descripcion||'Sin descripción')+'</div></div><div><small>Sistema</small><br><b>'+e(t.sistema||'-')+'</b></div><div><small>Subsistema</small><br><b>'+e(t.subsistema||'-')+'</b></div><div><b>'+p+'%</b><div class="modern-bar"><i style="width:'+p+'%"></i></div></div><div><span class="tag-overall-status '+st.cl+'">'+st.text+'</span></div></div><div class="tag-body"><div class="tag-modern-body"><div class="tag-panel"><div class="tag-record-head"><h3>Registros del TAG ('+items.length+')</h3><div class="tag-record-tools"><button type="button" class="btn tag-new-record" data-new-record="'+e(t.tag)+'">＋ Nuevo</button><button type="button" class="btn tag-add-record" data-add-record="'+e(t.tag)+'">＋ Desde Maestro</button></div></div><div class="regs modern-regs">'+regs+'</div></div><div class="tag-panel tag-info-panel"><h3>Información del TAG</h3><dl class="tag-info-list"><dt>Descripción</dt><dd>'+e(t.descripcion||'-')+'</dd><dt>Sistema</dt><dd>'+e(t.sistema||'-')+(t.desc_sistema?' · '+e(t.desc_sistema):'')+'</dd><dt>Subsistema</dt><dd>'+e(t.subsistema||'-')+(t.desc_subsistema?' · '+e(t.desc_subsistema):'')+'</dd><dt>Total registros aplicables</dt><dd>'+items.length+'</dd><dt>Última actualización</dt><dd class="last-update">'+latestDate(items)+'</dd></dl></div></div></div></div>';
+    /* FLECAP perf: la pintada completa del tablero quedó arriba, repartida
+       entre cabecera (siempre) y cuerpo (al abrir la tarjeta). */
+    __FLECAP_CARD_TAGS={};
+    var heads=visibleTags.map(function(t,idx){
+      var c=cardParts(t,idx);
+      __FLECAP_CARD_TAGS['tc'+idx]=t.tag;
+      return c.head;
     }).join('')||'<div class="empty">No hay TAGs para este filtro.</div>';
+    var html=heads;
     if(tags.length>visibleTags.length){
-      tagBoard.insertAdjacentHTML('beforeend','<div class="notice" id="flecapControlMore" style="text-align:center;margin-top:10px"><b>Mostrando '+visibleTags.length+' de '+tags.length+' TAG</b><br><button type="button" class="btn primary" id="flecapLoadMoreTags" style="margin-top:8px">Mostrar 300 TAG más</button></div>');
+      html+='<div class="notice" id="flecapControlMore" style="text-align:center;margin-top:10px"><b>Mostrando '+visibleTags.length+' de '+tags.length+' TAG</b><br><button type="button" class="btn primary" id="flecapLoadMoreTags" style="margin-top:8px">Mostrar 300 TAG más</button></div>';
+    }
+    /* FLECAP perf: si el HTML es el mismo y no hay ninguna tarjeta abierta,
+       el DOM ya está bien: no se reconstruye. */
+    if(html!==__FLECAP_LAST_BOARD||__FLECAP_MATERIALIZED>0){
+      __FLECAP_LAST_BOARD=html;__FLECAP_MATERIALIZED=0;
+      tagBoard.innerHTML=html;
       var more=document.getElementById('flecapLoadMoreTags');
       if(more)more.onclick=function(){window.FLECAP_CONTROL_LIMIT=controlLimit+300;modernRenderControl()};
     }
-    document.querySelectorAll('[data-open]').forEach(x=>x.onclick=()=>document.getElementById(x.dataset.open).classList.toggle('open'));
-    document.querySelectorAll('[data-record]').forEach(function(x){x.style.cursor='pointer';x.setAttribute('tabindex','0');var go=function(ev){if(ev.target&&ev.target.closest&&ev.target.closest('[data-remove-record]'))return;if(ev.type==='keydown'&&ev.key!=='Enter'&&ev.key!==' ')return;ev.preventDefault();ev.stopPropagation();var a=x.dataset.record.split('|||');Promise.resolve(openRecord(a[0],a[1])).catch(function(err){console.error(err);alert('No se pudo abrir el registro: '+(err&&err.message?err.message:err))});};x.onclick=go;x.onkeydown=go;});
-    document.querySelectorAll('[data-add-record]').forEach(function(b){b.style.display=canAdjustTagRecords()?'inline-flex':'none';b.onclick=function(ev){ev.preventDefault();ev.stopPropagation();(window.pecomOpenMasterPicker||openAddRecordToTag)(b.dataset.addRecord)}});
-    document.querySelectorAll('[data-remove-record]').forEach(function(b){b.style.display=canAdjustTagRecords()?'inline-flex':'none';b.onclick=function(ev){ev.preventDefault();ev.stopPropagation();var a=b.dataset.removeRecord.split('|||');removeRecordFromTag(a[0],a[1])}});
+    ensureDelegation();
     renderKpis();
+    });
   }
   window.pecomModernRenderControl=modernRenderControl;
   try{renderControl=modernRenderControl}catch(err){window.renderControl=modernRenderControl}
@@ -9179,6 +9302,8 @@ html:not(.pecom-light) .flecap-disc-dialog{background:#121e29;color:#e8eef3;bord
     if(!card) return;
     ev.preventDefault(); ev.stopPropagation(); ev.stopImmediatePropagation();
     card.classList.toggle('open');
+    /* FLECAP perf: el cuerpo de la tarjeta se arma al abrirla. */
+    try{if(window.FLECAP_MATERIALIZE_TAG_CARD)window.FLECAP_MATERIALIZE_TAG_CARD(card)}catch(_mt){}
   }
   document.addEventListener('click', toggleTagFromHead, true);
   document.addEventListener('keydown', function(ev){
@@ -9188,6 +9313,8 @@ html:not(.pecom-light) .flecap-disc-dialog{background:#121e29;color:#e8eef3;bord
     var card = head.closest('.tag-card'); if(!card) return;
     ev.preventDefault(); ev.stopPropagation(); ev.stopImmediatePropagation();
     card.classList.toggle('open');
+    /* FLECAP perf: el cuerpo de la tarjeta se arma al abrirla. */
+    try{if(window.FLECAP_MATERIALIZE_TAG_CARD)window.FLECAP_MATERIALIZE_TAG_CARD(card)}catch(_mt){}
   }, true);
   function prepareHeads(){
     document.querySelectorAll('.tag-head').forEach(function(head){
