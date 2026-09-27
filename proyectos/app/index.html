@@ -6748,8 +6748,17 @@ function refreshOnlineAdminUi(){
  const loginEl=()=>document.getElementById("cloudLogin");
  const msgEl=()=>document.getElementById("cloudLoginMsg");
  let sb=null,currentEmail="",saveTimer=null,lastRemoteStamp="";
+ /* FLECAP perf: cambio de obra sin recarga. Al terminar el intercambio,
+    el sello remoto de la obra anterior ya no sirve y el guardado pendiente
+    (armado contra la obra saliente) no debe dispararse contra la nueva. */
+ window.__FLECAP_SET_REMOTE_STAMP__=function(v){lastRemoteStamp=v||""};
+ window.__FLECAP_SWITCHING_DONE__=function(){
+   lastRemoteStamp="";
+   try{clearTimeout(saveTimer);saveTimer=null}catch(_st){}
+ };
  window.PECOM_CURRENT_EMAIL="";
  let bootPromise=null, bootEmail="", realtimeStarted=false;
+ let realtimeChannel=null;
 
  /* FLECAP · Traspaso explícito de la sesión entre el portal y cada obra.
     Al cambiar de obra la app se recarga o se renavega y el cliente de Supabase
@@ -7105,11 +7114,14 @@ function refreshOnlineAdminUi(){
        return;
      }
 
-     // Crear un solo canal Realtime por pestaña.
-     if(!realtimeStarted){
-       realtimeStarted=true;
-       sb.channel("pecom-state")
-        .on("postgres_changes",{event:"UPDATE",schema:"public",table:"app_state",filter:"id=eq."+(localStorage.getItem("flecap_active_project_v1")||"legacy")},async payload=>{
+     /* FLECAP perf: el canal se puede volver a enlazar cuando cambia la obra
+        (sin recargar la página) para que el filtro sea siempre el de la obra
+        activa. Con la recarga esto pasaba solo, al volver a ejecutar el bloque. */
+     window.__FLECAP_START_REALTIME__=function(){
+       var projectId=localStorage.getItem("flecap_active_project_v1")||"legacy";
+       try{if(realtimeChannel&&sb)sb.removeChannel(realtimeChannel)}catch(_rc){}
+       realtimeChannel=sb.channel("pecom-state")
+        .on("postgres_changes",{event:"UPDATE",schema:"public",table:"app_state",filter:"id=eq."+projectId},async payload=>{
           if(window.FLECAP_IMPORT_IN_PROGRESS)return;
           const stamp=payload.new?.updated_at||"";
           if(stamp && stamp!==lastRemoteStamp){
@@ -7128,6 +7140,10 @@ function refreshOnlineAdminUi(){
             }
           }
         }).subscribe();
+     };
+     if(!realtimeStarted){
+       realtimeStarted=true;
+       window.__FLECAP_START_REALTIME__();
      }
    })();
    try{return await bootPromise}finally{bootPromise=null}
@@ -8103,6 +8119,15 @@ function refreshOnlineAdminUi(){
     __FLECAP_CTRL_KEY=key;
     return r;
   }
+  /* FLECAP perf: cambio de obra sin recarga. Sin esto, el tablero creería
+     que la entrada no cambió (la huella sólo mira los datos) y no
+     repintaría, dejando la obra anterior a la vista. */
+  window.FLECAP_RESET_CONTROL_RENDER=function(){
+    __FLECAP_CTRL_KEY='';__FLECAP_LAST_BOARD='';__FLECAP_MATERIALIZED=0;
+    __FLECAP_CARD_TAGS={};window.__FLECAP_TAG_BODY=false;
+    window.FLECAP_CONTROL_LIMIT=300;
+    if(typeof quick!=='undefined')quick='ALL';
+  };
   window.pecomModernRenderControl=modernRenderControl;
   try{renderControl=modernRenderControl}catch(err){window.renderControl=modernRenderControl}
   setTimeout(function(){try{modernRenderControl()}catch(e){console.warn('Modern dashboard:',e)}},120);
@@ -8799,6 +8824,15 @@ html.pecom-light .reg.present{background:#f3f8fd!important}
  function migrate(){var a=list();if(!a.length){var d=identityGlobal();a=[{id:'legacy',company:d.company,project:d.project,createdAt:new Date().toISOString()}];saveList(a);localStorage.setItem(ACTIVE_KEY,'legacy');if(!localStorage.getItem(STATE_PREFIX+'legacy'))localStorage.setItem(STATE_PREFIX+'legacy',localStorage.getItem(KEY)||JSON.stringify(window.FLECAP_compactStateForLocalStorage?window.FLECAP_compactStateForLocalStorage(state):state));setIdentity('legacy',d)}var pid=active();if(!a.some(function(x){return x.id===pid})){pid=a[0].id;localStorage.setItem(ACTIVE_KEY,pid)}var ps=projectState(pid);if(ps&&ps.tags&&ps.masters){state=ps;if(typeof mergeFlecapAdditionalMasters==='function')mergeFlecapAdditionalMasters(state);localStorage.setItem(KEY,JSON.stringify(window.FLECAP_compactStateForLocalStorage?window.FLECAP_compactStateForLocalStorage(state):state));localStorage.setItem(STATE_PREFIX+pid,JSON.stringify(window.FLECAP_compactStateForLocalStorage?window.FLECAP_compactStateForLocalStorage(state):state))}var ident=idFor(pid);setIdentity(pid,ident);return a}
  function switchTo(pid){
   if(!pid||pid===active())return;
+  /* FLECAP perf: el cambio de obra se resuelve sin recargar la página. El
+     intercambio en caliente guarda la obra saliente, invalida todo lo
+     derivado de ella, pinta la entrante desde su copia local y la
+     reconcilia contra Supabase. Si algo falla se cae al camino anterior
+     (guardar y recargar), que es exactamente el mismo de siempre. */
+  if(typeof window.FLECAP_PROJECT_HOT_SWITCH==='function'){
+    window.FLECAP_PROJECT_HOT_SWITCH(pid);
+    return;
+  }
   // Cambio atómico: primero guarda la obra saliente y después fija la entrante.
   // La bandera evita que una sincronización pendiente vuelva a escribir la obra anterior durante la recarga.
   window.FLECAP_SWITCHING_PROJECT=true;
@@ -8827,7 +8861,154 @@ html.pecom-light .reg.present{background:#f3f8fd!important}
  window.persist=persist=function(){var ok=originalPersist.apply(this,arguments);if(ok!==false){if(window.FLECAP_IMPORT_IN_PROGRESS){if(!window.FLECAP_IMPORT_COALESCE._pjDone){window.FLECAP_IMPORT_COALESCE._pjDone=true;storeCurrent()}}else{storeCurrent()}}return ok};
  document.addEventListener('click',function(e){if(e.target&&e.target.closest&&e.target.closest('#cfgSave'))setTimeout(renameFromConfig,0)},true);
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){ensureUI();if(typeof renderAll==='function')renderAll()},{once:true});else{ensureUI();if(typeof renderAll==='function')renderAll()}
- window.FLECAP_PROJECTS={list:list,active:active,switchTo:switchTo,create:createProject,saveCurrent:storeCurrent,identity:idFor,renameFromConfig:renameFromConfig};
+ window.FLECAP_PROJECTS={list:list,active:active,switchTo:switchTo,create:createProject,saveCurrent:storeCurrent,identity:idFor,renameFromConfig:renameFromConfig,renderSelectors:renderSelectors,blank:blankState};
+})();
+</script>
+<style id="flecap-project-hot-switch-v1-css">
+#flecapProjectBar.flecap-switching{opacity:.72;pointer-events:none}
+</style>
+<script id="flecap-project-hot-switch-v1">
+(function(){
+  if(window.__FLECAP_PROJECT_HOT_SWITCH__)return;
+  window.__FLECAP_PROJECT_HOT_SWITCH__=true;
+  var ACTIVE_KEY='flecap_active_project_v1',PENDING_KEY='flecap_project_switch_pending_v1';
+  var ID_PREFIX='flecap_project_identity::',STATE_PREFIX='flecap_project_state::';
+  var MODULE_KEY='flecap_active_module::';
+  var switching=false,queued=null,gen=0;
+  function active(){try{return localStorage.getItem(ACTIVE_KEY)||'legacy'}catch(e){return 'legacy'}}
+  function catalog(){
+    try{return JSON.parse(localStorage.getItem('flecap_projects_v1')||'[]')}catch(e){return []}
+  }
+  function labelOf(pid){
+    var p=catalog().filter(function(x){return String(x.id)===String(pid)})[0];
+    return p?((p.company?p.company+' · ':'')+(p.project||p.name||'')):String(pid);
+  }
+  /* OJO: el nombre tiene que ser distinto al de status() del nucleo. Con el
+     mismo nombre, esta funcion se llamaria a si misma. */
+  function setStatus(msg){try{if(typeof status==='function')status(msg)}catch(e){}}
+  /* Todo lo que se deriva de la obra anterior se suelta acá. Un solo lugar,
+     para que ningún consumidor pueda quedar mirando datos de otra obra. */
+  function resetProjectView(){
+    try{if(typeof filterSys!=='undefined'&&filterSys)filterSys.value=''}catch(e){}
+    try{if(typeof filterSub!=='undefined'&&filterSub)filterSub.value=''}catch(e){}
+    try{var fd=document.getElementById('filterDisc');if(fd)fd.value=''}catch(e){}
+    try{if(typeof searchTag!=='undefined'&&searchTag)searchTag.value=''}catch(e){}
+    try{var so=document.getElementById('sortControlRecords');if(so)so.value='ORIGINAL'}catch(e){}
+    try{window.FLECAP_CONTROL_LIMIT=300}catch(e){}
+    if(typeof window.FLECAP_RESET_CONTROL_RENDER==='function')try{window.FLECAP_RESET_CONTROL_RENDER()}catch(e){}
+    if(typeof window.FLECAP_INVALIDATE_HTML_MEMO==='function')try{window.FLECAP_INVALIDATE_HTML_MEMO()}catch(e){}
+    if(typeof window.FLECAP_RESET_DASHBOARD_CACHE==='function')try{window.FLECAP_RESET_DASHBOARD_CACHE()}catch(e){}
+    try{window.__FLECAP_EXECUTIVE_REPORT_DATA=null}catch(e){}
+    try{window.__FLECAP_TRACE_ROWS__=null}catch(e){}
+    try{window.__FLECAP_BOOT_STATE__=null}catch(e){}
+    try{window.__FLECAP_MODULE_RENDERS=0}catch(e){}
+    try{window.__FLECAP_SET_REMOTE_STAMP__('')}catch(e){}
+    try{currentRecord=null}catch(e){}
+    try{currentMaster=null}catch(e){}
+    try{currentPunch=null}catch(e){}
+    try{currentApplicabilityTag=null}catch(e){}
+    try{document.querySelectorAll('.modal.show').forEach(function(m){m.classList.remove('show');m.style.removeProperty('display')})}catch(e){}
+    try{document.body.classList.remove('flecap-login-open')}catch(e){}
+    document.dispatchEvent(new CustomEvent('flecap:project-switch-start'));
+  }
+  function applyModuleFor(pid){
+    try{
+      var mod=(typeof state!=='undefined'&&state&&state.flecapDataModule)||localStorage.getItem(MODULE_KEY+pid)||'quality';
+      if(typeof window.FLECAP_ensureActiveModuleData==='function')window.FLECAP_ensureActiveModuleData(mod);
+      else document.body.setAttribute('data-flecap-module',mod);
+    }catch(e){}
+  }
+  async function loadLocalState(pid){
+    var raw=null;
+    try{if(window.FLECAP_LARGE_STATE&&typeof window.FLECAP_LARGE_STATE.load==='function')raw=await window.FLECAP_LARGE_STATE.load(pid)}catch(e){raw=null}
+    if(!raw)try{raw=JSON.parse(localStorage.getItem(STATE_PREFIX+pid)||'null')}catch(e){}
+    try{if(window.FLECAP_expandStateFromLocalStorage)raw=window.FLECAP_expandStateFromLocalStorage(raw,pid)}catch(e){}
+    return raw;
+  }
+  function blankFor(){
+    try{if(window.FLECAP_PROJECT_GOVERNANCE&&typeof window.FLECAP_PROJECT_GOVERNANCE.blank==='function')return window.FLECAP_PROJECT_GOVERNANCE.blank()}catch(e){}
+    return {tags:[],masters:[],instances:{},punches:[],applicabilityOverrides:{}};
+  }
+  function fallbackReload(pid){
+    try{
+      window.FLECAP_SWITCHING_PROJECT=true;
+      localStorage.setItem(PENDING_KEY,pid);
+      if(window.FLECAP_PROJECTS&&typeof window.FLECAP_PROJECTS.saveCurrent==='function')window.FLECAP_PROJECTS.saveCurrent();
+    }catch(e){}
+    location.reload();
+  }
+  async function run(pid){
+    var myGen=++gen;
+    if(typeof window.FLECAP_PROJECTS==='undefined'){fallbackReload(pid);return}
+    try{
+      /* 1. ÚNICA espera, y es de sólo lectura: traer la copia local de la obra
+            entrante. Todavía no se tocó nada: la obra activa y el estado en
+            memoria siguen siendo los de la obra saliente. */
+      var local=await loadLocalState(pid);
+      if(myGen!==gen)return;
+      /* 2. Intercambio atómico. Todo lo que sigue es SINCRÓNICO a propósito:
+            ningún temporizador ni evento puede ejecutarse en medio, así que es
+            imposible que un guardado pendiente escriba la obra saliente en la
+            nueva (justo lo que FLECAP_SWITCHING_PROJECT impedía antes de
+            recargar, y ahora también durante el intercambio). */
+      try{if(typeof window.FLECAP_FLUSH_PROJECT_MODULE_STATE_FN==='function')window.FLECAP_FLUSH_PROJECT_MODULE_STATE_FN()}catch(e){}
+      try{if(typeof window.FLECAP_FLUSH_PROJECT_MODULE_STATE==='function')window.FLECAP_FLUSH_PROJECT_MODULE_STATE()}catch(e){}
+      try{window.FLECAP_SWITCHING_PROJECT=true}catch(e){}
+      try{if(typeof window.FLECAP_PROJECTS.saveCurrent==='function')window.FLECAP_PROJECTS.saveCurrent()}catch(e){}
+      try{localStorage.setItem(ACTIVE_KEY,pid)}catch(e){}
+      try{localStorage.removeItem(PENDING_KEY)}catch(e){}
+      try{localStorage.setItem('flecap_project_identity_v1',JSON.stringify(window.FLECAP_PROJECTS.identity(pid)))}catch(e){}
+      var incoming=(local&&((Array.isArray(local.tags)&&Array.isArray(local.masters))||local.flecapModuleData))?local:blankFor();
+      state=incoming;
+      if(typeof mergeFlecapAdditionalMasters==='function')mergeFlecapAdditionalMasters(state);
+      resetProjectView();
+      applyModuleFor(pid);
+      try{if(typeof window.__FLECAP_SWITCHING_DONE__==='function')window.__FLECAP_SWITCHING_DONE__()}catch(e){}
+      try{window.FLECAP_SWITCHING_PROJECT=false}catch(e){}
+      /* 3. Pintado inmediato desde la copia local: sin una sola consulta de red. */
+      if(typeof renderAll==='function')renderAll();
+      try{if(typeof window.flecapDrawExactDashboard==='function')window.flecapDrawExactDashboard()}catch(e){}
+      try{if(typeof window.FLECAP_applyProjectHeader==='function')window.FLECAP_applyProjectHeader()}catch(e){}
+      try{if(typeof window.FLECAP_PROJECTS.renderSelectors==='function')window.FLECAP_PROJECTS.renderSelectors()}catch(e){}
+      document.dispatchEvent(new CustomEvent('flecap:project-switch-painted',{detail:{id:pid}}));
+      if(myGen!==gen)return;
+      /* 4. Reconciliación autoritativa. Supabase manda: la fila que se acaba de
+            pintar es la copia local y se vuelve a consultar siempre. */
+      setStatus('☁ Cargando '+labelOf(pid)+'…');
+      try{
+        if(window.__FLECAP_PROJECT_ROWS__&&typeof window.__FLECAP_PROJECT_ROWS__==='object')delete window.__FLECAP_PROJECT_ROWS__[String(pid)];
+        if(typeof window.FLECAP_SYNC_ENGINE==='object'&&window.FLECAP_SYNC_ENGINE&&typeof window.FLECAP_SYNC_ENGINE.adoptRemote==='function')await window.FLECAP_SYNC_ENGINE.adoptRemote(state);
+        if(typeof loadRemote==='function')await loadRemote();
+      }catch(remoteErr){
+        console.warn('FLECAP: no se pudo reconciliar la obra con Supabase',remoteErr);
+      }
+      if(myGen!==gen)return;
+      document.dispatchEvent(new CustomEvent('flecap:remote-ready'));
+      try{if(typeof window.__FLECAP_START_REALTIME__==='function')window.__FLECAP_START_REALTIME__()}catch(e){}
+      try{if(typeof window.FLECAP_SYNC_ENGINE==='object'&&window.FLECAP_SYNC_ENGINE&&typeof window.FLECAP_SYNC_ENGINE.rebind==='function')window.FLECAP_SYNC_ENGINE.rebind()}catch(e){}
+      try{if(typeof refreshOnlineAdminUi==='function')refreshOnlineAdminUi()}catch(e){}
+      try{if(typeof window.FLECAP_applyProjectHeader==='function')window.FLECAP_applyProjectHeader()}catch(e){}
+      try{if(typeof window.FLECAP_PROJECTS.renderSelectors==='function')window.FLECAP_PROJECTS.renderSelectors()}catch(e){}
+      setStatus('☁ Sincronizado');
+    }catch(e){
+      console.error('FLECAP: cambio de obra sin recarga falló; se recarga la página',e);
+      fallbackReload(pid);
+    }
+  }
+  window.FLECAP_PROJECT_HOT_SWITCH=function(pid){
+    if(!pid||pid===active())return;
+    if(switching){queued=pid;return}
+    switching=true;
+    var bar=document.getElementById('flecapProjectBar');
+    if(bar)bar.classList.add('flecap-switching');
+    run(pid).then(function(){
+      if(queued&&queued!==active()){var n=queued;queued=null;run(n)}
+    }).catch(function(){}).then(function(){
+      switching=false;
+      if(bar)bar.classList.remove('flecap-switching');
+    });
+  };
+  window.FLECAP_PROJECTS_HOT={active:switching};
 })();
 </script>
 <style id="flecap-offline-sync-css">
@@ -8934,7 +9115,11 @@ html.pecom-light .reg.present{background:#f3f8fd!important}
  function connect(){if(channel||!window.PECOM_SUPABASE)return;channel=window.PECOM_SUPABASE.channel('flecap-granular-'+clientId).on('postgres_changes',{event:'INSERT',schema:'public',table:'sync_changes',filter:'project_id=eq.'+activeProjectId()},function(p){receive(p.new)}).subscribe()}
  async function saveNow(){saveTimer=null;var payload=pendingPayload;pendingPayload=null;if(!payload)return;if(!lastLocal)lastLocal=clone(payload);var ops=diff(lastLocal,payload);lastLocal=clone(payload);if(!ops.length){await pendingBadge();document.dispatchEvent(new CustomEvent('flecap:stable-saved'));return}await queueAdd(ops);pendingBadge();flush()}
  function save(payload){if(String(window.PECOM_ROLE||'viewer').toLowerCase()==='viewer'){badge('Solo lectura','ok');return false;}if(window.FLECAP_BACKUPS)window.FLECAP_BACKUPS.markDirty();pendingPayload=clone(payload);clearTimeout(saveTimer);saveTimer=setTimeout(saveNow,300);return true}
- window.FLECAP_SYNC_ENGINE={adoptRemote:async function(remote){if(!(await queueAll()).length){if(remote===state){/*FLECAP perf: el llamador entrega el propio estado global, así que alcanza con un clon*/if(typeof mergeFlecapAdditionalMasters==='function')mergeFlecapAdditionalMasters(state);lastLocal=clone(state)}else{state=clone(remote);if(typeof mergeFlecapAdditionalMasters==='function')mergeFlecapAdditionalMasters(state);lastLocal=clone(state)}}await loadEvents();connect();flush()},flush:flush,warmup:warmup};
+ window.FLECAP_SYNC_ENGINE={adoptRemote:async function(remote){if(!(await queueAll()).length){if(remote===state){/*FLECAP perf: el llamador entrega el propio estado global, así que alcanza con un clon*/if(typeof mergeFlecapAdditionalMasters==='function')mergeFlecapAdditionalMasters(state);lastLocal=clone(state)}else{state=clone(remote);if(typeof mergeFlecapAdditionalMasters==='function')mergeFlecapAdditionalMasters(state);lastLocal=clone(state)}}await loadEvents();connect();flush()},flush:flush,warmup:warmup,
+  /* FLECAP perf: cambio de obra sin recarga. El canal granular se filtraba
+     por la obra del momento de arranque, y la línea base del diff también.
+     Ambas cosas se re-enganchan a la obra entrante. */
+  rebind:function(){try{if(channel&&window.PECOM_SUPABASE){window.PECOM_SUPABASE.removeChannel(channel);channel=null}}catch(_rb){}try{lastLocal=clone(state)}catch(_lb){}return connect()}};
  // IMPORT SYNC COALESCING (perf fix 2026-09-20): durante una importación masiva de Matriz,
  // persist() sigue guardando localmente (IndexedDB + localStorage) pero el guardado remoto
  // queda COALESCIDO en una única sincronización final confirmada al terminar la importación.
@@ -10481,6 +10666,9 @@ html:not(.pecom-light) #modernTitle .modern-title-row h2{color:#eef5fa!important
  function pct(n,d){return d?Math.round(n*1000/d)/10:0}
  function esc2(v){return String(v==null?'':v).replace(/[&<>\"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]})}
  var __DRAW_KEY=null;
+ /* FLECAP perf: cambio de obra sin recarga (el tablero ejecutivo compara
+    la huella y sin este reinicio no se repintaría). */
+ window.FLECAP_RESET_DASHBOARD_CACHE=function(){__DRAW_KEY=null};
  function draw(){
     if(typeof state==='undefined'||!state||!document.getElementById('modernTitle')||typeof applicableMasters!=='function'||typeof inst!=='function')return;
   /* FLECAP perf: este tablero ejecutivo recorre los 2.000 TAG y reescribe
