@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 470" role="img" aria-label="FLECAP">
+<title>FLECAP · PROYECTOS | CALIDAD | SEGUIMIENTO</title>
+<defs>
+<linearGradient id="wFle3" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#ffffff"/><stop offset=".55" stop-color="#f2f7fa"/>
+<stop offset="1" stop-color="#c6d2dc"/></linearGradient>
+<linearGradient id="wCap3" x1="0" y1="0" x2="1" y2="1">
+<stop offset="0" stop-color="#3fd6f7"/><stop offset="1" stop-color="#0a72c4"/></linearGradient>
+</defs>
+<g transform="translate(4,6) scale(0.3151)"><g>
+<defs>
+<linearGradient id="itTop3" x1="0" y1="0" x2="1" y2="1">
+<stop offset="0" stop-color="#7ceaff"/><stop offset="1" stop-color="#16a6e6"/></linearGradient>
+<linearGradient id="itTopC3" x1="0" y1="0" x2="1" y2="0">
+<stop offset="0" stop-color="#118ad0"/><stop offset="1" stop-color="#0a4d8f"/></linearGradient>
+<linearGradient id="itMid3" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#d3dee7"/></linearGradient>
+<linearGradient id="itMidC3" x1="0" y1="0" x2="1" y2="0">
+<stop offset="0" stop-color="#a8b7c4"/><stop offset="1" stop-color="#7d8d9b"/></linearGradient>
+<linearGradient id="itPalo3" x1="0" y1="0" x2="1" y2="1">
+<stop offset="0" stop-color="#38c9f4"/><stop offset="1" stop-color="#0a6cbd"/></linearGradient>
+<linearGradient id="itPaloC3" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#0c62ab"/><stop offset="1" stop-color="#073d70"/></linearGradient>
+</defs>
+<polygon points="150.0,358.0 950.0,178.0 950.0,348.0 95.0,528.0" fill="url(#itTopC3)"/>
+<polygon points="140.0,660.0 440.0,592.0 610.0,892.0 310.0,960.0" fill="url(#itPaloC3)"/>
+<polygon points="140.0,640.0 940.0,460.0 940.0,630.0 90.0,710.0" fill="url(#itMidC3)"/>
+<polygon points="150.0,300.0 950.0,120.0 950.0,290.0 95.0,470.0" fill="url(#itTop3)"/>
+<polygon points="90.0,660.0 390.0,592.0 560.0,892.0 260.0,960.0" fill="url(#itPalo3)"/>
+<polygon points="140.0,590.0 940.0,410.0 940.0,580.0 90.0,660.0" fill="url(#itMid3)"/>
+<polygon points="150.0,300.0 950.0,120.0 950.0,90.0 150.0,270.0" fill="#ffffff" opacity=".22"/>
+</g></g>
+<text x="330" y="240" font-family="Arial Black,Helvetica Neue,Helvetica,Arial,sans-serif" font-size="210" font-weight="900" letter-spacing="-2" fill="url(#wFle3)" textLength="380" lengthAdjust="spacingAndGlyphs">FLE</text><text x="720" y="240" font-family="Arial Black,Helvetica Neue,Helvetica,Arial,sans-serif" font-size="210" font-weight="900" letter-spacing="-2" fill="url(#wCap3)" textLength="420" lengthAdjust="spacingAndGlyphs">CAP</text>
+<text x="336" y="392" font-family="Arial Black,Helvetica Neue,Helvetica,Arial,sans-serif" font-size="52" font-weight="700" letter-spacing="3" fill="#e8f4fb" textLength="806" lengthAdjust="spacing">PROYECTOS<tspan fill="#31d0f4"> | </tspan>CALIDAD<tspan fill="#31d0f4"> | </tspan>SEGUIMIENTO</text>
+</svg>

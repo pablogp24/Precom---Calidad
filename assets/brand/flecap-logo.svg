@@ -1,27 +1,34 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 210" role="img" aria-label="FLECAP">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 300" role="img" aria-label="FLECAP">
 <title>FLECAP</title>
 <defs>
-<linearGradient id="fgCap" x1="0" y1="0" x2="1" y2="0">
-<stop offset="0" stop-color="#0b6cc0"/><stop offset=".55" stop-color="#1e9ede"/><stop offset="1" stop-color="#4fd4f7"/>
-</linearGradient>
-<linearGradient id="fgA" x1="0" y1="0" x2="1" y2="1">
-<stop offset="0" stop-color="#7fe6ff"/><stop offset=".38" stop-color="#25a9e6"/><stop offset="1" stop-color="#0a63b4"/>
-</linearGradient>
-<linearGradient id="fgB" x1="0" y1="0" x2="0" y2="1">
-<stop offset="0" stop-color="#ffffff"/><stop offset=".55" stop-color="#e8f4fb"/><stop offset="1" stop-color="#a9cee6"/>
-</linearGradient>
-<linearGradient id="fgS" x1="0" y1="0" x2="1" y2="1">
-<stop offset="0" stop-color="#3fc2f2"/><stop offset=".55" stop-color="#0f83cf"/><stop offset="1" stop-color="#074a8c"/>
-</linearGradient>
+<linearGradient id="wFle2" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#ffffff"/><stop offset=".55" stop-color="#f2f7fa"/>
+<stop offset="1" stop-color="#c6d2dc"/></linearGradient>
+<linearGradient id="wCap2" x1="0" y1="0" x2="1" y2="1">
+<stop offset="0" stop-color="#3fd6f7"/><stop offset="1" stop-color="#0a72c4"/></linearGradient>
 </defs>
-<g transform="translate(6,15) scale(.82)">
-<g transform="translate(9,9)" opacity=".5"><path d="M66.6,18.0 L144.6,18.0 L112.0,222.0 L34.0,222.0 Z" fill="#072b4b"/><path d="M66.6,18.0 L228.6,18.0 L219.4,76.0 L57.4,76.0 Z" fill="#072b4b"/></g>
-<path d="M66.6,18.0 L144.6,18.0 L112.0,222.0 L34.0,222.0 Z" fill="url(#fgS)"/><path d="M66.6,18.0 L228.6,18.0 L219.4,76.0 L57.4,76.0 Z" fill="url(#fgA)"/><path d="M52.9,104.0 L188.9,104.0 L181.5,150.0 L45.5,150.0 Z" fill="url(#fgB)"/>
-</g>
-<text x="222" y="132" font-family="Arial Black,Helvetica Neue,Helvetica,Arial,sans-serif" font-size="126" font-weight="900" letter-spacing="-2"
- fill="#ffffff" textLength="262" lengthAdjust="spacingAndGlyphs">FLE</text>
-<text x="482" y="132" font-family="Arial Black,Helvetica Neue,Helvetica,Arial,sans-serif" font-size="126" font-weight="900" letter-spacing="-2"
- fill="url(#fgCap)" textLength="262" lengthAdjust="spacingAndGlyphs">CAP</text>
-<text x="226" y="184" font-family="Arial Black,Helvetica Neue,Helvetica,Arial,sans-serif" font-size="27" font-weight="700" letter-spacing="2.4"
- fill="#a9dcf2" textLength="516" lengthAdjust="spacing">PROYECTOS | CALIDAD | SEGUIMIENTO</text>
+<g transform="translate(4,10) scale(0.3151)"><g>
+<defs>
+<linearGradient id="itTop2" x1="0" y1="0" x2="1" y2="1">
+<stop offset="0" stop-color="#7ceaff"/><stop offset="1" stop-color="#16a6e6"/></linearGradient>
+<linearGradient id="itTopC2" x1="0" y1="0" x2="1" y2="0">
+<stop offset="0" stop-color="#118ad0"/><stop offset="1" stop-color="#0a4d8f"/></linearGradient>
+<linearGradient id="itMid2" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#d3dee7"/></linearGradient>
+<linearGradient id="itMidC2" x1="0" y1="0" x2="1" y2="0">
+<stop offset="0" stop-color="#a8b7c4"/><stop offset="1" stop-color="#7d8d9b"/></linearGradient>
+<linearGradient id="itPalo2" x1="0" y1="0" x2="1" y2="1">
+<stop offset="0" stop-color="#38c9f4"/><stop offset="1" stop-color="#0a6cbd"/></linearGradient>
+<linearGradient id="itPaloC2" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#0c62ab"/><stop offset="1" stop-color="#073d70"/></linearGradient>
+</defs>
+<polygon points="150.0,358.0 950.0,178.0 950.0,348.0 95.0,528.0" fill="url(#itTopC2)"/>
+<polygon points="140.0,660.0 440.0,592.0 610.0,892.0 310.0,960.0" fill="url(#itPaloC2)"/>
+<polygon points="140.0,640.0 940.0,460.0 940.0,630.0 90.0,710.0" fill="url(#itMidC2)"/>
+<polygon points="150.0,300.0 950.0,120.0 950.0,290.0 95.0,470.0" fill="url(#itTop2)"/>
+<polygon points="90.0,660.0 390.0,592.0 560.0,892.0 260.0,960.0" fill="url(#itPalo2)"/>
+<polygon points="140.0,590.0 940.0,410.0 940.0,580.0 90.0,660.0" fill="url(#itMid2)"/>
+<polygon points="150.0,300.0 950.0,120.0 950.0,90.0 150.0,270.0" fill="#ffffff" opacity=".22"/>
+</g></g>
+<text x="330" y="215" font-family="Arial Black,Helvetica Neue,Helvetica,Arial,sans-serif" font-size="200" font-weight="900" letter-spacing="-2" fill="url(#wFle2)" textLength="360" lengthAdjust="spacingAndGlyphs">FLE</text><text x="700" y="215" font-family="Arial Black,Helvetica Neue,Helvetica,Arial,sans-serif" font-size="200" font-weight="900" letter-spacing="-2" fill="url(#wCap2)" textLength="400" lengthAdjust="spacingAndGlyphs">CAP</text>
 </svg>

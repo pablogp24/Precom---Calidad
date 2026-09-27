@@ -1498,7 +1498,7 @@ window.FLECAP_RELEASE_STARTUP_GATE=release;
 <div id="cloudLogin" style="position:fixed;inset:0;z-index:30000;background:#0d1624;display:none;align-items:center;justify-content:center;padding:18px">
 <div class="flecap-login-shell">
 <div class="flecap-login-hero">
-<img alt="FLECAP" class="flecap-login-brand" height="94" src="/assets/brand/flecap-logo.svg" width="350"/>
+<img alt="FLECAP" class="flecap-login-brand" height="140" src="/assets/brand/flecap-logo-completo.svg" width="352"/>
 <h1 class="flecap-login-title">TODO TU PROYECTO<br><span>EN UN SOLO LUGAR</span></h1>
 <p class="flecap-login-lead">Gestioná la calidad, el precomisionado y el seguimiento de obra de forma simple, visual y eficiente.</p>
 <ul class="flecap-login-list">
@@ -1511,10 +1511,7 @@ window.FLECAP_RELEASE_STARTUP_GATE=release;
 </ul>
 </div>
 <div class="flecap-login-panel">
-<div class="flecap-login-panel-brand">
-<img alt="" aria-hidden="true" class="flecap-login-panel-mark" height="38" src="/assets/brand/flecap-mark.svg" width="38"/>
-<div><b>Bienvenido a</b><strong>FLECAP</strong></div>
-</div>
+<img alt="FLECAP" class="flecap-login-panel-brand" height="53" src="/assets/brand/flecap-logo.svg" width="210"/>
 <p class="flecap-login-panel-sub">Ingresá con tu usuario para continuar</p>
 <div id="cloudSetupWarning" style="display:none">Falta configurar Supabase en <b>online-config.js</b>.</div>
 <label class="flecap-login-field" for="cloudEmail">Usuario
@@ -1624,7 +1621,7 @@ window.__PECOM_LOGIN_SHIELD_READY=true;
  display:flex;align-items:center;justify-content:center;
  font-size:18px;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.25)
 " title="Cambiar modo día/noche" type="button">☀️</button><div class="brand">
-<div aria-label="FLECAP · Calidad · Precomisionado · Comisionado" id="flecapExactLogo" role="img"></div>
+<div aria-label="FLECAP · PROYECTOS | CALIDAD | SEGUIMIENTO" id="flecapExactLogo" role="img"></div>
 <div><h1>FLECAP</h1><p>Gestión de precomisionado · Matriz, registros, Punch e historial</p></div>
 </div></header>
 <main>
@@ -15794,7 +15791,7 @@ html.pecom-light .ftr-tools button{background:#fff!important;color:#17384e!impor
   background-image:
     linear-gradient(90deg,rgba(2,10,20,.90) 0%,rgba(2,10,20,.60) 38%,rgba(2,10,20,.28) 62%,rgba(2,10,20,.55) 100%),
     linear-gradient(180deg,rgba(2,10,20,.60) 0%,rgba(2,10,20,0) 32%,rgba(2,10,20,.55) 100%),
-    url("/assets/brand/flecap-login-bg.svg")!important;
+    url("/assets/brand/flecap-fondo.svg")!important;
   background-size:cover,cover,cover!important;
   background-position:center center!important;
   background-repeat:no-repeat!important;
@@ -15857,11 +15854,9 @@ html.pecom-light .ftr-tools button{background:#fff!important;color:#17384e!impor
   -webkit-backdrop-filter:blur(16px) saturate(130%);backdrop-filter:blur(16px) saturate(130%);
   color:#e8f3fa!important;
 }
-.flecap-login-panel-brand{display:flex;align-items:center;gap:12px;margin:0 0 4px}
-.flecap-login-panel-mark{width:38px;height:38px;flex:0 0 38px;filter:drop-shadow(0 4px 10px rgba(0,0,0,.45))}
-.flecap-login-panel-brand b{display:block;font-size:12.5px;font-weight:600;color:#9fcde6;letter-spacing:.4px}
-.flecap-login-panel-brand strong{display:block;font-size:23px;font-weight:900;letter-spacing:3px;color:#fff;line-height:1.15}
-.flecap-login-panel-sub{margin:0 0 18px;font-size:14.5px;color:#bcd7e8}
+.flecap-login-panel-brand{display:block!important;width:min(210px,74%)!important;height:auto!important;
+  margin:0 auto 6px!important;filter:drop-shadow(0 8px 18px rgba(0,0,0,.45))!important}
+.flecap-login-panel-sub{margin:0 0 20px;font-size:14.5px;color:#bcd7e8;text-align:center}
 #cloudLogin #cloudSetupWarning{margin:0 0 14px!important;padding:9px 11px!important;
   background:rgba(255,183,77,.13)!important;border:1px solid rgba(255,183,77,.42)!important;
   border-radius:9px!important;color:#ffd8a6!important;font-size:12px!important;line-height:1.4}
@@ -15936,27 +15931,34 @@ html.pecom-light .ftr-tools button{background:#fff!important;color:#17384e!impor
 }
 
 /* ── 2) Marca dentro de la aplicación ─────────────────────────────────── */
-/* Encabezado: isotipo "F" (el nombre ya está en el título de al lado). */
+/* Encabezado: logo FLECAP (isotipo + nombre). El <h1> lo completa la
+   empresa y el <p> la obra, así que el nombre de la marca no se duplica. */
 #flecapExactLogo{
-  background-image:url("/assets/brand/flecap-mark.svg")!important;
-  background-size:contain!important;background-position:center!important;background-repeat:no-repeat!important;
+  background-image:url("/assets/brand/flecap-logo.svg")!important;
+  background-size:contain!important;background-position:left center!important;background-repeat:no-repeat!important;
   background-color:transparent!important;
-  width:46px!important;height:46px!important;min-width:0!important;max-width:46px!important;
-  flex:0 0 46px!important;aspect-ratio:auto!important;margin:0 20px 0 0!important;
+  width:152px!important;height:39px!important;min-width:0!important;max-width:152px!important;
+  flex:0 0 152px!important;aspect-ratio:auto!important;margin:0 22px 0 0!important;
   border:0!important;border-radius:0!important;box-shadow:none!important;padding:0!important;
 }
-/* El nombre del encabezado acompaña la paleta de la marca: FLE en blanco y
-   CAP en el azul de la identidad (degradado sobre el texto). */
+@media(max-width:1100px){#flecapExactLogo{width:128px!important;max-width:128px!important;
+  height:33px!important;flex:0 0 128px!important;margin:0 16px 0 0!important}}
+@media(max-width:700px){#flecapExactLogo{width:112px!important;max-width:44vw!important;
+  height:29px!important;flex:0 0 112px!important;margin:0 12px 0 0!important}}
+/* El <h1> del encabezado lo completa la empresa y el <p> la obra: la marca
+   la aporta el logo, así que el título queda en blanco puro. */
 body>header .brand h1{color:#fff!important}
-@supports ((-webkit-background-clip:text) or (background-clip:text)){
-  body>header .brand h1{background-image:linear-gradient(90deg,#ffffff 0%,#ffffff 46%,#48bcec 54%,#1287d2 100%);
-    -webkit-background-clip:text;background-clip:text;
-    color:transparent!important;-webkit-text-fill-color:transparent}
-}
 /* Barra lateral */
 #flecapModernSidebar .fm-gear{
-  font-size:0!important;background:url("/assets/brand/flecap-mark.svg") center/30px 30px no-repeat!important;
+  font-size:0!important;background:url("/assets/brand/flecap-isotipo.svg") center/34px 34px no-repeat!important;
   box-shadow:none!important;border-radius:0!important;
+}
+/* "CAP" del lateral con el mismo azul de la identidad. */
+#flecapModernSidebar .fm-word .fm-cap{color:#3fd6f7!important}
+@supports ((-webkit-background-clip:text) or (background-clip:text)){
+  #flecapModernSidebar .fm-word .fm-cap{background-image:linear-gradient(90deg,#6fe4fb,#0a72c4);
+    -webkit-background-clip:text;background-clip:text;
+    color:transparent!important;-webkit-text-fill-color:transparent}
 }
 #flecapModernSidebar .fm-word{color:#fff!important;letter-spacing:1.5px!important}
 #flecapModernSidebar .fm-word .fm-cap{color:#2ea7e2!important}
@@ -15966,10 +15968,10 @@ body>header .brand h1{color:#fff!important}
 }
 /* Splash de arranque */
 .flecap-splash-mark{
-  font-size:0!important;width:168px!important;height:46px!important;margin:0 auto 18px!important;
-  background:url("/assets/brand/flecap-logo.svg") center/contain no-repeat!important;
+  font-size:0!important;width:196px!important;height:78px!important;margin:0 auto 16px!important;
+  background:url("/assets/brand/flecap-logo-completo.svg") center/contain no-repeat!important;
 }
-@media(max-width:600px){.flecap-splash-mark{width:132px!important;height:36px!important}}
+@media(max-width:600px){.flecap-splash-mark{width:158px!important;height:63px!important}}
 /* El encabezado no se imprime: se mantiene la regla heredada de impresión. */
 @media print{#flecapExactLogo{display:none!important}}
 </style>

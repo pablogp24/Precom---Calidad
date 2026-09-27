@@ -1,21 +1,29 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img" aria-label="FLECAP">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" role="img" aria-label="FLECAP">
 <title>FLECAP</title>
+<defs><linearGradient id="fvBg" x1="0" y1="0" x2="1" y2="1">
+<stop offset="0" stop-color="#0b2f52"/><stop offset="1" stop-color="#03121f"/></linearGradient></defs>
+<rect width="1000" height="1000" rx="220" fill="url(#fvBg)"/>
+<g transform="translate(196,182) scale(0.61)"><g>
 <defs>
-<linearGradient id="fvBg" x1="0" y1="0" x2="1" y2="1">
-<stop offset="0" stop-color="#0c3550"/><stop offset="1" stop-color="#04121f"/>
-</linearGradient>
-<linearGradient id="fmA" x1="0" y1="0" x2="1" y2="1">
-<stop offset="0" stop-color="#7fe6ff"/><stop offset=".38" stop-color="#25a9e6"/><stop offset="1" stop-color="#0a63b4"/>
-</linearGradient>
-<linearGradient id="fmB" x1="0" y1="0" x2="0" y2="1">
-<stop offset="0" stop-color="#ffffff"/><stop offset=".55" stop-color="#e8f4fb"/><stop offset="1" stop-color="#a9cee6"/>
-</linearGradient>
-<linearGradient id="fmS" x1="0" y1="0" x2="1" y2="1">
-<stop offset="0" stop-color="#3fc2f2"/><stop offset=".55" stop-color="#0f83cf"/><stop offset="1" stop-color="#074a8c"/>
-</linearGradient>
+<linearGradient id="itTop4" x1="0" y1="0" x2="1" y2="1">
+<stop offset="0" stop-color="#7ceaff"/><stop offset="1" stop-color="#16a6e6"/></linearGradient>
+<linearGradient id="itTopC4" x1="0" y1="0" x2="1" y2="0">
+<stop offset="0" stop-color="#118ad0"/><stop offset="1" stop-color="#0a4d8f"/></linearGradient>
+<linearGradient id="itMid4" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#d3dee7"/></linearGradient>
+<linearGradient id="itMidC4" x1="0" y1="0" x2="1" y2="0">
+<stop offset="0" stop-color="#a8b7c4"/><stop offset="1" stop-color="#7d8d9b"/></linearGradient>
+<linearGradient id="itPalo4" x1="0" y1="0" x2="1" y2="1">
+<stop offset="0" stop-color="#38c9f4"/><stop offset="1" stop-color="#0a6cbd"/></linearGradient>
+<linearGradient id="itPaloC4" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#0c62ab"/><stop offset="1" stop-color="#073d70"/></linearGradient>
 </defs>
-<rect width="240" height="240" rx="52" fill="url(#fvBg)"/>
-<g transform="translate(28,28) scale(.767)">
-<path d="M66.6,18.0 L144.6,18.0 L112.0,222.0 L34.0,222.0 Z" fill="url(#fmS)"/><path d="M66.6,18.0 L228.6,18.0 L219.4,76.0 L57.4,76.0 Z" fill="url(#fmA)"/><path d="M52.9,104.0 L188.9,104.0 L181.5,150.0 L45.5,150.0 Z" fill="url(#fmB)"/>
-</g>
+<polygon points="150.0,358.0 950.0,178.0 950.0,348.0 95.0,528.0" fill="url(#itTopC4)"/>
+<polygon points="140.0,660.0 440.0,592.0 610.0,892.0 310.0,960.0" fill="url(#itPaloC4)"/>
+<polygon points="140.0,640.0 940.0,460.0 940.0,630.0 90.0,710.0" fill="url(#itMidC4)"/>
+<polygon points="150.0,300.0 950.0,120.0 950.0,290.0 95.0,470.0" fill="url(#itTop4)"/>
+<polygon points="90.0,660.0 390.0,592.0 560.0,892.0 260.0,960.0" fill="url(#itPalo4)"/>
+<polygon points="140.0,590.0 940.0,410.0 940.0,580.0 90.0,660.0" fill="url(#itMid4)"/>
+<polygon points="150.0,300.0 950.0,120.0 950.0,90.0 150.0,270.0" fill="#ffffff" opacity=".22"/>
+</g></g>
 </svg>
