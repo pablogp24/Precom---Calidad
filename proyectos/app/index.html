@@ -337,6 +337,19 @@ html.pecom-light #flecapModuleSwitch:hover{background:#e7f1f7!important;color:#0
  function admin(){return window.FLECAP_PROJECT_GOVERNANCE&&window.FLECAP_PROJECT_GOVERNANCE.isAdmin(window.PECOM_CURRENT_EMAIL,window.PECOM_ROLE)}
  function sb(){return window.PECOM_SUPABASE}
  function projectList(){try{return JSON.parse(localStorage.getItem('flecap_projects_v1')||'[]')}catch(e){return []}}
+ function modulePermissionForEmail(payload,email){
+  const perms=(payload&&payload.flecapModulePermissions)||{};
+  const base=norm(email);
+  if(!base)return null;
+  if(perms[base])return perms[base];
+  return Object.keys(perms).map(function(k){return String(k).trim().toLowerCase()===base?perms[k]:null}).find(Boolean)||null;
+ }
+ function payloadEmailKey(perms,email){
+  const base=norm(email);if(perms[base])return base;
+  const hit=Object.keys(perms).find(function(k){return String(k).trim().toLowerCase()===base});
+  return hit||base;
+ }
+
  function active(){return localStorage.getItem('flecap_active_project_v1')||'legacy'}
  function setActive(pid,identity){
    try{if(window.FLECAP_flushProjectModuleState)window.FLECAP_flushProjectModuleState(active())}catch(e){}
@@ -361,6 +374,7 @@ html.pecom-light #flecapModuleSwitch:hover{background:#e7f1f7!important;color:#0
  async function reloadCatalog(){
    if(!sb()||!window.PECOM_CURRENT_EMAIL)return;
    const rows=await window.FLECAP_PROJECT_GOVERNANCE.accessibleProjects(sb(),window.PECOM_CURRENT_EMAIL,window.PECOM_ROLE,true);
+   window.FLECAP_PROJECT_GOVERNANCE.setKnownProjects(rows);
    window.FLECAP_PROJECT_GOVERNANCE.saveCatalog(rows);
    refreshProjectUi();
  }
@@ -432,7 +446,7 @@ html.pecom-light #flecapModuleSwitch:hover{background:#e7f1f7!important;color:#0
    if(u.error)return alert(u.error.message);
    const selected=new Set(ids),allProjects=projectList();
    const targets=allProjects.filter(p=>{if(selected.has(p.id))return true;try{const local=JSON.parse(localStorage.getItem('flecap_project_state::'+p.id)||'null');return !!(local&&local.flecapModulePermissions&&local.flecapModulePermissions[email])}catch(_e){return false}});
-   const results=await Promise.all(targets.map(async p=>{const projectId=p.id;try{let payload=null;try{payload=JSON.parse(localStorage.getItem('flecap_project_state::'+projectId)||'null')}catch(_e){}if(projectId===active()&&typeof state!=='undefined'&&state){payload=window.FLECAP_compactStateForLocalStorage?window.FLECAP_compactStateForLocalStorage(state):state}if(!payload){const rs=await sb().from('app_state').select('payload').eq('id',projectId).maybeSingle();if(rs.error)throw rs.error;payload=(rs.data&&rs.data.payload)?rs.data.payload:{}}payload.flecapModulePermissions=payload.flecapModulePermissions||{};if(selected.has(projectId))payload.flecapModulePermissions[email]={quality,precom};else delete payload.flecapModulePermissions[email];const wr=await sb().from('app_state').upsert({id:projectId,payload,updated_by:norm(window.PECOM_CURRENT_EMAIL)},{onConflict:'id'});if(wr.error)throw wr.error;try{localStorage.setItem('flecap_project_state::'+projectId,JSON.stringify(payload))}catch(_e){}if(projectId===active()&&typeof state!=='undefined')state.flecapModulePermissions=payload.flecapModulePermissions;
+   const results=await Promise.all(targets.map(async p=>{const projectId=p.id;try{let payload=null;try{payload=JSON.parse(localStorage.getItem('flecap_project_state::'+projectId)||'null')}catch(_e){}if(projectId===active()&&typeof state!=='undefined'&&state){payload=window.FLECAP_compactStateForLocalStorage?window.FLECAP_compactStateForLocalStorage(state):state}if(!payload){const rs=await sb().from('app_state').select('payload').eq('id',projectId).maybeSingle();if(rs.error)throw rs.error;payload=(rs.data&&rs.data.payload)?rs.data.payload:{}}payload.flecapModulePermissions=payload.flecapModulePermissions||{};const __key=payloadEmailKey(payload.flecapModulePermissions,email);if(selected.has(projectId))payload.flecapModulePermissions[__key]={quality,precom};else delete payload.flecapModulePermissions[__key];const wr=await sb().from('app_state').upsert({id:projectId,payload,updated_by:norm(window.PECOM_CURRENT_EMAIL)},{onConflict:'id'});if(wr.error)throw wr.error;try{localStorage.setItem('flecap_project_state::'+projectId,JSON.stringify(payload))}catch(_e){}if(projectId===active()&&typeof state!=='undefined')state.flecapModulePermissions=payload.flecapModulePermissions;
         return {ok:true,id:projectId}}catch(err){return {ok:false,id:projectId,error:(err&&err.message)||String(err)}}}));
    const failed=results.filter(r=>!r.ok);if(failed.length){alert('El usuario quedó guardado. Falló el permiso en '+failed.length+' obra(s). Reintentá Guardar usuario. Detalle: '+failed.map(x=>x.error).join(' | '));return}
    editingEmail='';q('onlineUserEmail').value='';q('onlineUserRole').value='editor';renderAccessChecks();if(q('flecapUnifiedQuality'))q('flecapUnifiedQuality').value='edit';if(q('flecapUnifiedPrecom'))q('flecapUnifiedPrecom').value='none';await renderUsers();
@@ -441,12 +455,12 @@ html.pecom-light #flecapModuleSwitch:hover{background:#e7f1f7!important;color:#0
    const u=await sb().from('allowed_users').select('email,role').eq('email',email).single();if(u.error)return alert(u.error.message);
    editingEmail=email;q('onlineUserEmail').value=email;q('onlineUserRole').value=u.data.role||'viewer';
    const projectIds=[];
-   for(const p of projectList()){try{const rs=await sb().from('app_state').select('payload').eq('id',p.id).maybeSingle();const mp=rs.data&&rs.data.payload&&rs.data.payload.flecapModulePermissions&&rs.data.payload.flecapModulePermissions[email];if(mp&&((mp.quality&&mp.quality!=='none')||(mp.precom&&mp.precom!=='none')))projectIds.push(p.id)}catch(_e){}}
+   for(const p of projectList()){try{const rs=await sb().from('app_state').select('payload').eq('id',p.id).maybeSingle();const mp=modulePermissionForEmail(rs.data&&rs.data.payload,email);if(mp&&((mp.quality&&mp.quality!=='none')||(mp.precom&&mp.precom!=='none')))projectIds.push(p.id)}catch(_e){}}
    renderAccessChecks(projectIds);
    if(projectIds.length){
      try{
        const rs=await sb().from('app_state').select('payload').eq('id',projectIds[0]).maybeSingle();
-       const mp=rs.data&&rs.data.payload&&rs.data.payload.flecapModulePermissions&&rs.data.payload.flecapModulePermissions[email];
+       const mp=modulePermissionForEmail(rs.data&&rs.data.payload,email);
        if(q('flecapUnifiedQuality'))q('flecapUnifiedQuality').value=(mp&&mp.quality)||'none';
        if(q('flecapUnifiedPrecom'))q('flecapUnifiedPrecom').value=(mp&&mp.precom)||'none';
      }catch(_e){}
@@ -455,7 +469,7 @@ html.pecom-light #flecapModuleSwitch:hover{background:#e7f1f7!important;color:#0
  }
  async function removeUser(email){
    if(!confirm('¿Quitar el acceso de '+email+' a FLECAP?'))return;
-   for(const p of projectList()){try{const rs=await sb().from('app_state').select('payload').eq('id',p.id).maybeSingle();if(rs.data&&rs.data.payload&&rs.data.payload.flecapModulePermissions&&rs.data.payload.flecapModulePermissions[email]){delete rs.data.payload.flecapModulePermissions[email];await sb().from('app_state').upsert({id:p.id,payload:rs.data.payload,updated_by:norm(window.PECOM_CURRENT_EMAIL)},{onConflict:'id'})}}catch(_e){}}
+   for(const p of projectList()){try{const rs=await sb().from('app_state').select('payload').eq('id',p.id).maybeSingle();if(rs.data&&rs.data.payload&&rs.data.payload.flecapModulePermissions){const __k=payloadEmailKey(rs.data.payload.flecapModulePermissions,email);if(__k&&rs.data.payload.flecapModulePermissions[__k]){delete rs.data.payload.flecapModulePermissions[__k];await sb().from('app_state').upsert({id:p.id,payload:rs.data.payload,updated_by:norm(window.PECOM_CURRENT_EMAIL)},{onConflict:'id'})}}}catch(_e){}}
    const r=await sb().from('allowed_users').delete().eq('email',email);if(r.error)return alert(r.error.message);
    renderUsers();
  }
@@ -465,7 +479,7 @@ html.pecom-light #flecapModuleSwitch:hover{background:#e7f1f7!important;color:#0
    const box=q('onlineUsersList');if(!box)return;
    const u=await sb().from('allowed_users').select('email,role,created_at').order('email');if(u.error){box.textContent=u.error.message;return}
    const by={};
-   for(const p of projectList()){try{const rs=await sb().from('app_state').select('payload').eq('id',p.id).maybeSingle();const perms=rs.data&&rs.data.payload&&rs.data.payload.flecapModulePermissions||{};Object.keys(perms).forEach(em=>{const mp=perms[em]||{};if((mp.quality&&mp.quality!=='none')||(mp.precom&&mp.precom!=='none'))(by[em]||(by[em]=[])).push(p.project||p.id)})}catch(_e){}}
+   for(const p of projectList()){try{const rs=await sb().from('app_state').select('payload').eq('id',p.id).maybeSingle();const perms=rs.data&&rs.data.payload&&rs.data.payload.flecapModulePermissions||{};for(const ux of (u.data||[])){const __m=modulePermissionForEmail(rs.data&&rs.data.payload,ux.email);if(__m&&((__m.quality&&__m.quality!=='none')||(__m.precom&&__m.precom!=='none')))(by[ux.email]||(by[ux.email]=[])).push(p.project||p.id)}}catch(_e){}}
    box.innerHTML=(u.data||[]).map(x=>{
      const role=x.role==='admin'?'Administrador':x.role==='maintenance_editor'?'Editor de mantenimiento':x.role==='matrix_importer'?'Editor + importar matriz':x.role==='editor'?'Editor':'Solo lectura';
      const scope=(by[x.email]||[]).join(', ')||'Sin obra asignada';
@@ -6856,6 +6870,7 @@ function refreshOnlineAdminUi(){
    try{clearTimeout(saveTimer);saveTimer=null}catch(_st){}
  };
  window.PECOM_CURRENT_EMAIL="";
+ try{window.FLECAP_PROJECT_GOVERNANCE&&window.FLECAP_PROJECT_GOVERNANCE.setKnownProjects&&window.FLECAP_PROJECT_GOVERNANCE.setKnownProjects([])}catch(_kg){}
  let bootPromise=null, bootEmail="", realtimeStarted=false;
  let realtimeChannel=null;
 
@@ -7917,6 +7932,7 @@ function refreshOnlineAdminUi(){
  const LIST_KEY='flecap_projects_v1', ACTIVE_KEY='flecap_active_project_v1',
        STATE_PREFIX='flecap_project_state::', ID_PREFIX='flecap_project_identity::';
  function norm(v){return String(v||'').trim().toLowerCase()}
+ var __knownCloudIds=new Set();
  function isAdmin(email,role){
    return role==='admin';
  }
@@ -7939,8 +7955,7 @@ function refreshOnlineAdminUi(){
        const saved=JSON.parse(localStorage.getItem(key)||'null');
        if(!saved||!Array.isArray(saved.tags)||!Array.isArray(saved.masters))continue;
        const ident=JSON.parse(localStorage.getItem(ID_PREFIX+id)||'null')||{};
-       list.push({id:id,company:String(ident.company||'PECOM'),project:String(ident.project||'Obra recuperada'),createdAt:new Date().toISOString(),localOnly:true});
-       known.add(id);
+       if(!__knownCloudIds.has(String(id))){list.push({id:id,company:String(ident.company||'PECOM'),project:String(ident.project||'Obra recuperada'),createdAt:new Date().toISOString(),localOnly:true});known.add(id)}
      }
    }catch(e){console.warn('No se pudo reconstruir el catálogo local',e)}
    // Unifica proyectos repetidos por empresa + nombre. Si existen varias copias,
@@ -7956,7 +7971,7 @@ function refreshOnlineAdminUi(){
      const previous=unique.get(key);
      if(!previous||score(p)>score(previous))unique.set(key,p);
    });
-   const cleanList=[...unique.values()];
+   const cleanList=[...unique.values()].filter(function(p){return !p.localOnly||!__knownCloudIds.has(String(p.id))});
    localStorage.setItem(LIST_KEY,JSON.stringify(cleanList));
    cleanList.forEach(p=>localStorage.setItem(ID_PREFIX+p.id,JSON.stringify({company:p.company,project:p.project})));
    return cleanList;
@@ -7966,6 +7981,7 @@ function refreshOnlineAdminUi(){
    if(isAdmin(email,role)){
      const r=await sb.from('projects').select('id,company,name,created_at').eq('active',true).order('created_at',{ascending:true});
      if(r.error)throw r.error;
+     try{__knownCloudIds=new Set((r.data||[]).map(function(p){return String(p.id)}))}catch(_e){}
      return r.data||[];
    }
    // Si el llamador ya validó allowed_users no se repite la consulta.
@@ -7977,16 +7993,18 @@ function refreshOnlineAdminUi(){
    const r=await sb.from('projects').select('id,company,name,created_at').eq('active',true).order('created_at',{ascending:true});
    if(r.error)throw r.error;
    const list=r.data||[];
+   try{__knownCloudIds=new Set(list.map(function(p){return String(p.id)}))}catch(_e){}
    if(!list.length)return [];
    const out=[];
    // FLECAP perf: los permisos de todas las obras en UNA consulta, en vez de
    // una consulta secuencial por obra que además descargaba el payload entero.
-   let perms=null;
+   let perms=null,missingRows=false;
    try{
     const st=await sb.from('app_state').select('id,payload,updated_at').in('id',list.map(function(p){return String(p.id)}));
-    if(!st.error&&Array.isArray(st.data)){perms={};const __active=String(localStorage.getItem('flecap_active_project_v1')||'legacy');st.data.forEach(function(row){try{if(window.FLECAP_SHARE_PROJECT_ROW&&String(row.id)===__active)window.FLECAP_SHARE_PROJECT_ROW(row)}catch(_shr){}perms[String(row.id)]=(row.payload&&row.payload.flecapModulePermissions&&row.payload.flecapModulePermissions[email])||null})}
+    if(!st.error&&Array.isArray(st.data)){perms={};const __active=String(localStorage.getItem('flecap_active_project_v1')||'legacy');st.data.forEach(function(row){try{if(window.FLECAP_SHARE_PROJECT_ROW&&String(row.id)===__active)window.FLECAP_SHARE_PROJECT_ROW(row)}catch(_shr){}const __raw=(row.payload&&row.payload.flecapModulePermissions)||{};perms[String(row.id)]=(function(raw,em){if(raw[em])return raw[em];const k=Object.keys(raw).filter(function(x){return String(x).trim().toLowerCase()===em})[0];return k?raw[k]:null})(__raw,email)})}
    }catch(_batchErr){perms=null}
-   if(perms){
+   if(perms&&Object.keys(perms).length!==list.length)missingRows=true;
+   if(perms&&!missingRows){
     for(const p of list){const mp=perms[String(p.id)];if(mp&&((mp.quality&&mp.quality!=='none')||(mp.precom&&mp.precom!=='none')))out.push(p)}
     return out;
    }
@@ -8039,6 +8057,7 @@ function refreshOnlineAdminUi(){
  window.FLECAP_PROJECT_GOVERNANCE={
    prepareForUser, accessibleProjects, isAdmin, blank, saveCatalog
  };
+ window.FLECAP_PROJECT_GOVERNANCE.setKnownProjects=function(rows){try{__knownCloudIds=new Set((rows||[]).map(function(p){return String(p.id)}))}catch(_e){}};
 })();
 </script>
 <script id="pecomInspectorTagAndThemeFinalFixJs">

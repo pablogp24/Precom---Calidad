@@ -135,12 +135,30 @@ async function allowed(email){
   return r&&r.data?r.data:null;
  }catch(_e){console.warn('FLECAP portal: no se pudo validar el usuario ahora',_e);return null}
 }
+/* FLECAP v2: la asignación hecha en Administración (app_state.flecapModulePermissions)
+   es la única fuente de obras por usuario. Una lectura que falla se reintenta
+   una vez en vez de descartar la obra en silencio, y el email se normaliza
+   por los dos lados para que una clave guardada con variación no vuelva
+   invisible la obra. */
+function projectAllowsEmail(payload,email){
+ const perms=(payload&&payload.flecapModulePermissions)||{};const key=norm(email);
+ const mp=perms[key]||Object.keys(perms).map(function(k){return String(k).trim().toLowerCase()===key?perms[k]:null}).find(Boolean)||null;
+ return !!mp&&((mp.quality&&mp.quality!=='none')||(mp.precom&&mp.precom!=='none'));
+}
+async function readProjectPayload(project){
+ try{const r=await sb.from('app_state').select('payload').eq('id',project.id).maybeSingle();if(r.error)throw r.error;return (r.data&&r.data.payload)||null}
+ catch(e1){
+  await new Promise(function(res){setTimeout(res,400)});
+  try{const r2=await sb.from('app_state').select('payload').eq('id',project.id).maybeSingle();if(r2.error)throw r2.error;return (r2.data&&r2.data.payload)||null}catch(e2){return null}
+ }
+}
 async function projectsFor(email,role){
  const p=await sb.from('projects').select('id,company,name,created_at').eq('active',true).order('created_at',{ascending:true});if(p.error)throw p.error;
  if(role==='admin')return p.data||[];
  const out=[];
  for(const project of (p.data||[])){
-  try{const r=await sb.from('app_state').select('payload').eq('id',project.id).maybeSingle();const mp=r.data&&r.data.payload&&r.data.payload.flecapModulePermissions&&r.data.payload.flecapModulePermissions[norm(email)];if(mp&&((mp.quality&&mp.quality!=='none')||(mp.precom&&mp.precom!=='none')))out.push(project)}catch(e){}
+  const payload=await readProjectPayload(project);
+  if(payload&&projectAllowsEmail(payload,email))out.push(project);
  }
  return out;
 }
@@ -208,7 +226,8 @@ async function enter(email,role){
   $('login').classList.add('hidden');
   $('projectGrid').innerHTML='<div class="empty">Cargando proyectos autorizados…</div>';
   try{
-    const list=await projectsFor(currentEmail,currentRole);
+    let list=await projectsFor(currentEmail,currentRole);
+    if(!list.length){const cache=portalCacheFor(currentEmail);if(cache&&Array.isArray(cache.list)&&cache.list.length){list=cache.list;console.warn('FLECAP portal: catálogo central vacío; se muestran las obras del último catálogo conocido',currentEmail)}}
     portalCacheSave(currentEmail,currentRole,list);
     render(list);
   }catch(e){
@@ -273,6 +292,7 @@ async function boot(){
       if(cached){
         currentEmail=norm(backHandoff.email);
         currentRole=backHandoff.role||cached.role||'viewer';
+        try{window.FLECAP_PROJECT_GOVERNANCE&&window.FLECAP_PROJECT_GOVERNANCE.setKnownProjects&&window.FLECAP_PROJECT_GOVERNANCE.setKnownProjects([])}catch(_kg){}
         $('userEmail').textContent=currentEmail;
         $('login').classList.add('hidden');
         render(cached.list||[]);
