@@ -153,14 +153,15 @@ async function readProjectPayload(project){
  }
 }
 async function projectsFor(email,role){
- const p=await sb.from('projects').select('id,company,name,created_at').eq('active',true).order('created_at',{ascending:true});if(p.error)throw p.error;
- if(role==='admin')return p.data||[];
- const out=[];
- for(const project of (p.data||[])){
-  const payload=await readProjectPayload(project);
-  if(payload&&projectAllowsEmail(payload,email))out.push(project);
+ if(role==='admin'){
+  const p=await sb.from('projects').select('id,company,name,created_at').eq('active',true).order('created_at',{ascending:true});
+  if(p.error)throw p.error; return p.data||[];
  }
- return out;
+ /* FLECAP security 2026-10-01: la autorización por obra vive en project_members.
+    app_state ya no se descarga para decidir si el usuario puede entrar. */
+ const m=await sb.from('project_members').select('project_id,quality_access,precom_access,projects!inner(id,company,name,created_at,active)').eq('email',norm(email)).eq('projects.active',true);
+ if(m.error)throw m.error;
+ return (m.data||[]).filter(x=>(x.quality_access&&x.quality_access!=='none')||(x.precom_access&&x.precom_access!=='none')).map(x=>x.projects).filter(Boolean).sort((a,b)=>String(a.created_at||'').localeCompare(String(b.created_at||'')));
 }
 function routeFor(p){return './proyectos/app/?project='+encodeURIComponent(p.id)+'&from=portal'}
 function render(list){
@@ -260,88 +261,26 @@ function savedIdentity(){
 }
 async function boot(){
   $('login').classList.add('hidden');
-  const q=new URLSearchParams(location.search);
-  const vuelveDeObra=q.get('from')==='app';
-  const unlocked=sessionStorage.getItem('flecap_portal_unlocked_v1')==='1';
   let session=null;
   try{const r=await sb.auth.getSession();session=r&&r.data&&r.data.session?r.data.session:null}
-  catch(_e){console.warn('FLECAP portal: getSession no disponible; se continúa con identidad persistida',_e)}
-  // 1) Sesión Supabase viva: fuente de identidad prioritaria sobre el handoff.
+  catch(_e){console.warn('FLECAP portal: no se pudo recuperar la sesión',_e)}
+  /* Seguridad: identidad, rol y handoff locales son sólo caché de navegación.
+     Nunca habilitan acceso sin una sesión Supabase válida. */
   if(session&&session.user&&session.user.email){
     const a=await allowed(session.user.email);
     if(a){
       sessionStorage.setItem('flecap_portal_unlocked_v1','1');
-      if(vuelveDeObra)history.replaceState(null,'','/portal-nuevo.html');
+      if(new URLSearchParams(location.search).get('from')==='app')history.replaceState(null,'','/portal-nuevo.html');
       await enter(session.user.email,a.role);
       return;
     }
+    try{await sb.auth.signOut()}catch(_e){}
   }
-
-  // 0) Vuelta desde una obra SIN sesión viva en este contexto: se usa el handoff
-  //    que dejó la app al pulsar "OBRAS" y se acepta si sigue vigente.
-  //    La obra vuelve a validar permisos al abrirse.
-  if(vuelveDeObra){
-    let backHandoff=null;
-    try{backHandoff=JSON.parse(localStorage.getItem('flecap_portal_handoff')||'null')}catch(_e){}
-    if(!backHandoff)try{backHandoff=JSON.parse(sessionStorage.getItem('flecap_portal_handoff_tab')||'null')}catch(_e2){}
-    const fresh=backHandoff&&backHandoff.email&&(!backHandoff.ts||Date.now()-Number(backHandoff.ts)<12*60*60*1000);
-    if(fresh){
-      sessionStorage.setItem('flecap_portal_unlocked_v1','1');
-      history.replaceState(null,'','/portal-nuevo.html');
-      const cached=portalCacheFor(backHandoff.email);
-      if(cached){
-        currentEmail=norm(backHandoff.email);
-        currentRole=backHandoff.role||cached.role||'viewer';
-        try{window.FLECAP_PROJECT_GOVERNANCE&&window.FLECAP_PROJECT_GOVERNANCE.setKnownProjects&&window.FLECAP_PROJECT_GOVERNANCE.setKnownProjects([])}catch(_kg){}
-        $('userEmail').textContent=currentEmail;
-        $('login').classList.add('hidden');
-        render(cached.list||[]);
-        // Actualizar el catálogo en segundo plano sin bloquear la navegación.
-        projectsFor(currentEmail,currentRole).then(list=>{portalCacheSave(currentEmail,currentRole,list);render(list)}).catch(()=>{});
-        return;
-      }
-      // Si todavía no hay catálogo cacheado, conservar igualmente la identidad
-      // y continuar por el flujo normal sin convertir un fallo de red en login.
-      try{
-        const list=await projectsFor(norm(backHandoff.email),backHandoff.role||'viewer');
-        currentEmail=norm(backHandoff.email);currentRole=backHandoff.role||'viewer';
-        portalCacheSave(currentEmail,currentRole,list);
-        $('userEmail').textContent=currentEmail;$('login').classList.add('hidden');render(list);
-        return;
-      }catch(_catalogErr){
-        currentEmail=norm(backHandoff.email);currentRole=backHandoff.role||'viewer';
-        $('userEmail').textContent=currentEmail;$('login').classList.add('hidden');
-        $('projectGrid').innerHTML='<div class="empty">No se pudo actualizar el catálogo de obras. Reintentá en unos segundos.</div>';
-        return;
-      }
-    }
-  }
-  // 2) Identidad validada previamente (12 h) o handoff de la obra: sirve aunque
-  //    la sesión haya vencido o aunque la pestaña sea nueva tras volver de una obra.
-  const ident=savedIdentity();
-  let handoff=null;
-  try{const h=JSON.parse(localStorage.getItem('flecap_portal_handoff')||'null');handoff=h&&h.email?h:null}catch(_hErr){handoff=null}
-  const candidato=ident||((unlocked||vuelveDeObra)?handoff:null);
-  if(candidato){
-    const a=await allowed(candidato.email);
-    if(a){
-      sessionStorage.setItem('flecap_portal_unlocked_v1','1');
-      if(vuelveDeObra)history.replaceState(null,'','/portal-nuevo.html');
-      await enter(candidato.email,a.role);
-      return;
-    }
-  }
-  // 3) Catálogo central inaccesible: mostrar el último catálogo conocido del
-  //    mismo usuario en lugar de expulsar al login.
-  const base=ident||handoff;
-  const cache=base?portalCacheFor(base.email):null;
-  if(cache&&base){
-    currentEmail=cache.email;currentRole=cache.role||'viewer';
-    $('userEmail').textContent=currentEmail;
-    render(cache.list||[]);
-    if(vuelveDeObra)history.replaceState(null,'','/portal-nuevo.html');
-    return;
-  }
+  try{
+    sessionStorage.removeItem('flecap_portal_unlocked_v1');
+    localStorage.removeItem('flecap_portal_handoff');
+    sessionStorage.removeItem('flecap_portal_handoff_tab');
+  }catch(_e){}
   $('login').classList.remove('hidden');
 }
 $('loginBtn').onclick=async()=>{
@@ -362,7 +301,7 @@ $('loginBtn').onclick=async()=>{
 $('signupBtn').onclick=async()=>{
  const email=norm($('email').value),pass=$('password').value;
  if(!email||!pass){$('msg').textContent='Ingresá correo y contraseña para el primer acceso.';return}
- try{const r=await sb.auth.signUp({email,password:pass});if(r.error)throw r.error;$('msg').textContent='Acceso creado. Si recibís un correo de confirmación, confirmalo y luego ingresá.'}
+ try{const a=await allowed(email);if(!a)throw new Error('Este correo no está autorizado.');const r=await sb.auth.signUp({email,password:pass});if(r.error)throw r.error;$('msg').textContent='Acceso creado. Si recibís un correo de confirmación, confirmalo y luego ingresá.'}
  catch(e){$('msg').textContent=e.message||'No se pudo crear el acceso.'}
 };
 $('resetBtn').onclick=async()=>{
