@@ -1,4 +1,4 @@
-const CACHE = 'flecap-cierre-20261001-r4';
+const CACHE = 'flecap-matriz-unica-20261001-r5';
 const STATIC = ['./manifest.webmanifest', './portal-nuevo.html', './online-config.js', './'];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(c => Promise.all(STATIC.map(u => c.add(u).catch(()=>null)))).then(()=>self.skipWaiting()));
