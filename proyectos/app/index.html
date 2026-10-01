@@ -11458,12 +11458,17 @@ body[data-flecap-module="quality"] #flecapPipingQualityBtn{display:flex!importan
      Object.keys(dm).forEach(function(lnKey){var ln=normLine(lnKey),rd=dm[lnKey]||{};Object.keys(rd).forEach(function(sid0){var sid=normSpool(sid0),k=ln+'|||'+sid;if(rd[sid0]&&all[k])sent[k]=1})});
      return {total:Object.keys(all).length,complete:Object.keys(complete).length,partial:Object.keys(partial).length,painted:Object.keys(painted).length,sent:Object.keys(sent).length};
    })();var totalSpools=fpqSpoolAgg.total, completeSpools=fpqSpoolAgg.complete, partialSpools=fpqSpoolAgg.partial, withoutStartSpools=Math.max(0,totalSpools-completeSpools-partialSpools), paintedSpools=fpqSpoolAgg.painted, liberatedSpools=completeSpools, sentSite=fpqSpoolAgg.sent, pendingSite=Math.max(0,completeSpools-sentSite), prioritySite=Math.max(0,completeSpools-sentSite), dispatchPct=totalSpools?Math.round(sentSite*100/totalSpools):0;
-   var swTotal=rows.reduce(function(a,r){return a+n(r.weldsTotal)},0),swDone=rows.reduce(function(a,r){return a+n(r.weldsDone)},0),swPct=swTotal?Math.round(swDone*1000/swTotal)/10:0;
-   var lineAgg={};rows.forEach(function(r){var k=fpqNormalizeLine(r.line);if(!k)return;var x=lineAgg[k]||(lineAgg[k]={total:0,done:0});x.total+=n(r.weldsTotal);x.done+=n(r.weldsDone)});
-   var uniqueLines=Object.keys(lineAgg).length,completeLines=Object.keys(lineAgg).filter(function(k){return lineAgg[k].total>0&&lineAgg[k].done>=lineAgg[k].total}).length;
+   /* FUENTE ÚNICA: SW, spools, pintado, despacho y líneas salen de la matriz
+      de trazabilidad (Seguimiento de Matriz) vía el núcleo de cierre de etapa.
+      Ya no se re-deriva del resumen flecap_piping_trace_summary (deprecated). */
+   var __W=(window.FLECAP_WELD_INCHES?window.FLECAP_WELD_INCHES((window.FLECAP_FWFFW_PREF&&window.FLECAP_FWFFW_PREF.get())||{}):null)||{joints:0,soldJoints:0,pct:0,total:0,sold:0,pending:0,todaySold:0};
+   var __L=window.FLECAP_LINES?window.FLECAP_LINES():[];
+   var swTotal=__W.joints,swDone=__W.soldJoints,swPct=__W.joints?Math.round(__W.soldJoints*1000/__W.joints)/10:0;
+   var totalSpools=__L.reduce(function(a,x){return a+x.spools},0),completeSpools=__L.reduce(function(a,x){return a+x.complete},0),partialSpools=__L.reduce(function(a,x){return a+x.partial},0),paintedSpools=__L.reduce(function(a,x){return a+x.painted},0),sentSite=__L.reduce(function(a,x){return a+x.sent},0),withoutStartSpools=Math.max(0,totalSpools-completeSpools-partialSpools),liberatedSpools=completeSpools,pendingSite=Math.max(0,completeSpools-sentSite),prioritySite=pendingSite,dispatchPct=totalSpools?Math.round(sentSite*1000/totalSpools)/10:0;
+   var uniqueLines=__L.length,completeLines=__L.filter(function(x){return x.spools>0&&x.complete>=x.spools}).length;
    q('fpqKpis').innerHTML=
-    '<div class="modern-kpi fpq-board-card accent-teal"><span>AVANCE POR PULGADAS SOLDADAS</span><b>'+(hasInchSummary?totalPct.toLocaleString('es-AR',{maximumFractionDigits:1})+'%':'—')+'</b><div class="fpq-mini-track"><i style="width:'+(hasInchSummary?Math.min(100,totalPct):0)+'%"></i></div><small>'+(hasInchSummary?(Number(traceSummary.total.built||0).toLocaleString('es-AR',{maximumFractionDigits:1})+' / '+Number(traceSummary.total.toBuild||0).toLocaleString('es-AR',{maximumFractionDigits:1})+' pulgadas SW'):'Abrí Seguimiento de Matriz para calcular las pulgadas')+'</small></div>'+
-    '<div class="modern-kpi fpq-board-card accent-green"><span>JUNTAS SW</span><b>'+swDone+' / '+swTotal+'</b><div class="fpq-mini-track"><i style="width:'+swPct+'%"></i></div><small>'+swPct+'% · FW/FFW excluidas</small></div>'+
+    '<div class="modern-kpi fpq-board-card accent-teal"><span>AVANCE POR PULGADAS SOLDADAS</span><b>'+(swTotal?__W.pct.toLocaleString('es-AR',{maximumFractionDigits:1})+'%':'—')+'</b><div class="fpq-mini-track"><i style="width:'+(swTotal?Math.min(100,__W.pct):0)+'%"></i></div><small>'+(swTotal?(__W.sold.toLocaleString('es-AR',{maximumFractionDigits:1})+' / '+__W.total.toLocaleString('es-AR',{maximumFractionDigits:1})+' pulgadas SW · matriz de trazabilidad'):'Abrí Seguimiento de Matriz para calcular las pulgadas')+'</small></div>'+
+    '<div class="modern-kpi fpq-board-card accent-green"><span>JUNTAS SW</span><b>'+swDone+' / '+swTotal+'</b><div class="fpq-mini-track"><i style="width:'+swPct+'%"></i></div><small>'+(swTotal?swPct+'% · FW/FFW '+((window.FLECAP_FWFFW_PREF&&(window.FLECAP_FWFFW_PREF.get().fw||window.FLECAP_FWFFW_PREF.get().ffw))?'incluidas':'excluidas'):'sin matriz cargada')+'</small></div>'+
     '<div class="modern-kpi fpq-board-card accent-green"><span>SPOOLS COMPLETOS</span><b>'+completeSpools+' / '+totalSpools+'</b><small>prefabricación SW completa</small></div>'+
     '<div class="modern-kpi fpq-board-card accent-amber"><span>SPOOLS PARCIALES</span><b>'+partialSpools+'</b><small>de '+totalSpools+' spools</small></div>'+
     '<div class="modern-kpi fpq-board-card accent-blue"><span>PINTADOS</span><b>'+paintedSpools+' / '+totalSpools+'</b><small>con pintura registrada</small></div>'+
@@ -11909,6 +11914,9 @@ body[data-flecap-module="quality"] #flecapPipingQualityBtn{display:flex!importan
    q('fpqTable').querySelectorAll('thead tr:first-child th[data-fpq-sort]').forEach(function(th){th.style.cursor='pointer';th.onclick=function(){var t=q('fpqTable'),k=th.dataset.fpqSort,next=(t.dataset.sortKey===k&&t.dataset.sortDir==='asc')?'desc':'asc';t.dataset.sortKey=k;t.dataset.sortDir=next;t.querySelectorAll('.fpq-sort-mark').forEach(function(x){x.textContent='↕'});var m=th.querySelector('.fpq-sort-mark');if(m)m.textContent=next==='asc'?'↑':'↓';render()}});
    q('fpqTraceBtn').onclick=function(){q('fpqTraceFile').click()};q('fpqTraceFile').onchange=importTraceability;
    syncVisibility();render();
+   /* FUENTE ÚNICA: si la matriz de trazabilidad se publica después del
+      arranque, el tablero se recalcula desde la misma fuente. */
+   document.addEventListener('flecap:weld-trace-updated',function(){try{render()}catch(_rE){}});
    /* La carga remota termina después del arranque. Reconciliar permite que tablet y celular
       muestren el mismo seguimiento guardado en la obra central. */
    var migratedToCloud=false;
@@ -14019,8 +14027,8 @@ html.pecom-light .fsc-note,html.pecom-light .fsc-dates,html.pecom-light .fsc-leg
  async function renderVersions(){var m=modal(),box=m.querySelector('.fv-list'),a=await versions();box.innerHTML=a.length?a.map(function(v){return '<div class="fv-row"><div><b>'+fmt(v.createdAt)+'</b><small>'+String(v.reason||'Respaldo')+' · '+String(v.createdBy||'Usuario')+'</small></div><div class="fv-actions"><button class="btn" data-fv-restore="'+v.id+'">Restaurar</button></div></div>'}).join(''):'<div class="fv-empty">Todavía no hay respaldos de esta obra.</div>'}
  function versionButton(){var host=document.getElementById('flecapReferenceTopControls');if(!host||document.getElementById('flecapVersionBtn'))return;var b=document.createElement('button');b.id='flecapVersionBtn';b.className='btn';b.type='button';b.title='Historial de versiones';b.textContent='↶ Historial';var theme=document.getElementById('pecomThemeToggle');host.insertBefore(b,theme||host.firstChild);b.onclick=function(){var m=modal();m.classList.add('show');renderVersions()}}
  function pipingRows(){try{var q=state&&state.flecapModuleData&&state.flecapModuleData.quality||state||{},a=q.flecapPipingQuality||state.flecapPipingQuality;if(Array.isArray(a))return a;return JSON.parse(localStorage.getItem('flecap_piping_quality::'+pid())||'[]')}catch(e){return[]}}
- function pipingStats(){var a=pipingRows(),lines={},sp={},wDone=0,wTotal=0,endDone=0,endTotal=0,pA=0;function n(x){return Math.max(0,Number(x)||0)}a.forEach(function(r){if(r.line)lines[String(r.line).trim().toUpperCase()]=1;wDone+=n(r.weldsDone);wTotal+=n(r.weldsTotal);endDone+=n(r.endDone);endTotal+=n(r.endTotal);pA+=n(r.punchA);(Array.isArray(r.spools)?r.spools:[]).forEach(function(x){var k=String(r.line||'')+'|||'+String(x.id||'');if(!k)return;sp[k]={done:String(x.technicalStatus||'').toUpperCase()==='COMPLETO'||(!x.technicalStatus&&x.liberated),sent:!!x.sentToSite}})});var vals=Object.keys(sp).map(function(k){return sp[k]}),tot=vals.length,done=vals.filter(function(x){return x.done}).length,sent=vals.filter(function(x){return x.sent}).length;var tr={};try{tr=JSON.parse(localStorage.getItem('flecap_piping_trace_summary::'+pid())||'null')||{}}catch(e){}var inches=tr.total&&isFinite(Number(tr.total.built))?Number(tr.total.built):null,phys=tr.total&&isFinite(Number(tr.total.pct))?Number(tr.total.pct):tot?done*100/tot:0;return{lines:Object.keys(lines).length,spools:tot,done:done,sent:sent,wDone:wDone,wTotal:wTotal,endDone:endDone,endTotal:endTotal,pA:pA,inches:inches,physical:Math.round(phys*10)/10}}
- function execStrip(){var root=document.getElementById('flecapExecutiveState');if(!root||!root.classList.contains('active'))return;var old=document.getElementById('flecapExecPipingStrip');if(old)old.remove();var s=pipingStats(),box=document.createElement('div');box.id='flecapExecPipingStrip';var data=[['Líneas',s.lines,'seguimiento'],['Spools totales',s.spools,'trazabilidad'],['Spools completos',s.done,s.spools?Math.round(s.done*100/s.spools)+'%':'0%'],['Pulgadas soldadas',s.inches==null?'—':s.inches+' Ø',s.wDone+' / '+s.wTotal+' juntas SW'],['END aprobados',s.endDone,s.endTotal+' requeridos'],['Enviados a obra',s.sent,s.spools?Math.round(s.sent*100/s.spools)+'%':'0%'],['Punch A',s.pA,'abiertos'],['Avance físico',s.physical+'%','Plan vs real en Curva S']];box.innerHTML=data.map(function(x){return '<div class="fep-kpi"><span>'+x[0]+'</span><b>'+x[1]+'</b><small>'+x[2]+'</small></div>'}).join('');var top=root.querySelector('.fes-kpis');if(top)top.insertAdjacentElement('afterend',box);else root.prepend(box)}
+ function pipingStats(){/* FUENTE ÚNICA: FLECAP_WELD_INCHES + FLECAP_LINES calculan desde la matriz de trazabilidad (flecap-trace-native-v24). */var c=(window.FLECAP_WELD_INCHES?window.FLECAP_WELD_INCHES({}):null)||{joints:0,soldJoints:0,sold:0,total:0,pct:0,todaySold:0};var L=(window.FLECAP_LINES?window.FLECAP_LINES():[]),tot=0,done=0,sent=0;L.forEach(function(x){tot+=x.spools;done+=x.complete;sent+=x.sent});var a=pipingRows(),endDone=0,endTotal=0,pA=0;function n(x){return Math.max(0,Number(x)||0)}a.forEach(function(r){endDone+=n(r.endDone);endTotal+=n(r.endTotal);pA+=n(r.punchA)});return{lines:L.length,spools:tot,done:done,sent:sent,wDone:c.soldJoints,wTotal:c.joints,endDone:endDone,endTotal:endTotal,pA:pA,inches:c.total?c.sold:null,physical:c.pct,todaySold:c.todaySold}}
+ function execStrip(){var root=document.getElementById('flecapExecutiveState');if(!root||!root.classList.contains('active'))return;var old=document.getElementById('flecapExecPipingStrip');if(old)old.remove();var s=pipingStats(),box=document.createElement('div');box.id='flecapExecPipingStrip';var data=[['Líneas',s.lines,'seguimiento'],['Spools totales',s.spools,'trazabilidad'],['Spools completos',s.done,s.spools?Math.round(s.done*100/s.spools)+'%':'—'],['Pulgadas soldadas',s.inches==null?'—':s.inches+'"',s.wDone+' / '+s.wTotal+' juntas SW'],['END aprobados',s.endDone,s.endTotal+' requeridos'],['Enviados a obra',s.sent,s.spools?Math.round(s.sent*100/s.spools)+'%':'0%'],['Punch A',s.pA,'abiertos'],['Avance físico',s.physical+'%','Plan vs real en Curva S']];box.innerHTML=data.map(function(x){return '<div class="fep-kpi"><span>'+x[0]+'</span><b>'+x[1]+'</b><small>'+x[2]+'</small></div>'}).join('');var top=root.querySelector('.fes-kpis');if(top)top.insertAdjacentElement('afterend',box);else root.prepend(box)}
  function curveVariance(){var box=document.getElementById('fesSCurvePanel');if(!box)return;var current=Number((box.querySelector('.fsc-current')||{}).textContent?.replace('%',''))||0,c={};try{var project=JSON.parse(localStorage.getItem('flecap_project_identity_v1')||'{}').project||'obra';c=JSON.parse(localStorage.getItem('flecap_scurve_plan_v2::'+project)||'null')||{}}catch(e){}if(!c.start||!c.end||!Array.isArray(c.points)||!c.points.length)return;var st=new Date(c.start+'T00:00:00'),en=new Date(c.end+'T00:00:00'),t=new Date(),x=Math.max(0,Math.min(1,(t-st)/(en-st||1))),pos=x*(c.points.length-1),i=Math.floor(pos),f=pos-i,planned=Number(c.points[i]||0)+(Number(c.points[Math.min(i+1,c.points.length-1)]||0)-Number(c.points[i]||0))*f,variance=Math.round((current-planned)*10)/10;var h=box.querySelector('.fsc-head');if(!h)return;var old=h.querySelector('.fsc-variance');if(old)old.remove();var v=document.createElement('span');v.className='fsc-variance '+(variance>0?'ahead':variance<0?'behind':'');v.textContent='Plan '+planned.toFixed(1)+'% · Real '+current.toFixed(1)+'% · Desvío '+(variance>0?'+':'')+variance+' pp · Corte '+new Date().toLocaleDateString('es-AR');h.querySelector('.fsc-controls')?.appendChild(v)}
  function importSnapshots(){document.addEventListener('change',function(e){var x=e.target;if(!x||x.type!=='file'||!x.files||!x.files.length)return;var id=x.id||'';if(/importExcelFile|fpqImportFile|fpqTraceFile|importPunchPecomFile|importBackupFile/i.test(id))snapshot('Antes de importar '+(x.files[0].name||'archivo'),true)},true)}
  function safeUnload(){window.addEventListener('beforeunload',function(){try{if(typeof window.persist==='function')window.persist()}catch(e){}})}
@@ -14028,6 +14036,7 @@ html.pecom-light .fsc-note,html.pecom-light .fsc-dates,html.pecom-light .fsc-leg
  function remoteReady(){document.addEventListener('flecap:remote-ready',function(){try{var m=state&&state._flecapMeta;if(m&&m.updatedAt)localStorage.setItem(META+pid(),JSON.stringify(m));localStorage.removeItem('flecap_sync_pending_v21::'+pid());lastMeaningfulSignature=meaningfulSignature()}catch(e){}refreshSync();updateLastModified();execStrip()},true)}
  function boot(){versionButton();syncEl();refreshSync();wrapPersist();lastMeaningfulSignature=meaningfulSignature();maintenance();importSnapshots();safeUnload();remoteReady();updateLastModified();execStrip();curveVariance();window.addEventListener('online',refreshSync);window.addEventListener('offline',refreshSync);document.addEventListener('click',function(e){if(e.target.closest&&e.target.closest('#flecapCompletionBtn'))setTimeout(function(){updateLastModified();execStrip();curveVariance()},220);if(e.target.closest&&e.target.closest('[data-fsc-save]'))setTimeout(curveVariance,120)},true);/* 2.1.1: sin MutationObserver sobre Estado. El observador anterior se auto-disparaba porque execStrip() quitaba y volvía a insertar un hijo del mismo contenedor, generando un bucle infinito y bloqueando la página. Actualización sólo por eventos + temporizador liviano. */setInterval(function(){wrapPersist();refreshSync();updateLastModified()},5000)}
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(boot,500)},{once:true});else setTimeout(boot,500);
+document.addEventListener('flecap:weld-trace-updated',function(){try{execStrip()}catch(_esE){}});
  window.FLECAP_VERSIONS={snapshot:snapshot,open:function(){modal().classList.add('show');renderVersions()},restore:restore};
 })();
 </script>
@@ -14088,7 +14097,7 @@ async function resyncTraceability(reason){
  try{
   if(!window.PECOM_SUPABASE||!window.cloudReady)return false;
   var loaded=await sharedTraceLoad(true),rec=await getNative();
-  if(rec&&Array.isArray(rec.rows)&&rec.rows.length){rows=repairSavedMappings(rec.rows);q('ftrFileName').textContent=rec.name||'Matriz guardada';q('ftrStatus').textContent=(loaded?'Sincronizado desde Supabase':'Matriz local pendiente de sincronizar')+' · '+rows.length.toLocaleString('es-AR')+' registros';refresh();return loaded}
+  if(rec&&Array.isArray(rec.rows)&&rec.rows.length){rows=repairSavedMappings(rec.rows);try{window.__FLECAP_TRACE_ROWS__=rows;document.dispatchEvent(new CustomEvent('flecap:weld-trace-updated'))}catch(_pubE){}q('ftrFileName').textContent=rec.name||'Matriz guardada';q('ftrStatus').textContent=(loaded?'Sincronizado desde Supabase':'Matriz local pendiente de sincronizar')+' · '+rows.length.toLocaleString('es-AR')+' registros';refresh();return loaded}
   return false;
  }finally{traceSyncInFlight=false}
 }
@@ -14237,7 +14246,7 @@ async function parseWorkbook(buf,name){
   }
  }
  if(!out.length)throw new Error('No encontré una hoja de trazabilidad con LINEA, JUNTA N°, SPOOL, TIPO y FECHA DE SOLDADURA.');
- rows=out;q('ftrFileName').textContent=name;selectedTypes.clear();refresh();
+ rows=out;try{window.__FLECAP_TRACE_ROWS__=rows;document.dispatchEvent(new CustomEvent('flecap:weld-trace-updated'))}catch(_pubE){}q('ftrFileName').textContent=name;selectedTypes.clear();refresh();
  var rec=await saveNative(name,rows);
  var sharedOk=await sharedTraceSave(rec);
  q('ftrStatus').textContent=(sharedOk?'Guardado local y compartido':'Guardado local; sincronización compartida pendiente')+' · '+rows.length.toLocaleString('es-AR')+' registros · '+accepted.join(', ')+' · '+new Date(rec.updatedAt).toLocaleString('es-AR');
@@ -14292,9 +14301,17 @@ function renderCharts(){
  }
  function fmt(v){return (Math.round(Number(v||0)*10)/10).toLocaleString('es-AR',{maximumFractionDigits:1})}
  function iso(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+ /* El plan de referencia es el mismo de la Curva S del panel de pulgadas:
+   núcleo compartido (flecap-weld-plan-sync-v1), sin copias locales. */
+ function readPlanV24(){
+  try{if(window.FLECAP_WELD_PLAN_SYNC&&window.FLECAP_WELD_PLAN_SYNC.isShared()){var rp=window.FLECAP_WELD_PLAN_SYNC.getRemotePlan();if(rp&&rp.start&&rp.end&&rp.points)return rp}}catch(_e){}
+  try{var p=JSON.parse(localStorage.getItem('flecap_scurve_weld_plan_v1::'+pid())||'null');if(p&&p.start&&p.end&&p.points)return p}catch(_e){}
+  return null;
+ }
  function getBool(k,def){var v=localStorage.getItem(k);return v===null?def:v==='1'}
- var fwOn=getBool('flecap_scurve_include_fw_v1',false);
- var ffwOn=getBool('flecap_scurve_include_ffw_v1',false);
+ /* Única preferencia FW/FFW: FLECAP_FWFFW_PREF (excluidas por defecto). */
+ var fwOn=false,ffwOn=false;
+ try{var __p=(window.FLECAP_FWFFW_PREF&&window.FLECAP_FWFFW_PREF.get())||null;if(__p){fwOn=__p.fw;ffwOn=__p.ffw}}catch(_pE){}
  /* FLECAP cierre 2026-09-26: la preferencia FW/FFW es única para toda la app.
     Si el usuario la cambió en Seguimiento de Piping, manda esa; el cambio aquí
     también escribe en la preferencia central. */
@@ -14321,7 +14338,7 @@ function renderCharts(){
  if(card){
   var h=card.querySelector('h3');if(h)h.textContent='CURVA S · AVANCE POR PULGADAS SOLDADAS';
   var note=card.querySelector('.ftr-s-note');
-  if(note)note.textContent='Barras: pulgadas soldadas por día · Líneas: avance acumulado (Plan vs Real) · FW y FFW configurables'
+  if(note)note.textContent='Barras: pulgadas soldadas por día (eje derecho "/d) · Líneas: % acumulado Plan vs Real (eje izquierdo 0-100 %) · FW y FFW excluidas por defecto'
  }
  var key='flecap_construction_end_date_v1';
  /* La fecha de fin de construcción pertenece a la obra, no al navegador.
@@ -14349,11 +14366,13 @@ function renderCharts(){
  var W=1500,H=390,L=72,R=72,T=48,B=66,pw=W-L-R,ph=H-T-B;
  var xDate=function(d){return L+Math.max(0,Math.min(1,(d-start)/(finish-start||1)))*pw};
  var yPct=function(v){return T+ph-(Math.max(0,Math.min(100,v))/100)*ph};
- var maxDaily=Math.max(1,...pts.map(function(p){return p.daily}));
+ var maxDaily=(function(){var __plan=readPlanV24();var __ref=0;if(__plan&&__plan.totalInches>0){var __days=Math.max(1,Math.round((new Date(__plan.end+'T00:00:00')-new Date(__plan.start+'T00:00:00'))/86400000));__ref=__plan.totalInches/__days}return Math.max(1,Math.max.apply(null,pts.map(function(p){return p.daily})),__ref)})();
  var yDaily=function(v){return T+ph-(v/maxDaily)*ph*.78};
+ /* Eje derecho: pulgadas/día (barras). El izquierdo (0-100 %) es sólo para las líneas. */
+ var dailyAxis=(function(){var __t=[],__out='',__s=maxDaily/4;for(var __i=1;__i<=4;__i++){var __v=Math.round(__s*__i*10)/10,__y=yDaily(__v);__out+='<line class="ftr-s-grid" x1="'+L+'" y1="'+__y+'" x2="'+(W-R)+'" y2="'+__y+'" stroke-dasharray="2 4" opacity=".35"/><text class="ftr-s-axis" x="'+(L-10)+'" y="'+(__y+3)+'" text-anchor="end">'+__v+'"/d</text>'}return __out})();
  var grid=[0,20,40,60,80,100].map(function(v){
   var y=yPct(v);return '<line class="ftr-s-grid" x1="'+L+'" y1="'+y+'" x2="'+(W-R)+'" y2="'+y+'"/><text class="ftr-s-axis" x="'+(W-R+10)+'" y="'+(y+3)+'">'+v+'%</text>'
- }).join('');
+ }).join('')+dailyAxis;
  var bars=pts.map(function(p){
   var x=xDate(p.date),bw=Math.max(2,Math.min(8,pw/Math.max(days,1)*.75)),y=yDaily(p.daily);
   return '<rect class="ftr-daily-bar" x="'+(x-bw/2)+'" y="'+y+'" width="'+bw+'" height="'+(T+ph-y)+'"><title>'+p.date.toLocaleDateString('es-AR')+' · Soldado del día: '+fmt(p.daily)+'" · Acumulado: '+fmt(p.inch)+'" · Avance: '+fmt(p.pct)+'%</title></rect>'
@@ -14386,7 +14405,7 @@ function renderCharts(){
    '<text class="ftr-end-label" x="'+Math.max(L+69,endX-76)+'" y="19" text-anchor="middle">Fin de construcción</text>'+
    '<text class="ftr-end-label" x="'+Math.max(L+69,endX-76)+'" y="32" text-anchor="middle">'+finish.toLocaleDateString('es-AR')+'</text>'+labs+
  '</svg>'+
- '<div class="ftr-s-legend2"><span><i class="bar"></i>Pulgadas soldadas por día</span><span><i class="plan"></i>Plan acumulado (%)</span><span><i class="real"></i>Real acumulado (%)</span><span><i class="current"></i>Fecha actual</span><span><i class="end"></i>Fin de construcción</span></div>'+
+ '<div class="ftr-s-legend2"><span><i class="bar"></i>Barras: pulgadas/día (eje derecho)</span><span><i class="real"></i>Línea verde: Real acumulado % (eje izquierdo)</span><span><i class="plan"></i>Línea gris: Plan acumulado % (eje izquierdo)</span><span><i class="current"></i>Fecha actual</span><span><i class="end"></i>Fin de construcción</span></div>'+
  '<div class="ftr-s-footnote">FW y FFW pueden incluirse o excluirse del cálculo. Por defecto quedan excluidas y el avance se calcula solo con SW.</div>';
  var inp=q('ftrConstructionEndDate');
  if(inp){
@@ -14443,8 +14462,8 @@ function renderCharts(){
    inp.onblur=commitEndDate;
    inp.onkeydown=function(ev){if(ev.key==='Enter'){ev.preventDefault();commitEndDate()}};
  }
- var fw=q('ftrIncludeFW');if(fw)fw.onchange=function(){localStorage.setItem('flecap_scurve_include_fw_v1',this.checked?'1':'0');try{if(window.FLECAP_FWFFW_PREF){var __v=window.FLECAP_FWFFW_PREF.get();__v.fw=this.checked;window.FLECAP_FWFFW_PREF.set(__v)}}catch(_fwPref){};renderCharts();try{window.FLECAP_WELD_DASH_REFRESH&&window.FLECAP_WELD_DASH_REFRESH()}catch(_fwR){}};
- var ffw=q('ftrIncludeFFW');if(ffw)ffw.onchange=function(){localStorage.setItem('flecap_scurve_include_ffw_v1',this.checked?'1':'0');try{if(window.FLECAP_FWFFW_PREF){var __w=window.FLECAP_FWFFW_PREF.get();__w.ffw=this.checked;window.FLECAP_FWFFW_PREF.set(__w)}}catch(_ffwPref){};renderCharts();try{window.FLECAP_WELD_DASH_REFRESH&&window.FLECAP_WELD_DASH_REFRESH()}catch(_ffwR){}};
+ var fw=q('ftrIncludeFW');if(fw)fw.onchange=function(){try{if(window.FLECAP_FWFFW_PREF){var __v=window.FLECAP_FWFFW_PREF.get();__v.fw=this.checked;window.FLECAP_FWFFW_PREF.set(__v)}}catch(_fwPref){};renderCharts();try{window.FLECAP_WELD_DASH_REFRESH&&window.FLECAP_WELD_DASH_REFRESH()}catch(_fwR){}};
+ var ffw=q('ftrIncludeFFW');if(ffw)ffw.onchange=function(){try{if(window.FLECAP_FWFFW_PREF){var __w=window.FLECAP_FWFFW_PREF.get();__w.ffw=this.checked;window.FLECAP_FWFFW_PREF.set(__w)}}catch(_ffwPref){};renderCharts();try{window.FLECAP_WELD_DASH_REFRESH&&window.FLECAP_WELD_DASH_REFRESH()}catch(_ffwR){}};
  var typeBox=q('ftrTypesChart'),typeCard=typeBox&&typeBox.closest('.ftr-card');
  if(typeCard)typeCard.style.setProperty('display','none','important');
  if(card){card.style.setProperty('grid-column','1 / -1','important');card.style.setProperty('width','100%','important')}
@@ -14462,7 +14481,7 @@ async function restore(forceCloud){
  try{
   if(forceCloud){for(var w=0;w<20&&!window.PECOM_SUPABASE;w++)await new Promise(function(z){setTimeout(z,150)})}
   await sharedTraceLoad(true);var rec=await getNative();
-  if(rec&&Array.isArray(rec.rows)&&rec.rows.length){rows=repairSavedMappings(rec.rows);q('ftrFileName').textContent=rec.name||'Matriz guardada';q('ftrStatus').textContent='Restaurado automáticamente · '+rows.length.toLocaleString('es-AR')+' registros · '+new Date(rec.updatedAt).toLocaleString('es-AR');refresh()}
+  if(rec&&Array.isArray(rec.rows)&&rec.rows.length){rows=repairSavedMappings(rec.rows);try{window.__FLECAP_TRACE_ROWS__=rows;document.dispatchEvent(new CustomEvent('flecap:weld-trace-updated'))}catch(_pubE){}q('ftrFileName').textContent=rec.name||'Matriz guardada';q('ftrStatus').textContent='Restaurado automáticamente · '+rows.length.toLocaleString('es-AR')+' registros · '+new Date(rec.updatedAt).toLocaleString('es-AR');refresh()}
   else q('ftrStatus').textContent='No hay una matriz guardada para esta obra.'
  }catch(e){q('ftrStatus').textContent='No se pudo recuperar la matriz: '+(e.message||e)}
 }
@@ -14517,7 +14536,11 @@ html.pecom-light #ftdTypeChart .ftd-progress-center small{color:#617d8d}
 </style>
 
 <script id="flecap-scurve-daily-and-progress-v1-js">
-(function(){
+/* DESACTIVADO (unificación Piping): duplicaba la Curva S y los KPIs leyendo
+   localStorage weld|sold|matriz en vez de la matriz oficial. La Curva S vive
+   en flecap-trace-native-v24-js (renderCharts) y el panel de pulgadas en
+   flecap-closeout-core-v1 + su UI, todos alimentados por la misma matriz. */
+if(!window.__FLECAP_SCURVE_V1_DISABLED__){(function(){
   function norm(v){return String(v==null?'':v).trim().toUpperCase();}
   function num(v){
     if(typeof v==='number') return isFinite(v)?v:0;
@@ -14702,7 +14725,7 @@ html.pecom-light #ftdTypeChart .ftd-progress-center small{color:#617d8d}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(refresh,1400)},{once:true});
   else setTimeout(refresh,1400);
   window.FLECAP_REFRESH_WELD_DASHBOARD=refresh;
-})();
+})();}
 </script>
 
 <script id="flecap-sync-header-real-status-fix">
@@ -15165,14 +15188,34 @@ function parseWeldDate(v){
   return isNaN(d)?null:new Date(d.getFullYear(),d.getMonth(),d.getDate());
 }
 function traceRows(){
+  /* FUENTE ÚNICA: filas publicadas por Seguimiento de Matriz
+     (flecap-trace-native-v24-js). Respaldo: lectura de la matriz en IndexedDB
+     FLECAP_TRACE_NATIVE_V24 (claves flecap_weld_trace* nunca tuvieron datos:
+     eran la causa de las tarjetas de pulgadas en 0" con un resumen en 90,9 %).
+     La lectura IDB es asíncrona: hidrata __FLECAP_TRACE_ROWS__ y repite el
+     cálculo vía el evento flecap:weld-trace-updated. */
   if(window.__FLECAP_TRACE_ROWS__&&Array.isArray(window.__FLECAP_TRACE_ROWS__)&&window.__FLECAP_TRACE_ROWS__.length)return window.__FLECAP_TRACE_ROWS__;
   try{
-    for(var i=0;i<localStorage.length;i++){
-      var k=localStorage.key(i);
-      if(!/^flecap_weld_trace/.test(String(k||'')))continue;
-      var rec=JSON.parse(localStorage.getItem(k)||'null');
-      if(rec&&Array.isArray(rec.rows)&&rec.rows.length&&rec.projectId===pid())return rec.rows;
-      if(rec&&Array.isArray(rec.rows)&&rec.rows.length)return rec.rows;
+    if(typeof indexedDB!=='undefined'&&indexedDB&&!window.__FLECAP_TRACE_HYDRATING__){
+      window.__FLECAP_TRACE_HYDRATING__=true;
+      var __pid=pid();
+      var __rq=indexedDB.open('FLECAP_TRACE_NATIVE_V24',1);
+      __rq.onupgradeneeded=function(){if(!__rq.result.objectStoreNames.contains('matrix'))__rq.result.createObjectStore('matrix',{keyPath:'projectId'})};
+      __rq.onsuccess=function(){
+        try{
+          var __db=__rq.result,tx=__db.transaction('matrix','readonly'),g=tx.objectStore('matrix').get(__pid);
+          g.onsuccess=function(){
+            window.__FLECAP_TRACE_HYDRATING__=false;
+            try{
+              var __rows=(g.result&&Array.isArray(g.result.rows)&&g.result.rows.length)?g.result.rows:[];
+              if(__rows.length&&!window.__FLECAP_TRACE_ROWS__){window.__FLECAP_TRACE_ROWS__=__rows;document.dispatchEvent(new CustomEvent('flecap:weld-trace-updated'))}
+            }catch(_pE){}
+            try{__db.close()}catch(_cE){}
+          };
+          g.onerror=function(){window.__FLECAP_TRACE_HYDRATING__=false;try{__db.close()}catch(_cE){}};
+        }catch(_tE){window.__FLECAP_TRACE_HYDRATING__=false}
+      };
+      __rq.onerror=function(){window.__FLECAP_TRACE_HYDRATING__=false};
     }
   }catch(e){}
   return [];
@@ -15238,6 +15281,41 @@ function normLine(v){
   try{x=x.normalize('NFD').replace(/[\u0300-\u036f]/g,'')}catch(e){}
   return x.replace(/½/g,'1/2').replace(/¼/g,'1/4').replace(/¾/g,'3/4').replace(/\s+/g,'').replace(/_/g,'').replace(/"/g,'');
 }
+/* ── 3bis) LÍNEAS DESDE LA MISMA MATRIZ (única fuente) ────────────── */
+window.FLECAP_LINES=function(){
+  var rows=traceRows(), lines={};
+  rows.forEach(function(r){
+    var ln=String(r.__line||r.line||'').trim();if(!ln)return;
+    var L=lines[ln]||(lines[ln]={name:ln,spools:{},swTotal:0,swDone:0,inchTotal:0,inchDone:0});
+    var dia=diaNum(r.__dia||r.dia||r.diameter);
+    var wd=parseWeldDate(r.__date||r.date||r.weldDate);
+    L.swTotal++;if(wd){L.swDone++;L.inchDone+=dia}
+    L.inchTotal+=dia;
+    var sid=normSpoolId(r.__spool||r.spool);
+    if(sid&&sid!=='-'){
+      var sp=L.spools[sid]||(L.spools[sid]={welds:0,weldsDone:0,painted:false,sent:false});
+      sp.welds++;if(wd)sp.weldsDone++;
+      var st=String(r.__status||r.status||'').toUpperCase();
+      var pd=String(r.__paintDate||r.__paintSystem||'').trim();
+      if(pd||st.indexOf('PINT')>=0)sp.painted=true;
+      var dp=String(r.__dispatched||'').trim();
+      if(dp||st.indexOf('DESPACH')>=0||st.indexOf('ENVIAD')>=0)sp.sent=true;
+    }
+  });
+  var out=[];
+  Object.keys(lines).forEach(function(k){
+    var L=lines[k],ids=Object.keys(L.spools);
+    var done=ids.filter(function(id){var s=L.spools[id];return s.welds>0&&s.weldsDone>=s.welds}).length;
+    var partial=ids.filter(function(id){var s=L.spools[id];return s.welds>0&&s.weldsDone>0&&s.weldsDone<s.welds}).length;
+    var painted=ids.filter(function(id){return L.spools[id].painted}).length;
+    var sent=ids.filter(function(id){return L.spools[id].sent}).length;
+    out.push({line:L.name,spools:ids.length,complete:done,partial:partial,painted:painted,sent:sent,
+      swTotal:L.swTotal,swDone:L.swDone,
+      inchTotal:Math.round(L.inchTotal*10)/10,inchDone:Math.round(L.inchDone*10)/10,
+      pct:L.inchTotal?Math.round(L.inchDone*1000/L.inchTotal)/10:0});
+  });
+  return out;
+};
 window.FLECAP_SPOOL_STATS=function(){
   var rows=traceRows(), all={}, done={}, sent={};
   var dm={};
@@ -15269,14 +15347,34 @@ window.FLECAP_SPOOL_STATS=function(){
 function q(id){return document.getElementById(id)}
 function pid(){try{return localStorage.getItem('flecap_active_project_v1')||'legacy'}catch(e){return'legacy'}}
 function traceRows(){
+  /* FUENTE ÚNICA: filas publicadas por Seguimiento de Matriz
+     (flecap-trace-native-v24-js). Respaldo: lectura de la matriz en IndexedDB
+     FLECAP_TRACE_NATIVE_V24 (claves flecap_weld_trace* nunca tuvieron datos:
+     eran la causa de las tarjetas de pulgadas en 0" con un resumen en 90,9 %).
+     La lectura IDB es asíncrona: hidrata __FLECAP_TRACE_ROWS__ y repite el
+     cálculo vía el evento flecap:weld-trace-updated. */
   if(window.__FLECAP_TRACE_ROWS__&&Array.isArray(window.__FLECAP_TRACE_ROWS__)&&window.__FLECAP_TRACE_ROWS__.length)return window.__FLECAP_TRACE_ROWS__;
   try{
-    for(var i=0;i<localStorage.length;i++){
-      var k=localStorage.key(i);
-      if(!/^flecap_weld_trace/.test(String(k||'')))continue;
-      var rec=JSON.parse(localStorage.getItem(k)||'null');
-      if(rec&&Array.isArray(rec.rows)&&rec.rows.length&&rec.projectId===pid())return rec.rows;
-      if(rec&&Array.isArray(rec.rows)&&rec.rows.length)return rec.rows;
+    if(typeof indexedDB!=='undefined'&&indexedDB&&!window.__FLECAP_TRACE_HYDRATING__){
+      window.__FLECAP_TRACE_HYDRATING__=true;
+      var __pid=pid();
+      var __rq=indexedDB.open('FLECAP_TRACE_NATIVE_V24',1);
+      __rq.onupgradeneeded=function(){if(!__rq.result.objectStoreNames.contains('matrix'))__rq.result.createObjectStore('matrix',{keyPath:'projectId'})};
+      __rq.onsuccess=function(){
+        try{
+          var __db=__rq.result,tx=__db.transaction('matrix','readonly'),g=tx.objectStore('matrix').get(__pid);
+          g.onsuccess=function(){
+            window.__FLECAP_TRACE_HYDRATING__=false;
+            try{
+              var __rows=(g.result&&Array.isArray(g.result.rows)&&g.result.rows.length)?g.result.rows:[];
+              if(__rows.length&&!window.__FLECAP_TRACE_ROWS__){window.__FLECAP_TRACE_ROWS__=__rows;document.dispatchEvent(new CustomEvent('flecap:weld-trace-updated'))}
+            }catch(_pE){}
+            try{__db.close()}catch(_cE){}
+          };
+          g.onerror=function(){window.__FLECAP_TRACE_HYDRATING__=false;try{__db.close()}catch(_cE){}};
+        }catch(_tE){window.__FLECAP_TRACE_HYDRATING__=false}
+      };
+      __rq.onerror=function(){window.__FLECAP_TRACE_HYDRATING__=false};
     }
   }catch(e){}
   return [];
@@ -15561,6 +15659,7 @@ function scheduleRender(){
 document.addEventListener('click',scheduleRender,true);
 document.addEventListener('change',scheduleRender,true);
 document.addEventListener('flecap:remote-ready',scheduleRender,true);
+document.addEventListener('flecap:weld-trace-updated',scheduleRender,true);
 window.FLECAP_WELD_DASH_REFRESH=scheduleRender;
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(scheduleRender,600)},{once:true});
 else setTimeout(scheduleRender,400);
