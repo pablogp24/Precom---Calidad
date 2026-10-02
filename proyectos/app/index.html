@@ -366,10 +366,19 @@ html.pecom-light #flecapModuleSwitch:hover{background:#e7f1f7!important;color:#0
    ['flecapNewProjectCfg','flecapDeleteProjectCfg'].forEach(id=>{
      const el=q(id);if(el){el.style.display=allowed?'inline-flex':'none';el.disabled=!allowed}
    });
-   document.querySelectorAll('.flecapProjectSelect').forEach(sel=>{
-     const list=projectList(),pid=active();sel.innerHTML='';
-     list.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=(p.company?p.company+' · ':'')+p.project;o.selected=p.id===pid;sel.appendChild(o)});
-   });
+   /* FLECAP perf 2026-10-01: antes esta función se ejecutaba cada 5 s y
+      vaciaba y rearmaba todos los <select class="flecapProjectSelect">
+      aunque no hubiera cambiado ni el catálogo ni la obra activa. Ahora se
+      compara una firma y el DOM sólo se toca cuando algo cambió de verdad. */
+   const __pl=projectList(),__pid=active();
+   const __sig=__pid+'|'+__pl.map(function(p){return String(p.id)+':'+String(p.company||'')+':'+String(p.project||'')}).join('|');
+   if(__sig!==refreshProjectUi.__sig){
+     refreshProjectUi.__sig=__sig;
+     document.querySelectorAll('.flecapProjectSelect').forEach(sel=>{
+       sel.innerHTML='';
+       __pl.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=(p.company?p.company+' · ':'')+p.project;o.selected=p.id===__pid;sel.appendChild(o)});
+     });
+   }
  }
  async function reloadCatalog(){
    if(!sb()||!window.PECOM_CURRENT_EMAIL)return;
@@ -1457,9 +1466,20 @@ document.addEventListener('flecap:remote-ready',release,true);
 window.addEventListener('offline',release,{once:true});
 /* Salvaguarda: una falla de autenticación/red no puede dejar la interfaz oculta
    indefinidamente. El login sigue visible durante esta espera. */
-setTimeout(function(){
-  if(!released && window.cloudReady===false)release();
-},8000);
+/* FLECAP perf 2026-10-01: la salvaguarda se rearma mientras el arranque
+   sigue en curso. Antes miraba cloudReady una sola vez a los 8 s: si el
+   arranque todavía no había terminado (obra grande o red lenta) el reloj
+   se consumía y la splash de carga quedaba para siempre. Ahora comprueba
+   cada 2 s y, como último recurso, libera a los 30 s. */
+var __gateWait=0;
+function __gateWatchdog(){
+  if(released)return;
+  if(window.cloudReady===false){release();return}
+  __gateWait+=2000;
+  if(__gateWait>=30000){release();return}
+  setTimeout(__gateWatchdog,2000);
+}
+setTimeout(__gateWatchdog,8000);
 var splashMessages=['Cargando última versión de la obra…','Sincronizando matriz y registros…','Preparando seguimiento y trazabilidad…','Actualizando indicadores de avance…'];
 var splashIndex=0,splashTimer=setInterval(function(){if(released){clearInterval(splashTimer);return}var el=document.getElementById('flecapStartupStatus');if(el){splashIndex=(splashIndex+1)%splashMessages.length;el.textContent=splashMessages[splashIndex]}},1400);
 window.FLECAP_RELEASE_STARTUP_GATE=release;
@@ -6878,13 +6898,25 @@ function refreshOnlineAdminUi(){
    if(cur&&cur.user&&cur.user.email)return cur;
    const pa=pecomReadJSON(localStorage,H_AUTH)||pecomReadJSON(sessionStorage,H_AUTH);
    if(!(pa&&pa.access_token&&pa.refresh_token))return null;
-   try{
-     const r=await client.auth.setSession({access_token:pa.access_token,refresh_token:pa.refresh_token});
-     if(!r||r.error)return null;                   /* tokens inválidos: NO hay sesión */
-     const s=r.data&&r.data.session?r.data.session:null;
-     if(s)pecomStoreSession(s);
-     return s;
-   }catch(e){return null}
+   /* FLECAP perf 2026-10-01: antes, un corte de red de un instante en
+      setSession devolvía null y la app mostraba el login aunque la sesión
+      fuera válida. Se reintenta una única vez, y sólo cuando el fallo
+      parece de red. Si Supabase dice que el token no sirve, el resultado
+      es null igual: la autenticación no se relaja. */
+   const creds={access_token:pa.access_token,refresh_token:pa.refresh_token};
+   for(var __try=0;__try<2;__try++){
+     try{
+       const r=await client.auth.setSession(creds);
+       if(r&&!r.error){const s=r.data&&r.data.session?r.data.session:null;if(s)pecomStoreSession(s);return s}
+       const em=String((r&&r.error&&(r.error.status+' '+(r.error.message||r.error.code||r.error.error_description||r.error.name)))||'').toLowerCase();
+       const invalid=/invalid|expired|revoked|missing|not_found|400|401/.test(em);
+       if(__try>0||invalid)return null;            /* tokens inválidos: NO hay sesión */
+     }catch(e){
+       if(__try>0)return null;
+     }
+     try{await new Promise(function(z){setTimeout(z,1200)})}catch(_w){}
+   }
+   return null;
  }
  window.FLECAP_AUTH_HANDOFF={storeSession:pecomStoreSession,storeHandoff:pecomStoreHandoff,restoreSession:pecomRestoreSession};
 
@@ -7052,7 +7084,10 @@ function refreshOnlineAdminUi(){
    status("☁ Guardando...");
    // Capturar ahora la obra evita que un cambio pendiente termine en otra obra.
    const projectId=activeProjectId();
-   saveTimer=setTimeout(()=>saveRemote(payload,projectId),450);
+   saveTimer=setTimeout(()=>{Promise.resolve(saveRemote(payload,projectId)).catch(function(guardErr){
+    console.warn('FLECAP: guardado pendiente',guardErr);
+    status('☁ Guardado pendiente · se reintentará');
+  })},450);
  };
 
  async function loadAudit(){
@@ -7062,7 +7097,12 @@ function refreshOnlineAdminUi(){
    if(!sb||!window.cloudReady){statusBox.textContent="Sin conexión central.";return}
    statusBox.textContent="Cargando historial…";
    const limit=Math.max(1,Math.min(250,Number(document.getElementById("auditLimit")?.value||50)));
-   const query=await sb.from("audit_log").select("created_at,user_email,user_role,action,module,details,project_id").eq("project_id",(localStorage.getItem("flecap_active_project_v1")||"legacy")).order("created_at",{ascending:false}).limit(limit);
+   /* FLECAP perf 2026-10-01: la lectura remota tiene tope de espera y puede
+   abortar. Antes eso dejaba el panel clavado en "Cargando historial…".
+   Ahora la consulta va acotada y cualquier fallo termina en un estado
+   final, nunca en una carga eterna. La escritura de auditoría no cambia. */
+   let query=null;
+   try{query=await sb.from("audit_log").select("created_at,user_email,user_role,action,module,details,project_id").eq("project_id",(localStorage.getItem("flecap_active_project_v1")||"legacy")).order("created_at",{ascending:false}).limit(limit)}catch(queryErr){console.warn('FLECAP: historial',queryErr);statusBox.textContent="No se pudo cargar el historial.";rows.innerHTML='<tr><td colspan="5">Sin conexión con el servidor central.</td></tr>';return}
    if(query.error){
      statusBox.textContent="No se pudo cargar el historial: "+query.error.message;
      rows.innerHTML='<tr><td colspan="5">Revisá que la migración SQL de FLECAP esté aplicada en Supabase.</td></tr>';
@@ -11025,17 +11065,30 @@ html.pecom-light .fpc-title h2{color:#102a43}html.pecom-light .fpc-title p{color
  }
  function paintExcelModule(){
   var m=document.body.getAttribute('data-flecap-module')||'quality',name=label(m),excelBtn=document.getElementById('exportExcel'),indicator=document.getElementById('flecapExcelModuleIndicator');
-  var reportNotice=document.getElementById('flecapReportModuleNotice');if(reportNotice)reportNotice.textContent='INFORME ACTUAL: '+name.toUpperCase()+' · DATOS INDEPENDIENTES';
-  if(excelBtn&&!excelBtn.disabled)excelBtn.textContent='📥 Exportar XLSM · '+name;
+  /* FLECAP perf 2026-10-01: esto corre cada 2,5 s. Antes los cinco textos
+     se escribían siempre; ahora sólo cuando el valor cambia de verdad. */
+  var __paint=function(el,txt){if(el&&el.textContent!==txt)el.textContent=txt};
+  __paint(document.getElementById('flecapReportModuleNotice'),'INFORME ACTUAL: '+name.toUpperCase()+' · DATOS INDEPENDIENTES');
+  if(excelBtn&&!excelBtn.disabled)__paint(excelBtn,'📥 Exportar XLSM · '+name);
   var punchExp=document.getElementById('exportPunchPecom'),punchImp=document.getElementById('importPunchPecomBtn');
-  if(punchExp)punchExp.textContent='📥 Exportar Punch · '+name;
-  if(punchImp)punchImp.textContent='📤 Importar Punch · '+name;
+  __paint(punchExp,'📥 Exportar Punch · '+name);
+  __paint(punchImp,'📤 Importar Punch · '+name);
   if(indicator){indicator.textContent='EXPORTACIÓN ACTUAL: '+name.toUpperCase();indicator.style.borderColor=m==='precom'?'#1787ce':'#18a765';indicator.style.background=m==='precom'?'#e9f6ff':'#eaf9f1';indicator.style.color=m==='precom'?'#073b61':'#08653d'}
   var masterIndicator=document.getElementById('flecapMasterModuleIndicator');if(masterIndicator){masterIndicator.textContent='MAESTRO ACTUAL: '+name.toUpperCase()+' · INDEPENDIENTE';masterIndicator.style.borderColor=m==='precom'?'#1787ce':'#18a765';masterIndicator.style.background=m==='precom'?'#e9f6ff':'#eaf9f1';masterIndicator.style.color=m==='precom'?'#073b61':'#08653d'}
  }
  function refreshModuleUi(){
   function run(){try{if(typeof renderAll==='function')renderAll()}catch(e){}try{if(typeof window.flecapDrawExactDashboard==='function')window.flecapDrawExactDashboard()}catch(e){}paintSwitch();try{document.querySelectorAll('#flecapModernSidebar .fm-side-btn.active').forEach(function(x){x.classList.remove('active')});var completion=document.getElementById('flecapPrecomHome'),statusBtn=document.getElementById('flecapCompletionBtn'),home=document.querySelector('.fm-side-btn[data-go="control"]');if(completion&&completion.classList.contains('active')&&statusBtn)statusBtn.classList.add('active');else if(home)home.classList.add('active')}catch(e){}}
-  run();setTimeout(run,120);setTimeout(run,350);
+  /* FLECAP perf 2026-10-01: antes cada cambio de módulo lanzaba tres
+     renderAll() completos. Las dos pasadas diferidas sólo se ejecutan si
+     el módulo o el sello del estado cambiaron desde la última pintada, o
+     si la pasada anterior no llegó a pintar. Con la pestaña oculta no se
+     repinta nada: se repinta al volver. */
+  function __sig(){return (document.body.getAttribute('data-flecap-module')||'quality')+'|'+(state&&state._flecap_saved_at||'')}
+  var __painted=false,__last='';
+  function once(){if(document.hidden)return false;run();__painted=true;__last=__sig();return true}
+  var __first=once();
+  setTimeout(function(){if(!__first||__sig()!==__last)once()},120);
+  setTimeout(function(){if(__painted&&__sig()===__last)return;once()},350);
  }
  async function refreshCurrentModulePermissions(){
   try{
@@ -14859,8 +14912,16 @@ body[data-pecom-role="viewer"] #flecapModernSidebar .fm-side-btn{
       el.classList.contains('fm-report-quality') ||
       el.classList.contains('fm-report-precom');
   }
+  /* FLECAP perf 2026-10-01: el recorrido completo y la escritura de tres
+     estilos por botón se repetían cada 6 s sin que nada cambiara. Se
+     calcula una firma de los botones de navegación y, si es idéntica a la
+     anterior, no se vuelve a escribir nada. */
   function unlockViewerNavigation(){
     if(!isViewer()) return;
+    var nav=document.querySelectorAll('#flecapModernSidebar .fm-side-btn');
+    var sig='';for(var i=0;i<nav.length;i++)sig+=(nav[i].disabled?'1':'0')+(nav[i].getAttribute('data-go')||nav[i].getAttribute('data-action')||nav[i].id||'');
+    if(sig===unlockViewerNavigation.__sig)return;
+    unlockViewerNavigation.__sig=sig;
     document.querySelectorAll('#flecapModernSidebar .fm-side-btn').forEach(function(b){
       if(isViewerNavButton(b)){
         b.disabled=false;
@@ -14959,7 +15020,9 @@ body.flecap-viewer #flecapTraceFile,body.flecap-viewer label[for="flecapTraceFil
   var viewer=String(window.PECOM_ROLE||'viewer').toLowerCase()==='viewer';
   document.body.classList.toggle('flecap-viewer',viewer);
   if(!viewer)return;
-  ['flecapTraceFile','importExcelBtn','newMaster','quickNewRecordBtn','newPunch'].forEach(function(id){var el=document.getElementById(id);if(el){el.disabled=true;el.hidden=true;}});
+  /* FLECAP perf 2026-10-01: esto corre cada 6 s. Antes escribía siempre
+     cinco nodos; ahora sólo si alguno no estaba ya bloqueado. */
+  ['flecapTraceFile','importExcelBtn','newMaster','quickNewRecordBtn','newPunch'].forEach(function(id){var el=document.getElementById(id);if(el&&(!el.disabled||!el.hidden)){el.disabled=true;el.hidden=true;}});
  }
  document.addEventListener('flecap:remote-ready',function(){setTimeout(apply,0)},true);
  document.addEventListener('DOMContentLoaded',function(){setTimeout(apply,150)},{once:true});
