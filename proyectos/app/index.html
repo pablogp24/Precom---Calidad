@@ -14284,8 +14284,10 @@ async function parseWorkbook(buf,name){
   accepted.push(sn);
   for(var r=hr+1;r<=rg.e.r;r++){
    var line=traceCellDisplay(ws,r,cm.line),joint=traceCellDisplay(ws,r,cm.joint),spool=traceCellDisplay(ws,r,cm.spool),type=traceCellDisplay(ws,r,cm.type);
-   /* Una fila de trazabilidad válida debe identificar al menos línea y junta/tipo. */
-   if(!line||(!joint&&!type))continue;
+   /* FLECAP también admite matrices base provenientes de P&ID:
+      la línea puede existir antes de definir junta, spool y tipo.
+      Esos campos se completarán luego sin impedir la importación inicial. */
+   if(!line)continue;
    var sys=traceCellDisplay(ws,r,cm.system),sub=traceCellDisplay(ws,r,cm.subsystem);
    var sm=traceSemanticMap(),o={__sheet:sn,__row:r+1,__map:sm,__system:sys,__subsystem:sub,__class:type,__raw:{}};
    Object.keys(cm).forEach(function(k){var v=traceCellDisplay(ws,r,cm[k]);if(sm[k])o[sm[k]]=v});
