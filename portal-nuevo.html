@@ -116,11 +116,152 @@ main{max-width:1320px;margin:auto;padding:42px 34px 70px}.eyebrow{color:#56bdc2;
 .keep{display:flex;align-items:center;gap:9px;margin-top:14px;font-size:13px;color:#c3dced;cursor:pointer}
 .keep input{width:19px;height:19px;margin:0;accent-color:#17a8dd}
 </style>
+<style id="flecap-portal-landing-v2">
+/* FLECAP · portada institucional. Sólo presentación.
+   Reparte 70% presentación / 30% acceso y reutiliza el fondo industrial
+   oficial (assets/brand/flecap-fondo.svg) y la paleta azul/celeste. */
+.landing{display:none}
+.login.split{flex-direction:column;align-items:stretch;justify-content:flex-start;padding:0}
+.login.split .landing{display:block;flex:0 0 auto}
+
+/* ---------- Columna de presentación (70%) ---------- */
+.landing-in{position:relative;flex:1 1 70%;min-width:0;overflow-y:auto;padding:clamp(20px,2.3vw,40px) clamp(20px,2.9vw,52px) clamp(22px,2.4vw,40px);display:flex;flex-direction:column;gap:clamp(14px,1.5vw,24px);background-image:linear-gradient(90deg,rgba(3,16,28,.90) 0,rgba(3,16,28,.74) 46%,rgba(3,16,28,.80) 100%),linear-gradient(180deg,rgba(2,12,22,.55) 0,rgba(2,12,22,0) 26%,rgba(2,12,22,.70) 100%),url("assets/brand/flecap-fondo.svg");background-size:cover;background-position:center right;background-repeat:no-repeat}
+.landing-in>*{width:100%;max-width:1180px}
+
+.lp-brand{display:flex;flex-direction:column;align-items:flex-start;gap:8px}
+.lp-logo{display:block;width:clamp(170px,17vw,250px);height:auto;aspect-ratio:250/76;background:url("assets/brand/flecap-logo.svg") left center/contain no-repeat}
+.lp-tagline{display:flex;align-items:center;gap:8px;color:#9fd8ea;font-size:10px;font-weight:900;letter-spacing:2.1px;text-transform:uppercase}
+.lp-tagline:before{content:"";width:16px;height:2px;background:#2ec6e0}
+
+.lp-hero{display:grid;grid-template-columns:1fr;gap:clamp(14px,1.6vw,26px);align-items:center}
+.lp-title{margin:0;font-size:clamp(28px,3.15vw,50px);line-height:1.07;letter-spacing:-1.6px;font-weight:900;color:#fff}
+.lp-title span{color:#2fc3ea;text-shadow:0 0 34px rgba(47,195,234,.32)}
+.lp-lead{margin:12px 0 0;max-width:46ch;color:#c3dbe9;font-size:clamp(13px,1.02vw,16px);line-height:1.62}
+
+/* ---------- Mockup de la aplicación (HTML/CSS real, sin imágenes) ---------- */
+.mock{position:relative;border-radius:14px;overflow:hidden;border:1px solid rgba(120,190,225,.30);background:linear-gradient(160deg,#0c2233,#071722);box-shadow:0 26px 60px rgba(0,0,0,.52),0 0 0 1px rgba(8,30,46,.9)}
+.mock-bar{display:flex;align-items:center;gap:7px;padding:8px 12px;background:#0b1c2a;border-bottom:1px solid rgba(120,190,225,.16)}
+.mock-bar i{width:8px;height:8px;border-radius:50%;background:#2c4d61;display:block}
+.mock-bar i:first-child{background:#2ec6e0}
+.mock-badge{margin-left:6px;padding:2px 7px;border:1px solid rgba(46,198,224,.42);border-radius:4px;background:rgba(46,198,224,.14);color:#7fe0f5;font-style:normal;font-size:7.5px;font-weight:900;letter-spacing:1.1px;text-transform:uppercase}
+.mock-cap{margin:7px 0 0;color:#8fb4c8;font-size:9.5px;line-height:1.4;text-align:center}
+.mock-bar b{margin-left:6px;font-size:9.5px;font-weight:900;letter-spacing:1.4px;color:#7fb6cd;text-transform:uppercase}
+.mock-body{display:grid;grid-template-columns:120px 1fr;min-height:clamp(150px,15vw,214px)}
+@media(max-width:1499px) and (min-width:1024px){.mock-body{min-height:clamp(120px,10.5vw,168px)}.lp-hero{gap:12px}.landing-in{gap:clamp(11px,1.1vw,16px)}}
+.mock-side{border-right:1px solid rgba(120,190,225,.14);padding:9px 7px;background:#091a26;display:flex;flex-direction:column;gap:3px}
+.mock-side span{display:flex;align-items:center;gap:6px;padding:5px 7px;border-radius:6px;font-size:9.5px;font-weight:800;color:#8fb4c8}
+.mock-side span.on{background:linear-gradient(90deg,#0e8ec4,#12a3d8);color:#fff}
+.mock-side u{flex:1}
+.mock-main{padding:10px 12px;display:flex;flex-direction:column;gap:9px;min-width:0}
+.mock-head{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.mock-head h4{margin:0;font-size:clamp(11px,1.05vw,15px);color:#fff;font-weight:900;letter-spacing:-.2px}
+.mock-pill{margin-left:auto;display:flex;align-items:center;gap:5px;padding:3px 8px;border:1px solid rgba(120,190,225,.26);border-radius:999px;font-size:8.5px;font-weight:900;color:#a7cde0;background:rgba(9,32,48,.7)}
+.mock-pill em{width:14px;height:14px;border-radius:50%;background:linear-gradient(140deg,#2ec6e0,#1f7fd0);display:grid;place-items:center;font-style:normal;font-size:7px;color:#03202a;font-weight:900}
+.mock-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}
+.mock-kpi{border:1px solid rgba(120,190,225,.18);border-radius:9px;padding:7px 9px;background:linear-gradient(160deg,rgba(14,44,66,.85),rgba(8,26,39,.85))}
+.mock-kpi b{display:block;font-size:clamp(10px,1vw,14px);color:#fff;font-weight:900;line-height:1.1}
+.mock-kpi span{display:flex;align-items:center;gap:4px;margin-top:2px;font-size:8px;font-weight:800;color:#8fb4c8}
+.mock-kpi i{width:11px;height:11px;border-radius:3px;display:grid;place-items:center;font-style:normal;font-size:6.5px;font-weight:900;color:#03202a}
+.mock-table{width:100%;border-collapse:collapse;font-size:8.5px;color:#a9c8da}
+.mock-table th{text-align:left;padding:4px 6px;border-bottom:1px solid rgba(120,190,225,.18);font-weight:900;color:#7fb6cd;font-size:7.5px;letter-spacing:.7px;text-transform:uppercase}
+.mock-table td{padding:4px 6px;border-bottom:1px solid rgba(120,190,225,.08);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mock-table tr:nth-child(even) td{background:rgba(19,60,86,.22)}
+.dot-ok{width:6px;height:6px;border-radius:50%;background:#21a66b;display:inline-block;box-shadow:0 0 0 2px rgba(33,166,107,.18)}
+.dot-run{width:6px;height:6px;border-radius:50%;background:#f0a52e;display:inline-block;box-shadow:0 0 0 2px rgba(240,165,46,.18)}
+.dot-pend{width:6px;height:6px;border-radius:50%;background:#4d6d80;display:inline-block}
+
+/* ---------- Tarjetas de capacidades ---------- */
+.lp-cards{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:11px}
+.lpc{display:flex;gap:11px;padding:13px 14px;border:1px solid rgba(120,190,225,.20);border-radius:12px;background:linear-gradient(155deg,rgba(11,36,53,.86),rgba(6,22,34,.88));transition:border-color .16s ease,transform .16s ease}
+.lpc:hover{border-color:rgba(46,198,224,.55);transform:translateY(-2px)}
+.lpc-ico{flex:0 0 auto;width:34px;height:34px;border-radius:9px;display:grid;place-items:center;background:linear-gradient(150deg,rgba(46,198,224,.20),rgba(31,127,208,.18));border:1px solid rgba(46,198,224,.28)}
+.lpc-ico svg{width:19px;height:19px;fill:none;stroke:#3fc9ec;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.lpc b{display:block;color:#eaf5fb;font-size:clamp(11.5px,.95vw,13.5px);font-weight:900;line-height:1.2;letter-spacing:.1px}
+.lpc span{display:none;margin-top:4px;color:#9fc0d2;font-size:11px;line-height:1.45}
+.lp-cards:not(.is-compact) .lpc span{display:block}
+
+/* ---------- Sector inferior de CTAs ---------- */
+.lp-cta{display:flex;align-items:center;gap:clamp(14px,1.6vw,24px);padding:clamp(14px,1.7vw,22px);border:1px solid rgba(120,190,225,.24);border-radius:14px;background:linear-gradient(120deg,rgba(8,30,46,.90),rgba(6,21,33,.92))}
+.lp-cta-ico{flex:0 0 auto;width:clamp(38px,3.4vw,50px);height:clamp(38px,3.4vw,50px);color:#3fc9ec}
+.lp-cta-ico svg{width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.lp-cta h2{margin:0 0 5px;font-size:clamp(14px,1.25vw,19px);font-weight:900;color:#fff;letter-spacing:-.3px}
+.lp-cta p{margin:0 0 11px;max-width:60ch;color:#b6d1e0;font-size:clamp(11.5px,.95vw,13.5px);line-height:1.5}
+.lp-btns{display:flex;flex-wrap:wrap;gap:10px}
+.lp-btn{height:clamp(40px,3.2vw,46px);padding:0 clamp(16px,1.5vw,24px);border-radius:9px;font-size:clamp(11px,.85vw,12.5px);font-weight:900;letter-spacing:1px;text-transform:uppercase;cursor:pointer;display:inline-flex;align-items:center;gap:8px;transition:filter .15s ease,background .15s ease,border-color .15s ease}
+.lp-btn svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.lp-btn-main{border:0;background:linear-gradient(92deg,#0b7fc0,#16b4e6);color:#fff;box-shadow:0 10px 26px rgba(11,127,192,.42)}
+.lp-btn-main:hover{filter:brightness(1.08)}
+.lp-btn-ghost{border:1px solid rgba(46,198,224,.55);background:rgba(9,35,52,.6);color:#cfe9f5}
+.lp-btn-ghost:hover{background:rgba(46,198,224,.14);border-color:#3fc9ec;color:#fff}
+.lp-note{margin:10px 0 0;padding:0;border:0;background:none;color:#a9c8da;font-size:11.5px;line-height:1.55;max-width:74ch}
+.lp-note b{color:#e6f3fb;font-weight:800}
+
+.lp-trust{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.lp-trust li{display:flex;align-items:center;gap:8px;color:#bcd7e6;font-size:clamp(10px,.82vw,11.5px);font-weight:800;line-height:1.25}
+.lp-trust svg{flex:0 0 auto;width:16px;height:16px;fill:none;stroke:#3fc9ec;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+
+/* ---------- Columna de acceso (30%) ---------- */
+.loginbox-wrap{flex:0 1 30%;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:clamp(20px,2.4vw,42px) clamp(16px,2.2vw,34px)}
+.login.split .loginbox{width:100%;max-width:400px}
+.lp-reg{margin:0;padding:13px 15px;border:1px solid rgba(120,190,225,.22);border-radius:12px;background:rgba(7,26,40,.62);color:#a9c8da;font-size:11.5px;line-height:1.55;max-width:400px;width:100%}
+.lp-reg b{display:block;margin-bottom:4px;color:#e6f3fb;font-size:12.5px;font-weight:900}
+.lp-reg i{display:inline-grid;place-items:center;width:16px;height:16px;margin-right:7px;border-radius:50%;background:rgba(46,198,224,.18);color:#3fc9ec;font-style:normal;font-size:10px;font-weight:900;vertical-align:-3px}
+
+/* ---------- Estado sin obras ---------- */
+.noobras{grid-column:1/-1;border:1px solid rgba(86,140,168,.34);border-radius:16px;padding:clamp(22px,3vw,38px);background:linear-gradient(155deg,rgba(17,45,61,.92),rgba(9,28,40,.96));box-shadow:0 18px 45px rgba(0,0,0,.2);position:relative;overflow:hidden}
+.noobras:before{content:"";position:absolute;inset:0 auto auto 0;width:100%;height:3px;background:linear-gradient(90deg,var(--teal),var(--blue),transparent)}
+.noobras-badge{display:inline-flex;align-items:center;gap:7px;padding:6px 11px;border:1px solid rgba(86,189,194,.4);border-radius:999px;background:rgba(11,42,56,.6);color:#8fe0e2;font-size:9.5px;font-weight:900;letter-spacing:1.3px;text-transform:uppercase}
+.noobras h2{margin:14px 0 8px;font-size:clamp(20px,2.2vw,27px);letter-spacing:-.6px;line-height:1.15;color:#fff}
+.noobras p{margin:0 0 6px;max-width:74ch;color:#a9c6d6;font-size:13px;line-height:1.65}
+.noobras p b{color:#e6f3fb;font-weight:800}
+.noobras-steps{list-style:none;margin:16px 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:10px}
+.noobras-steps li{position:relative;padding:12px 13px 12px 34px;border:1px solid rgba(94,160,190,.22);border-radius:11px;background:rgba(10,32,46,.6);color:#a9c6d6;font-size:11.5px;line-height:1.5}
+.noobras-steps li b{display:block;color:#e6f3fb;font-size:12px;font-weight:900;margin-bottom:3px}
+.noobras-steps li:before{content:attr(data-n);position:absolute;left:12px;top:12px;width:15px;height:15px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(140deg,var(--teal),var(--blue));color:#03202a;font-size:9px;font-weight:900}
+
+/* ---------- Responsive ---------- */
+@media(min-width:1500px){
+  .lp-hero{grid-template-columns:minmax(0,.82fr) minmax(0,1.18fr)}
+  .lp-lead{max-width:40ch}
+}
+/* 1180-1499: el mockup va al lado del titulo, como en la referencia, para que
+   la columna entre completa en un monitor de 900 px de alto. */
+@media(min-width:1180px) and (max-width:1499px){
+  .lp-hero{grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);align-items:center;gap:16px}
+  .lp-title{font-size:clamp(30px,2.62vw,40px)}
+  .lp-lead{font-size:13px;max-width:36ch}
+  .lp-cards{gap:10px}
+}
+@media(min-width:1024px){
+  .login.split{flex-direction:row;align-items:stretch;justify-content:center}
+  .login.split .landing{flex:1 1 70%;max-width:none}
+  .login.split .loginbox-wrap{flex:0 1 30%;min-width:340px}
+}
+@media(max-width:1240px){.lp-cards{grid-template-columns:repeat(3,minmax(0,1fr))}.lp-trust{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:1023px){
+  .login.split .loginbox-wrap{flex:0 0 auto;width:100%}
+  .landing-in{background-position:center}
+  .mock-body{grid-template-columns:104px 1fr}
+}
+@media(max-width:860px){.lp-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.lp-cta{flex-direction:column;align-items:flex-start}}
+@media(max-width:640px){
+  .landing-in{padding:20px 16px 24px;gap:16px}
+  .lp-logo{width:168px}
+  .lp-title{font-size:26px;letter-spacing:-1px}
+  .lp-lead{font-size:12.5px}
+  .mock{display:none}
+  .lp-cards{grid-template-columns:1fr;gap:10px}
+  .lpc{padding:14px}
+  .lp-trust{display:none}
+  .lp-btn{width:100%;justify-content:center}
+}
+@media(max-width:400px){.lp-cards{grid-template-columns:1fr}}
+</style>
 </head>
 <body>
 <header class="top"><div class="brand"><img alt="FLECAP" class="brand-logo" height="36" src="assets/brand/flecap-logo.svg" width="142"/></div><div class="user"><span id="userEmail"></span><button class="logout" id="logoutBtn">Salir</button></div></header>
 <main><div class="eyebrow">Gestión de proyectos</div><div class="hero"><div><h1>Seleccioná una obra</h1><p>Se muestran únicamente los proyectos asignados a tu usuario. Cada obra abre su entorno FLECAP independiente.</p></div><div class="count"><b id="projectCount">0</b> obras habilitadas</div></div><section class="grid" id="projectGrid"><div class="empty">Cargando proyectos autorizados…</div></section></main>
-<div class="login hidden" id="login"><div class="loginbox"><div class="loginbrand">FLECAP</div><h2>Acceso a FLECAP</h2><p>Ingresá con tu cuenta autorizada</p><div class="field"><label for="email">Correo autorizado</label><input id="email" type="email" autocomplete="username"></div><div class="field"><label for="password">Contraseña</label><span class="field-pass"><input id="password" type="password" autocomplete="current-password"><button aria-label="Mostrar contraseña" class="eye" id="portalEye" type="button"><svg aria-hidden="true" class="on" viewBox="0 0 24 24"><path d="M2.6 12S6.1 5.9 12 5.9 21.4 12 21.4 12 17.9 18.1 12 18.1 2.6 12 2.6 12z"/><circle cx="12" cy="12" r="2.9"/></svg><svg aria-hidden="true" class="off" viewBox="0 0 24 24"><path d="M3.2 3.2l17.6 17.6"/><path d="M10.4 6.2A9.9 9.9 0 0112 6c5.9 0 9.4 6 9.4 6a17.4 17.4 0 01-3.2 4.1M6.5 8.4A17.5 17.5 0 002.6 12S6.1 18 12 18a9.2 9.2 0 003.4-.7"/><path d="M9.9 9.9a2.9 2.9 0 004.2 4.2"/></svg></button></span></div><label class="keep"><input checked id="portalKeep" type="checkbox"/><span>Mantener sesión iniciada</span></label><button class="loginbtn" id="loginBtn">Ingresar</button><button class="loginsecondary" id="signupBtn" type="button">Crear contraseña / primer ingreso</button><button class="loginsecondary" id="resetBtn" type="button">Olvidé mi contraseña</button><div class="msg" id="msg"></div></div></div>
+<div class="login hidden" id="login"><section class="landing" aria-label="Presentación de FLECAP"><div class="landing-in"><header class="lp-brand"><span class="lp-logo"></span><span class="lp-tagline">Proyectos | Calidad | Seguimiento</span></header><div class="lp-hero"><div class="lp-hero-txt"><h1 class="lp-title">Gestión integrada de <br><span>Calidad, Construcción</span> <br>y Precomisionado</h1><p class="lp-lead">Una plataforma para centralizar el seguimiento de proyectos, trazabilidad y documentación de calidad, desde la construcción hasta la puesta en marcha.</p></div><div class="lp-hero-mock"><div class="mock" aria-hidden="true"><div class="mock-bar"><i></i><i></i><i></i><em class="mock-badge">Vista demostrativa</em><b>FLECAP · Obra de ejemplo</b></div><div class="mock-body"><div class="mock-side"><span class="on">Matriz</span><span class="">Seguimiento Piping</span><span class="">Punch List</span><span class="">Sistemas / Actas</span><span class="">Informe</span><span class="">Maestro</span><span class="">Estado</span><span class="">KPIs</span><span class="">Configuración</span><u></u></div><div class="mock-main"><div class="mock-head"><h4>Matriz de Calidad</h4><span class="mock-pill"><em>UD</em>Usuario de ejemplo</span></div><div class="mock-kpis"><div class="mock-kpi"><b>1.245</b><span><i style="background:Total registros">#1f9d63</i>✓</span></div><div class="mock-kpi"><b>892</b><span><i style="background:Completados">#21a66b</i>✓</span></div><div class="mock-kpi"><b>218</b><span><i style="background:En proceso">#f0a52e</i>◐</span></div><div class="mock-kpi"><b>135</b><span><i style="background:Pendientes">#e05c4f</i>!</span></div></div><table class="mock-table"><thead><tr><th>TAG / Línea</th><th>Descripción</th><th>Disciplina</th><th>Estado</th><th>Última actualización</th></tr></thead><tbody><tr><td>TAG-001</td><td>Registro de ejemplo</td><td>Piping</td><td><span class="dot-ok"></span></td><td>—</td></tr><tr><td>TAG-002</td><td>Registro de ejemplo</td><td>Piping</td><td><span class="dot-run"></span></td><td>—</td></tr><tr><td>TAG-003</td><td>Registro de ejemplo</td><td>Mecánica</td><td><span class="dot-ok"></span></td><td>—</td></tr><tr><td>TAG-004</td><td>Registro de ejemplo</td><td>Instrumentación</td><td><span class="dot-run"></span></td><td>—</td></tr><tr><td>TAG-005</td><td>Registro de ejemplo</td><td>Electricidad</td><td><span class="dot-pend"></span></td><td>—</td></tr></tbody></table></div></div></div><p class="mock-cap">Vista demostrativa: datos de ejemplo, no corresponden a ninguna obra real.</p></div></div><ul class="lp-cards is-compact" id="caps"><li class="lpc"><span class="lpc-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h4"/></svg></span><div><b>Matriz de Calidad</b><span>Control y seguimiento de registros, inspecciones y liberaciones.</span></div></li><li class="lpc"><span class="lpc-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v4a8 8 0 0 1-8 8 8 8 0 0 1-8-8z"/><path d="M4 7l3.5-4h9L20 7"/><rect x="9" y="10" width="6" height="4.5" rx="1"/></svg></span><div><b>Trazabilidad de Soldadura</b><span>Registro y trazabilidad de uniones, END y consumos.</span></div></li><li class="lpc"><span class="lpc-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h6v10h9"/><path d="M18 7h3v10h-3"/><circle cx="9" cy="7" r="0"/><path d="M6 4v6M6 14v6"/><circle cx="6" cy="17" r="2.5"/><path d="M14 17h4"/></svg></span><div><b>Seguimiento de Piping</b><span>Avance por pulgadas soldadas y curva S de la línea.</span></div></li><li class="lpc"><span class="lpc-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V2.6h6V4"/><path d="M9 11l2 2 4-4.5"/></svg></span><div><b>Punch List</b><span>Gestión de observaciones y cierre de pendientes.</span></div></li><li class="lpc"><span class="lpc-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.2 5.2l2.1 2.1M16.7 16.7l2.1 2.1M18.8 5.2l-2.1 2.1M7.3 16.7l-2.1 2.1"/></svg></span><div><b>Precomisionado</b><span>Registros por disciplina y sistema, hasta la puesta en marcha.</span></div></li><li class="lpc"><span class="lpc-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h8l5 5v13H6z"/><path d="M14 3v5h5"/><path d="M9 13h7M9 17h5"/></svg></span><div><b>Sistemas y Actas</b><span>Documentación, reuniones y cierre de sistemas.</span></div></li><li class="lpc"><span class="lpc-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 20h18"/><path d="M6.5 20v-6M11 20V7M15.5 20v-9M20 20v-4"/></svg></span><div><b>KPIs e Informes</b><span>Indicadores de avance, curva S y reportes por disciplina.</span></div></li><li class="lpc"><span class="lpc-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="6" rx="7.5" ry="3"/><path d="M4.5 6v6c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3V6"/><path d="M4.5 12v6c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3v-6"/></svg></span><div><b>Multi-obras</b><span>Gestión centralizada de múltiples proyectos y obras.</span></div></li></ul><section class="lp-cta"><span class="lp-cta-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.6 2.9-5.6 6.5-5.6s6.5 2 6.5 5.6"/><circle cx="17.6" cy="9.4" r="2.4"/><path d="M17.6 15c2.4.3 3.9 2 3.9 5"/></svg></span><div><h2>¿Querés implementar FLECAP en tu proyecto?</h2><p>Solicitá acceso o una demostración. Te mostramos cómo FLECAP puede adaptarse a las necesidades de tu proyecto.</p><div class="lp-btns"><button aria-controls="caps" aria-expanded="false" class="lp-btn lp-btn-ghost" id="ctaKnow" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17l5-5 4 3 8-9"/><path d="M15 6h5v5"/></svg>Conocer FLECAP</button><button class="lp-btn lp-btn-main" id="ctaAccess" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3.5 7l8.5 6 8.5-6"/></svg>Solicitar acceso</button></div><p class="lp-note" id="landingNote" hidden></p></div></section><ul class="lp-trust"><li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.4 8-8 9-4.6-1-8-4-8-9V6z"/><path d="M9.2 12.2l2 2 3.6-4"/></svg><span>Información centralizada</span></li><li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17l5-5 4 3 8-9"/><path d="M15 6h5v5"/></svg><span>Trazabilidad y control</span></li><li><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8.5" r="3"/><path d="M2.8 20c0-3.4 2.8-5.2 6.2-5.2s6.2 1.8 6.2 5.2"/><circle cx="17.5" cy="9.5" r="2.3"/><path d="M17.5 15.2c2.3.3 3.7 1.9 3.7 4.8"/></svg><span>Mejora la gestión de calidad</span></li><li><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.8 5.8l1.8 1.8M16.4 16.4l1.8 1.8M18.2 5.8l-1.8 1.8M7.6 16.4l-1.8 1.8"/></svg><span>Adaptable a distintos proyectos</span></li></ul></div></section><div class="loginbox-wrap"><div class="loginbox"><div class="loginbrand">FLECAP</div><h2>Acceso a FLECAP</h2><p>Ingresá con tu cuenta autorizada</p><div class="field"><label for="email">Correo autorizado</label><input id="email" type="email" autocomplete="username"></div><div class="field"><label for="password">Contraseña</label><span class="field-pass"><input id="password" type="password" autocomplete="current-password"><button aria-label="Mostrar contraseña" class="eye" id="portalEye" type="button"><svg aria-hidden="true" class="on" viewBox="0 0 24 24"><path d="M2.6 12S6.1 5.9 12 5.9 21.4 12 21.4 12 17.9 18.1 12 18.1 2.6 12 2.6 12z"/><circle cx="12" cy="12" r="2.9"/></svg><svg aria-hidden="true" class="off" viewBox="0 0 24 24"><path d="M3.2 3.2l17.6 17.6"/><path d="M10.4 6.2A9.9 9.9 0 0112 6c5.9 0 9.4 6 9.4 6a17.4 17.4 0 01-3.2 4.1M6.5 8.4A17.5 17.5 0 002.6 12S6.1 18 12 18a9.2 9.2 0 003.4-.7"/><path d="M9.9 9.9a2.9 2.9 0 004.2 4.2"/></svg></button></span></div><label class="keep"><input checked id="portalKeep" type="checkbox"/><span>Mantener sesión iniciada</span></label><button class="loginbtn" id="loginBtn">Ingresar</button><button class="loginsecondary" id="signupBtn" type="button">Crear contraseña / primer ingreso</button><button class="loginsecondary" id="resetBtn" type="button">Olvidé mi contraseña</button><div class="msg" id="msg"></div></div><p class="lp-reg"><b><i>i</i>FLECAP no tiene registro público.</b>El acceso y la asignación de obras se realizan a través de usuarios autorizados.</p></div>
 <div class="login hidden" id="newProjectModal"><div class="loginbox"><div class="loginbrand">FLECAP</div><h2>Nueva obra</h2><p>La obra quedará separada por Project ID y utilizará la aplicación FLECAP común.</p><div class="field"><label>Empresa</label><input id="newCompany" value="PECOM"></div><div class="field"><label>Nombre de la obra</label><input id="newProjectName" placeholder="Ej.: Río Tinto"></div><button class="loginbtn" id="createProjectBtn">Crear obra</button><button class="logout" style="width:100%;margin-top:8px" id="cancelProjectBtn">Cancelar</button><div class="msg" id="newProjectMsg"></div></div></div>
 <script>
 const CONFIG={url:'https://vbdfspjibkyjyailhraa.supabase.co',key:'sb_publishable_6uBEk-7IhpJ1g2Vt_GKSeg_HmawNkP3'};
@@ -168,7 +309,7 @@ function render(list){
  $('projectCount').textContent=list.length;
  const cards=list.map(p=>`<article class="card"><div class="status"><i></i>Proyecto habilitado</div><div class="company">${esc(p.company||'PECOM')}</div><h2>${esc(p.name||'Proyecto')}</h2><div class="meta">Acceso asignado a ${esc(currentEmail)}</div><button class="open" data-id="${esc(p.id)}">ABRIR OBRA →</button></article>`).join('');
  const add=currentRole==='admin'?`<article class="newcard show" id="newProjectCard"><div><b>+</b><span>NUEVA OBRA</span><small>Crear proyecto FLECAP</small></div></article>`:'';
- $('projectGrid').innerHTML=(cards||add)?cards+add:'<div class="empty">Tu usuario está autorizado en FLECAP, pero no tiene obras asignadas.</div>';
+ $('projectGrid').innerHTML=(cards||add)?cards+add:'<div class="noobras">' + '<div class="noobras-badge">Cuenta activa</div>' + '<h2>Todavía no tenés proyectos asignados</h2>' + '<p>Tu cuenta <b>'+esc(currentEmail)+'</b> está activa y autorizada en FLECAP, pero todavía no tiene ninguna obra asignada. Esto no es un error: simplemente estás esperando a que el administrador te asigne una.</p>' + '<p>En cuanto asigne la obra, va a aparecer en esta pantalla y podrás abrirla con un solo clic.</p>' + '<ul class="noobras-steps">' + '<li data-n="1"><b>Pedí la asignación</b>Escribile al administrador con tu correo y el nombre de la obra.</li>' + '<li data-n="2"><b>Verificá tu correo</b>Debe coincidir con el usuario habilitado en FLECAP.</li>' + '<li data-n="3"><b>Actualizá esta pantalla</b>La obra asignada aparecerá sola, sin volver a iniciar sesión.</li>' + '</ul></div>';
  document.querySelectorAll('.open').forEach(b=>b.onclick=async()=>{
   const p=list.find(x=>String(x.id)===String(b.dataset.id));if(!p)return;
   try{
@@ -350,7 +491,37 @@ function remember(){
   var mail=byId('email'),value=mail?String(mail.value||'').trim().toLowerCase():'';
   try{if(el.checked&&value)localStorage.setItem(LAST,value);else if(!el.checked)localStorage.removeItem(LAST)}catch(e){}
 }
+/* Portada institucional: manejadores PUREMENTE visuales. No crean usuarios,
+   no escriben en Supabase y no cambian la sesión. */
+function landingNote(html){
+  var n=byId('landingNote');if(!n)return;
+  n.innerHTML=html;
+  if(n.hidden)n.hidden=false;
+}
+function bootLanding(){
+  var login=byId('login');
+  if(login)login.classList.add('split');
+  var caps=byId('caps');
+  var know=byId('ctaKnow');
+  if(know&&caps){
+    know.addEventListener('click',function(){
+      var compact=caps.classList.toggle('is-compact');
+      know.setAttribute('aria-expanded',compact?'false':'true');
+    });
+  }
+  var access=byId('ctaAccess');
+  if(access){
+    access.addEventListener('click',function(){
+      var mail=byId('email');
+      if(mail&&!String(mail.value||'').trim())mail.focus();
+      landingNote('<b>FLECAP no permite registrarse solo.</b> Solicitá el acceso al administrador de la '
+        +'plataforma indicando tu correo corporativo y la obra a la que necesitás entrar. Con tu usuario '
+        +'habilitado, la obra asignada aparece en esta misma pantalla.');
+    });
+  }
+}
 function boot(){
+  bootLanding();
   var keep=readKeep();
   var mail=byId('email');
   if(mail){
