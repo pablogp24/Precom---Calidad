@@ -5722,46 +5722,84 @@ importExcelFile.onchange=async()=>{
       persist();
       window.FLECAP_PERF.persistLocalMs=Math.round(performance.now()-_fpP0);
       const _fpL0=performance.now();
+      /* FLECAP FIX 2026-10-03 (importacion XLSM): durante la importacion
+         persist() sale por la rama "suppressed" (window.FLECAP_IMPORT_IN_PROGRESS)
+         y no escribe ni IndexedDB ni Supabase, y ademas este bloque se saltaba
+         el guardado local porque la importacion seguia en curso. La matriz
+         importada no quedaba guardada en ningun lado y al volver a los modulos
+         los datos seguian como antes. Ahora la importacion escribe SIEMPRE el
+         estado durable local y, si ese guardado falla, el error se informa. */
+      const _fpLocalIssues=[];
       if(window.FLECAP_LARGE_STATE){
-        if(window.FLECAP_IMPORT_IN_PROGRESS){
-          /* persist() ya guardó este mismo snapshot en IndexedDB (perf 2026-09-20):
-             se evita el segundo guardado idéntico del estado completo. */
-          window.FLECAP_PERF.secondIdbSaveSkipped=true;
-        }else{
+        try{
           const durable=window.FLECAP_compactStateForLocalStorage?window.FLECAP_compactStateForLocalStorage(state):state;
           await window.FLECAP_LARGE_STATE.save(importedProject,durable);
+        }catch(_fpLocalError){
+          _fpLocalIssues.push('no se pudo guardar en este equipo: '+((_fpLocalError&&_fpLocalError.message)||_fpLocalError));
+          console.error('FLECAP: no se pudo guardar la importacion en IndexedDB',_fpLocalError);
         }
+      }else{
+        try{localStorage.setItem('flecap_project_state::'+importedProject,JSON.stringify(state))}
+        catch(_fpLocalError){_fpLocalIssues.push('no se pudo guardar en este equipo (almacenamiento local lleno): '+((_fpLocalError&&_fpLocalError.message)||_fpLocalError))}
       }
       window.FLECAP_PERF.largeStateMs=Math.round(performance.now()-_fpL0);
+      /* FLECAP FIX 2026-10-03: la escritura en Supabase pasa a ser obligatoria y
+         verificada. Antes un fallo de permisos/RLS en flecap_matrix_store o en
+         app_state solo quedaba en la consola y la importacion se anunciaba
+         igual como "correctamente", con lo que el usuario veía la matriz vieja.
+         Ahora sejunlan los errores y se muestran en el resumen final. */
+      const _fpRemoteIssues=[];
       const _fpM0=performance.now();
       if(window.PECOM_SUPABASE&&window.FLECAP_MATRIX_DB){
         try{await window.FLECAP_MATRIX_DB.saveModule(importedModule);window.FLECAP_IMPORT_MATRIX_OK=true}
-        catch(matrixDbError){window.FLECAP_IMPORT_MATRIX_OK=false;console.error('FLECAP: no se pudo guardar la matriz central',matrixDbError);alert('La matriz se cargó localmente, pero no pudo guardarse en la tabla central de Supabase.\n\n'+(matrixDbError.message||matrixDbError));}
+        catch(matrixDbError){
+          window.FLECAP_IMPORT_MATRIX_OK=false;
+          const msg=(matrixDbError&&matrixDbError.message)||String(matrixDbError);
+          _fpRemoteIssues.push('matriz central (flecap_matrix_store): '+msg);
+          console.error('FLECAP: no se pudo guardar la matriz central',matrixDbError);
+        }
+      }else{
+        _fpRemoteIssues.push('la conexion con Supabase no esta disponible');
       }
       window.FLECAP_PERF.matrixStoreMs=Math.round(performance.now()-_fpM0);
       window.FLECAP_PERF.remoteOps.matrixStore=1;
       // El estado grande queda en IndexedDB. En localStorage se conserva SOLAMENTE
-      // el stub que escribe FLECAP_LARGE_STATE.save(). No volver a guardar aquí el
-      // JSON completo: una matriz grande supera la cuota del navegador y hacía que
-      // una importación correcta terminara mostrando “No se pudo importar/analizar”.
+      // el stub que escribe FLECAP_LARGE_STATE.save(). No volver a guardar aqui el
+      // JSON completo: una matriz grande supera la cuota del navegador.
 
-      // Sincronización online: no invalida una importación local ya confirmada.
-      // El guardado local/IndexedDB es la fuente inmediata para F5; Supabase se
-      // actualiza en segundo plano y cualquier error queda visible en consola.
       const _fpA0=performance.now();
       if(window.cloudReady&&window.PECOM_SUPABASE){
         const activeProject=localStorage.getItem("flecap_active_project_v1")||"legacy";
         try{
+          /* .select().single() devuelve la fila ya escrita: si las politicas de
+             seguridad (RLS) la rechazan llega un error real y no un simple "no
+             informo nada", que es lo que ocultaba el fallo al usuario. */
           const cloudResult=await window.PECOM_SUPABASE.from("app_state").upsert({
             id:activeProject,
             payload:state,
             updated_by:String(window.PECOM_CURRENT_EMAIL||"").toLowerCase()
-          },{onConflict:"id"});
-          if(cloudResult&&cloudResult.error)console.error("FLECAP: la matriz quedó guardada localmente, pero falló la sincronización online",cloudResult.error);else{window.FLECAP_IMPORT_REMOTE_OK=true}
-        }catch(cloudError){console.error("FLECAP: error de sincronización online de matriz",cloudError)}
+          },{onConflict:"id"}).select("id,updated_at").maybeSingle();
+          const cloudErr=(cloudResult&&cloudResult.error)||null;
+          if(cloudErr){
+            console.error("FLECAP: la matriz quedo guardada localmente, pero fallo la sincronizacion online",cloudErr);
+            _fpRemoteIssues.push('estado de la obra (app_state): '+(cloudErr.message||String(cloudErr)));
+          }else{window.FLECAP_IMPORT_REMOTE_OK=true}
+        }catch(cloudError){
+          console.error("FLECAP: error de sincronizacion online de matriz",cloudError);
+          _fpRemoteIssues.push('estado de la obra (app_state): '+((cloudError&&cloudError.message)||String(cloudError)));
+        }
+      }else{
+        _fpRemoteIssues.push('la conexion con Supabase no esta disponible');
       }
       window.FLECAP_PERF.appStateMs=Math.round(performance.now()-_fpA0);
       window.FLECAP_PERF.remoteOps.appStateUpsert=1;
+      /* FLECAP FIX 2026-10-03: una vez confirmada la escritura, los modulos se
+         vuelven a leer desde Supabase. Asi lo que se ve en pantalla es lo que
+         quedo guardado, y no una copia local que todavia no subio. */
+      if(window.FLECAP_IMPORT_MATRIX_OK&&window.FLECAP_MATRIX_DB){
+        try{await window.FLECAP_MATRIX_DB.loadAll()}
+        catch(_fpReloadError){console.warn('FLECAP: no se pudo releer la matriz guardada',_fpReloadError)}
+      }
       const _fpR0=performance.now();
       renderAll();
       if(window.PECOM_ROLE) setTimeout(()=>applyPecomRole(window.PECOM_ROLE),0);
@@ -5775,18 +5813,42 @@ importExcelFile.onchange=async()=>{
       const addedCount=newTags.filter(t=>{const n=String(t.tag||"").trim();return !oldNames.has(n)&&!renamedNewNames.has(n)}).length;
       const renamedCount=renamePairs.length;
       const retainedCount=newTags.length-addedCount-renamedCount;
+      /* FLECAP FIX 2026-10-03: el resumen distingue actualizados de "sin cambios"
+         comparando cada TAG contra el valor anterior. Antes todo TAG preexistente
+         se contaba como "actualizado" aunque fuera identico, lo que hacia imposible
+         verificar a simple vista si la importacion realmente cambio algo.
+         La comparacion usa matrixStatus (0 / 1P / 1) para no depender de si el
+         estado viejo guardaba las claves por letra de columna o por encabezado. */
+      const _fpMatrixOf=t=>{const o={};(state.masters||[]).forEach(m=>{const col=String((m&&m.origen_columna)||"").trim();if(!col)return;const v=matrixStatus(t,col);if(v!==null)o[col]=v});return o};
+      const _fpShapeOf=t=>JSON.stringify([String(t.especialidad||""),String(t.descripcion||""),String(t.documento||""),String(t.status_index||""),String(t.sistema||""),String(t.desc_sistema||""),String(t.subsistema||""),String(t.desc_subsistema||""),_fpMatrixOf(t)]);
+      let updatedCount=0,unchangedCount=0;
+      newTags.forEach(nt=>{
+        const name=String(nt.tag||"").trim();
+        if(renamedNewNames.has(name))return;
+        const prev=oldByTag.get(name);
+        if(!prev)return;
+        if(_fpShapeOf(prev)===_fpShapeOf(nt))unchangedCount++;else updatedCount++;
+      });
+      const importErrors=_fpRemoteIssues.concat(_fpLocalIssues);
+      const savedRemotely=!!(window.FLECAP_IMPORT_REMOTE_OK&&window.FLECAP_IMPORT_MATRIX_OK);
+      const _fpErrores=importErrors.length;
+      const _fpTitulo=_fpErrores
+        ? "\u26a0 ATENCI\u00d3N: la matriz se import\u00f3 en este equipo, pero NO qued\u00f3 guardada en Supabase."
+        : "\u2705 Matriz importada correctamente.";
       alert(
-        `Matriz importada correctamente.\n\n`+
-        `TAG en Excel: ${newTags.length}\n`+
-        `TAG existentes actualizados: ${retainedCount}\n`+
-        (renamedCount?`TAG renombrados conservando sus datos: ${renamedCount}\n`:"")+
-        `TAG nuevos agregados: ${addedCount}\n`+
-        `Registros nuevos agregados: ${addedMasterCount}`+
-        (removedCount?`\nTAG quitados de la matriz: ${removedCount}`:"")+
-        (keptMissingCount?`\nTAG anteriores conservados: ${keptMissingCount}`:"")+
-        `\nRegistros computados como Pendientes (0): ${importedPending}`+
-        `\nRegistros computados como Presentados (1P): ${importedPresented}`+
-        `\nRegistros computados como Realizados (1): ${importedRealized}`+
+        _fpTitulo+
+        `\n\nM\u00f3dulo importado: ${importedModule==="precom"?"Precomisionado":"Calidad"}`+
+        `\n\nRegistros le\u00eddos: ${newTags.length}`+
+        `\n\u2022 Actualizados: ${updatedCount}`+
+        `\n\u2022 Nuevos: ${addedCount}`+
+        `\n\u2022 Sin cambios: ${unchangedCount}`+
+        (renamedCount?`\n\u2022 Renombrados (se conservaron sus datos): ${renamedCount}`:"")+
+        (removedCount?`\n\u2022 Quitados de la matriz: ${removedCount}`:"")+
+        (keptMissingCount?`\n\u2022 TAG anteriores conservados: ${keptMissingCount}`:"")+
+        `\n\u2022 Errores: ${_fpErrores}`+
+        `\n\nEstado por columna \u2014 Pendientes (0): ${importedPending} \u00b7 Presentados (1P): ${importedPresented} \u00b7 Realizados (1): ${importedRealized}`+
+        `\n\nGuardado en Supabase: ${savedRemotely?"s\u00ed, verificado":"NO \u2014 los datos pueden perderse al cerrar o recargar"}`+
+        (_fpErrores?`\n\nDetalle de los errores:\n- ${importErrors.join("\n- ")}\n\nVolv\u00e9 a intentarlo cuando recuperes la conexi\u00f3n. No cierres FLECAP hasta que figure "s\u00ed, verificado".`:"")+
         `\n\nSe conservaron los datos complementarios de los registros, el Maestro y los Punch.`
       );
    }else{

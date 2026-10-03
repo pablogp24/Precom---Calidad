@@ -2,7 +2,11 @@
    Red primero para todo lo crítico: la aplicación nunca se sirve desde la caché
    mientras hay red, así que no se entrega una versión anterior. La caché sólo
    entra cuando la red no responde. */
-const CACHE = 'flecap-matriz-unica-20261001-r6';
+/* r7: sólo cambia el nombre de la caché. El documento de la app se sigue
+   sirviendo con red primero y `cache:'no-store'`, de modo que con conexión
+   nunca se entrega una versión anterior; el bump refresca de inmediato la
+   copia precacheada que se usa sólo cuando no hay red. */
+const CACHE = 'flecap-matriz-unica-20261001-r7';
 const STATIC = [
   './manifest.webmanifest',
   './portal-nuevo.html',
