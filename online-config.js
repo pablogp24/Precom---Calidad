@@ -1,7 +1,7 @@
 // FLECAP · configuración online
 window.PECOM_ONLINE = {
-  supabaseUrl: "https://vbdfspjibkyjyailhraa.supabase.co",
-  supabaseAnonKey: "sb_publishable_6uBEk-7IhpJ1g2Vt_GKSeg_HmawNkP3",
+  supabaseUrl: "https://fujtkmsmoeewfelhpckh.supabase.co",
+  supabaseAnonKey: "sb_publishable_okl7QJvuSMDWa_aw2yUABw_XFjc39IT",
 };
 
 // Alias de compatibilidad. El core actual usa PECOM_ONLINE.
