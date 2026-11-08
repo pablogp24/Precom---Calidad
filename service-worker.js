@@ -6,7 +6,7 @@
    sirviendo con red primero y `cache:'no-store'`, de modo que con conexión
    nunca se entrega una versión anterior; el bump refresca de inmediato la
    copia precacheada que se usa sólo cuando no hay red. */
-const CACHE = 'flecap-matriz-unica-20261001-r7';
+const CACHE = 'flecap-matriz-unica-20261108-r8';
 const STATIC = [
   './manifest.webmanifest',
   './portal-nuevo.html',
@@ -45,7 +45,17 @@ self.addEventListener('fetch', event => {
     // obra: si esa copia no estaba, respondía vacío y la aplicación quedaba en
     // blanco para siempre. Ahora se encadena la misma solicitud, luego el
     // documento de la app y por último la portada.
-    event.respondWith(fetch(event.request,{cache:'no-store'}).catch(async()=>{
+    event.respondWith(fetch(event.request,{cache:'no-store'}).then(async response=>{
+      if(url.pathname.endsWith('/proyectos/app/') || url.pathname.endsWith('/proyectos/app/index.html')){
+        if(!response.ok || !response.headers.get('content-type')?.includes('text/html'))return response;
+        const html=await response.text();
+        const tag='<script defer src="/rio-tinto-integration.js"></'+'script>';
+        if(html.includes('rio-tinto-integration.js'))return new Response(html,{status:response.status,headers:{'Content-Type':'text/html; charset=utf-8'}});
+        const output=html.includes('</body>')?html.replace('</body>',tag+'</body>'):html+tag;
+        return new Response(output,{status:response.status,headers:{'Content-Type':'text/html; charset=utf-8'}});
+      }
+      return response;
+    }).catch(async()=>{
       const own = await caches.match(event.request,{ignoreSearch:true});
       if (own) return own;
       const app = await caches.match(APP_DOC,{ignoreSearch:true});
