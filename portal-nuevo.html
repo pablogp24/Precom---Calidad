@@ -340,7 +340,7 @@ async function projectsFor(email,role){
  if(m.error)throw m.error;
  return (m.data||[]).filter(x=>(x.quality_access&&x.quality_access!=='none')||(x.precom_access&&x.precom_access!=='none')).map(x=>x.projects).filter(Boolean).sort((a,b)=>String(a.created_at||'').localeCompare(String(b.created_at||'')));
 }
-function routeFor(p){return p.id==='rio-tinto-cm6003'?'./rio-tinto-cm6003.html':'./proyectos/app/?project='+encodeURIComponent(p.id)+'&from=portal'}
+function routeFor(p){return './proyectos/app/?project='+encodeURIComponent(p.id)+'&from=portal'}
 function render(list){
  $('projectCount').textContent=list.length;
  const cards=list.map(p=>`<article class="card"><div class="status"><i></i>Proyecto habilitado</div><div class="company">${esc(p.company||'PECOM')}</div><h2>${esc(p.name||'Proyecto')}</h2><div class="meta">Acceso asignado a ${esc(currentEmail)}</div><button class="open" data-id="${esc(p.id)}">ABRIR OBRA →</button></article>`).join('');
